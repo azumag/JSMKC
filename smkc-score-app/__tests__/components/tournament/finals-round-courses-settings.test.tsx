@@ -2,12 +2,42 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsRoundCoursesSettings } from '@/components/tournament/finals-round-courses-settings';
+import enMessages from '../../../messages/en.json';
+import jaMessages from '../../../messages/ja.json';
+
+const mockFinalsMessages = { en: enMessages.finals, ja: jaMessages.finals };
+let mockLocale: keyof typeof mockFinalsMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: keyof typeof enMessages.finals) => mockFinalsMessages[mockLocale][key],
+}));
 
 describe('FinalsRoundCoursesSettings', () => {
   const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    mockLocale = 'en';
+  });
+
   afterEach(() => {
     global.fetch = originalFetch;
     jest.restoreAllMocks();
+  });
+
+  it('uses the localized associated label as the input accessible name', () => {
+    mockLocale = 'ja';
+    render(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4 }}
+        matches={[
+          { id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4, assignedCourses: ['MC1'] },
+        ]}
+        endpoint="/api/test"
+        onSaved={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('ラウンドのコース')).toHaveValue('MC1');
   });
 
   it('resets unsaved input when the selected match changes even if the saved courses are the same', () => {
