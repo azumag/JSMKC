@@ -28,14 +28,7 @@ export interface CountrySelectProps {
   className?: string;
 }
 
-export function CountrySelect({
-  value,
-  onChange,
-  locale = 'en',
-  id,
-  placeholder,
-  className,
-}: CountrySelectProps) {
+export function CountrySelect({ value, onChange, locale = 'en', id, placeholder, className }: CountrySelectProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [activeIndex, setActiveIndex] = React.useState(-1);
@@ -183,12 +176,7 @@ export function CountrySelect({
               className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <ul
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            className="max-h-60 overflow-y-auto overscroll-contain py-1"
-          >
+          <ul ref={listRef} id={listboxId} role="listbox" className="max-h-60 overflow-y-auto overscroll-contain py-1">
             {/* Clear option to unset the country. */}
             <li>
               <button
@@ -222,9 +210,7 @@ export function CountrySelect({
                 </button>
               </li>
             ))}
-            {filtered.length === 0 && (
-              <li className="px-3 py-2 text-sm text-muted-foreground">{noMatchLabel}</li>
-            )}
+            {filtered.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">{noMatchLabel}</li>}
           </ul>
         </Popover.Content>
       </Popover.Portal>
