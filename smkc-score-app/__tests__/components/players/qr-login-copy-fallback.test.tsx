@@ -33,8 +33,12 @@ async function renderIssuedQr() {
 
   render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
   fireEvent.click(screen.getByRole('button', { name: 'qrLogin' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/players/player-1/qr-login-token'));
   await waitFor(() => expect(screen.getByRole('button', { name: 'issueQrCode' })).toBeInTheDocument());
   fireEvent.click(screen.getByRole('button', { name: 'issueQrCode' }));
+  await waitFor(() =>
+    expect(fetchMock).toHaveBeenCalledWith('/api/players/player-1/qr-login-token', { method: 'POST' }),
+  );
   await waitFor(() => expect(screen.getByLabelText('qrLoginUrl')).toBeInTheDocument());
 
   return screen.getByLabelText('qrLoginUrl') as HTMLInputElement;
