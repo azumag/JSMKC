@@ -62,9 +62,11 @@ describe('QR login sensitive state cleanup (issue #3655)', () => {
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
     fireEvent.click(screen.getByRole('button', { name: 'qrLogin' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'issueQrCode' })).toBeInTheDocument());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const issueButton = await screen.findByRole('button', { name: 'issueQrCode' });
+    await waitFor(() => expect(issueButton).not.toBeDisabled());
 
-    fireEvent.click(screen.getByRole('button', { name: 'issueQrCode' }));
+    fireEvent.click(issueButton);
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith('/api/players/player-1/qr-login-token', { method: 'POST' }),
     );
