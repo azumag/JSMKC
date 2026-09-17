@@ -10,7 +10,7 @@ function readMatchPage(mode: 'mr' | 'gp') {
 
 function readMessages(locale: 'en' | 'ja') {
   return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'messages', `${locale}.json`), 'utf8')) as {
-    match?: { selectPlayer?: string };
+    match?: { selectPlayer?: string; completeAllRaceFields?: string };
   };
 }
 
@@ -35,6 +35,15 @@ describe('MR/GP match report error fallback contract (issue #3588)', () => {
     expect(source).not.toContain("setError('Please select which player you are');");
     expect(readMessages('en').match?.selectPlayer).toBe('Please select which player you are');
     expect(readMessages('ja').match?.selectPlayer).toBe('自分がどちらのプレイヤーか選択してください');
+  });
+
+  it('localizes MR incomplete-race validation through the shared match key', () => {
+    const source = readMatchPage('mr');
+
+    expect(source).toContain("setError(tMatch('completeAllRaceFields'));");
+    expect(source).not.toContain('Please select the winner for all ${TOTAL_MR_RACES} races');
+    expect(readMessages('en').match?.completeAllRaceFields).toBe('Please complete all race fields.');
+    expect(readMessages('ja').match?.completeAllRaceFields).toBe('すべてのレースフィールドを入力してください。');
   });
 
   it('does not use the GP submit button label as an error fallback', () => {
