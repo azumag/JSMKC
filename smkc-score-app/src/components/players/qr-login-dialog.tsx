@@ -319,12 +319,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
               {qrImageUrl && (
                 <div className="flex justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element -- locally generated data: URI, not an optimizable remote image */}
-                  <img
-                    src={qrImageUrl}
-                    alt={t('qrCodeAlt', { nickname: playerNickname })}
-                    width={220}
-                    height={220}
-                  />
+                  <img src={qrImageUrl} alt={t('qrCodeAlt', { nickname: playerNickname })} width={220} height={220} />
                 </div>
               )}
               <div className="space-y-2">
