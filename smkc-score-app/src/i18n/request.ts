@@ -21,6 +21,8 @@ import enLoadingSkeleton from '../../messages/loading-skeleton/en.json';
 import jaLoadingSkeleton from '../../messages/loading-skeleton/ja.json';
 import enLoadingSpinner from '../../messages/loading-spinner/en.json';
 import jaLoadingSpinner from '../../messages/loading-spinner/ja.json';
+import enLocaleSwitcher from '../../messages/locale-switcher/en.json';
+import jaLocaleSwitcher from '../../messages/locale-switcher/ja.json';
 import enMatchValidation from '../../messages/match-validation/en.json';
 import jaMatchValidation from '../../messages/match-validation/ja.json';
 import enRankCell from '../../messages/rank-cell/en.json';
@@ -55,6 +57,11 @@ const loadingSpinnerMessages = {
   en: enLoadingSpinner,
   ja: jaLoadingSpinner,
 } satisfies Record<Locale, typeof enLoadingSpinner>;
+
+const localeSwitcherMessages = {
+  en: enLocaleSwitcher,
+  ja: jaLocaleSwitcher,
+} satisfies Record<Locale, typeof enLocaleSwitcher>;
 
 const matchValidationMessages = {
   en: enMatchValidation,
@@ -92,6 +99,7 @@ async function loadMessages(locale: Locale) {
     loadingOverlay: loadingOverlayMessages[locale],
     loadingSkeleton: loadingSkeletonMessages[locale],
     loadingSpinner: loadingSpinnerMessages[locale],
+    localeSwitcher: localeSwitcherMessages[locale],
     rankCell: rankCellMessages[locale],
     tournamentLayout: tournamentLayoutMessages[locale],
     match: {
