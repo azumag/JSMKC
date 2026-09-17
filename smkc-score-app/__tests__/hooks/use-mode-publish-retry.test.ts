@@ -23,12 +23,10 @@ describe('useModePublish initial-load retry (issue #3624)', () => {
   });
 
   it('retries a failed summary load and restores the published state without a PUT', async () => {
-    mockedFetchWithRetry
-      .mockResolvedValueOnce({ ok: false, status: 503 } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: { publicModes: ['bm'] } }),
-      } as Response);
+    mockedFetchWithRetry.mockResolvedValueOnce({ ok: false, status: 503 } as Response).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { publicModes: ['bm'] } }),
+    } as Response);
 
     const { result } = renderHook(() => useModePublish('t-1', 'bm'));
 
