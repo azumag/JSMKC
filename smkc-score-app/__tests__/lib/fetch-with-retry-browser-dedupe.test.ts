@@ -30,6 +30,10 @@ describe('fetchWithRetry browser GET dedupe', () => {
       writable: true,
     });
     fetchSpy = jest.spyOn(globalThis, 'fetch');
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation((fn: TimerHandler) => {
+      if (typeof fn === 'function') fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
   });
 
   afterEach(() => {
@@ -56,6 +60,20 @@ describe('fetchWithRetry browser GET dedupe', () => {
     expect(firstResponse.status).toBe(200);
     expect(secondResponse.status).toBe(200);
     expect(firstResponse).not.toBe(secondResponse);
+  });
+
+  it('cleans a rejected in-flight GET so a later request starts a fresh fetch', async () => {
+    fetchSpy
+      .mockRejectedValueOnce(new Error('first network failure'))
+      .mockRejectedValueOnce(new Error('second network failure'))
+      .mockResolvedValueOnce(makeFetchResponse());
+
+    await expect(fetchWithRetry('/api/rejected-dedupe')).rejects.toThrow('second network failure');
+
+    const recovered = await fetchWithRetry('/api/rejected-dedupe');
+
+    expect(recovered.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
   it('does not dedupe GETs that carry caller-specific AbortSignals', async () => {

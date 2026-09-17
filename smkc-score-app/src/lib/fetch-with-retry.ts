@@ -88,11 +88,14 @@ export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestIni
     if (!request) {
       request = fetchWithRetryRaw(input, init).then(snapshotResponse);
       inFlightApiGets.set(key, request);
-      request.finally(() => {
+      const cleanup = () => {
         if (inFlightApiGets.get(key) === request) {
           inFlightApiGets.delete(key);
         }
-      });
+      };
+      // Handle both outcomes explicitly. `finally()` would create a derived
+      // rejected Promise when `request` rejects, which has no consumer here.
+      void request.then(cleanup, cleanup);
     }
 
     return responseFromSnapshot(await request);
