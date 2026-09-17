@@ -54,7 +54,6 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
     <div
       {...props}
       role="status"
-      //aria-label="Loading content"
       aria-label={t('ariaLabel')}
       className={cn('animate-pulse bg-muted rounded-md', className)}
     />
@@ -164,7 +163,6 @@ export function QualificationFallback({ title }: { title?: string } = {}) {
  * data hydrates, so immediate E2E heading checks do not race the client shell. */
 export function QualificationClientLoadingState({
   title,
-  // TC-2095 drift anchor (quote-style independent): titleSkeletonClassName = "w-48" remains the default.
   titleSkeletonClassName = 'w-48',
   showActionButton = true,
 }: {
