@@ -34,7 +34,7 @@ function loadWorkflow(): WorkflowDocument {
 describe('nightly E2E prerequisites and diagnostics', () => {
   it('skips scheduled E2E when the admin profile is absent but keeps manual dispatch fail-closed', () => {
     const jobs = loadWorkflow().jobs ?? {};
-    const preflightJob = jobs['profile-preflight'];
+    const preflightJob = jobs.profile_preflight;
     const e2eJob = jobs.e2e;
     const preflight = preflightJob?.steps?.find((step) => step.name === 'Validate admin browser profile secret');
 
@@ -50,8 +50,8 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(preflight?.run).not.toContain('echo "${PROFILE_ARCHIVE}"');
 
     expect(preflightJob?.outputs?.profile_available).toBe('${{ steps.profile.outputs.available }}');
-    expect(e2eJob?.needs).toBe('profile-preflight');
-    expect(e2eJob?.if).toBe("needs.profile-preflight.outputs.profile_available == 'true'");
+    expect(e2eJob?.needs).toBe('profile_preflight');
+    expect(e2eJob?.if).toBe("needs.profile_preflight.outputs.profile_available == 'true'");
   });
 
   it('keeps the authenticated profile owner-only and removes its temporary archive on exit', () => {
