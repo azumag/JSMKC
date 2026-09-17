@@ -138,8 +138,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           const source = !tournamentResponse.ok ? 'tournament' : 'matches';
           const failedResponse = !tournamentResponse.ok ? tournamentResponse : matchesResponse;
           const errorData = await failedResponse.json().catch(() => ({}));
-          const apiError =
-            typeof errorData.error === 'string' && errorData.error.trim() ? errorData.error : null;
+          const apiError = typeof errorData.error === 'string' && errorData.error.trim() ? errorData.error : null;
           logger.error('Participant data fetch returned non-2xx:', {
             tournamentId,
             mode,
