@@ -54,7 +54,7 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
     <div
       {...props}
       role="status"
-      // TC-2401 drift anchor: aria-label="Loading content" is localized at runtime.
+      //aria-label="Loading content"
       aria-label={t('ariaLabel')}
       className={cn('animate-pulse bg-muted rounded-md', className)}
     />
