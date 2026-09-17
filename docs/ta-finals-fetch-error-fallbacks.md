@@ -4,10 +4,12 @@ TA finals の Phase 1/2 (`ta-elimination-phase.tsx`) と Phase 3 (`ta/finals/pag
 
 ## 優先順位
 
-1. API response に具体的な `error` がある場合は、その内容を表示する。
-2. API response に具体的な `error` がない場合は `common.networkError` を表示する。
-3. client-side 例外が `Error` として具体的な message を持つ場合はその message を表示し、message を取得できない場合は `common.networkError` を使用する。
+1. non-2xx の API response に具体的な `error` がある場合は、その内容を表示する。
+2. non-2xx の API response に具体的な `error` がない場合は `common.networkError` を表示する。
+3. `fetch()` / network rejection や、成功 response body の JSON parse failure など client-side 例外の場合も `common.networkError` を表示する。browser/runtime 由来の raw `Error.message` はユーザー UI に表示しない。
 
-logger に送る `Failed to fetch data:` などの診断用文字列は user-facing text ではないため、この i18n 契約の対象外とする。
+low-level の例外内容は `Failed to fetch data:` の client logger に残す。non-2xx では HTTP status と、存在する場合は API error も logger に残すため、ユーザー向け表示を一般化しても診断情報は失わない。
+
+成功時の polling、open-round recovery、entries / rounds / course state 更新は変更しない。
 
 この契約は fetch fallback の表示だけを対象とし、API status/error schema、TA のラウンド進行・スコア計算・DB、Cloudflare 設定、production migration の挙動は変更しない。

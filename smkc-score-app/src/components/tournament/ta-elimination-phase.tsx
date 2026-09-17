@@ -203,7 +203,14 @@ export default function TAEliminationPhase({
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=${phase}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || tCommon('networkError'));
+        logger.error('Failed to fetch data:', {
+          status: response.status,
+          error: errorData.error,
+          tournamentId,
+          phase,
+        });
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json = await response.json();
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, rounds, ... } }
@@ -255,9 +262,8 @@ export default function TAEliminationPhase({
         }
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : tCommon('networkError');
-      logger.error('Failed to fetch data:', { error: err });
-      setError(errorMessage);
+      logger.error('Failed to fetch data:', { error: err, tournamentId, phase });
+      setError(tCommon('networkError'));
     } finally {
       setLoading(false);
     }
