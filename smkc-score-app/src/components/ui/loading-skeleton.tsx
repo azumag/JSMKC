@@ -17,11 +17,12 @@
  * All skeletons use the animate-pulse animation for a subtle breathing
  * effect that indicates content is loading without being distracting.
  */
-"use client";
+'use client';
 
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes } from 'react';
+import { useTranslations } from 'next-intl';
 
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 /**
  * Props for the base Skeleton component.
@@ -38,7 +39,7 @@ export type SkeletonProps = HTMLAttributes<HTMLDivElement>;
  *
  * Accessibility:
  * - role="status" announces the loading state to screen readers
- * - aria-label provides descriptive text for the visual placeholder
+ * - aria-label provides localized descriptive text for the visual placeholder
  *
  * Example usage:
  * ```tsx
@@ -47,15 +48,14 @@ export type SkeletonProps = HTMLAttributes<HTMLDivElement>;
  * ```
  */
 export function Skeleton({ className, ...props }: SkeletonProps) {
+  const t = useTranslations('loadingSkeleton');
+
   return (
     <div
       {...props}
       role="status"
-      aria-label="Loading content"
-      className={cn(
-        "animate-pulse bg-muted rounded-md",
-        className
-      )}
+      aria-label={t('ariaLabel')}
+      className={cn('animate-pulse bg-muted rounded-md', className)}
     />
   );
 }
@@ -83,7 +83,7 @@ export interface CardSkeletonProps {
  */
 export function CardSkeleton({ className }: CardSkeletonProps) {
   return (
-    <div className={cn("rounded-lg border bg-card text-card-foreground shadow", className)}>
+    <div className={cn('rounded-lg border bg-card text-card-foreground shadow', className)}>
       <div className="p-6">
         {/* Header area: three lines simulating title and metadata */}
         <div className="space-y-3">
@@ -163,7 +163,7 @@ export function QualificationFallback({ title }: { title?: string } = {}) {
  * data hydrates, so immediate E2E heading checks do not race the client shell. */
 export function QualificationClientLoadingState({
   title,
-  titleSkeletonClassName = "w-48",
+  titleSkeletonClassName = 'w-48',
   showActionButton = true,
 }: {
   title: string;
@@ -175,7 +175,7 @@ export function QualificationClientLoadingState({
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div className="space-y-3">
           <h1 className="text-2xl font-semibold">{title}</h1>
-          <Skeleton className={cn("h-5", titleSkeletonClassName)} data-testid="title-skeleton" />
+          <Skeleton className={cn('h-5', titleSkeletonClassName)} data-testid="title-skeleton" />
         </div>
         {showActionButton && <Skeleton className="h-10 w-24" data-testid="qualification-action-skeleton" />}
       </div>
