@@ -11,32 +11,26 @@
  *   1P: x:80, y:480, width:230px, height:48px
  *   2P: x:80, y:870, width:230px, height:48px
  */
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, use } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useState, useEffect, useCallback, use } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
-} from "@/lib/overlay/layout";
+} from '@/lib/overlay/layout';
 import {
   invalidBroadcastIntegerInputLabels,
   isBroadcastIntegerInputValid,
   nullableBroadcastIntegerInput,
-} from "@/lib/broadcast-input";
+} from '@/lib/broadcast-input';
 
 interface Player {
   id: string;
@@ -62,51 +56,45 @@ const coordinateInput = (value: string, fallback: number) => {
   return Number.isFinite(next) ? next : fallback;
 };
 
-export default function BroadcastPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function BroadcastPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   const { data: session } = useSession();
-  const isAdmin = session?.user && session.user.role === "admin";
-  const t = useTranslations("common");
-  const tb = useTranslations("broadcast");
+  const isAdmin = session?.user && session.user.role === 'admin';
+  const t = useTranslations('common');
+  const tb = useTranslations('broadcast');
 
   const [currentState, setCurrentState] = useState<BroadcastState>({
-    player1Name: "",
-    player2Name: "",
+    player1Name: '',
+    player2Name: '',
     player1NoCamera: false,
     player2NoCamera: false,
-    matchLabel: "",
+    matchLabel: '',
     player1Wins: null,
     player2Wins: null,
     matchFt: null,
     layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   });
-  const [player1Input, setPlayer1Input] = useState("");
-  const [player2Input, setPlayer2Input] = useState("");
-  const [matchLabelInput, setMatchLabelInput] = useState("");
-  const [player1WinsInput, setPlayer1WinsInput] = useState("");
-  const [player2WinsInput, setPlayer2WinsInput] = useState("");
-  const [matchFtInput, setMatchFtInput] = useState("");
-  const [layoutInput, setLayoutInput] = useState<OverlayBroadcastLayout>(
-    DEFAULT_OVERLAY_BROADCAST_LAYOUT,
-  );
+  const [player1Input, setPlayer1Input] = useState('');
+  const [player2Input, setPlayer2Input] = useState('');
+  const [matchLabelInput, setMatchLabelInput] = useState('');
+  const [player1WinsInput, setPlayer1WinsInput] = useState('');
+  const [player2WinsInput, setPlayer2WinsInput] = useState('');
+  const [matchFtInput, setMatchFtInput] = useState('');
+  const [layoutInput, setLayoutInput] = useState<OverlayBroadcastLayout>(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
   const [players, setPlayers] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const invalidScoreLabels = invalidBroadcastIntegerInputLabels([
-    { label: tb("playerScore", { player: "1P" }), value: player1WinsInput },
-    { label: tb("playerScore", { player: "2P" }), value: player2WinsInput },
-    { label: "FT", value: matchFtInput },
+    { label: tb('playerScore', { player: '1P' }), value: player1WinsInput },
+    { label: tb('playerScore', { player: '2P' }), value: player2WinsInput },
+    { label: 'FT', value: matchFtInput },
   ]);
   const scoreInputError =
     invalidScoreLabels.length > 0
-      ? tb("scoreValidation", { labels: invalidScoreLabels.join(tb("listSeparator")) })
-      : "";
-  const invalidScoreClassName = "border-destructive focus-visible:ring-destructive";
+      ? tb('scoreValidation', { labels: invalidScoreLabels.join(tb('listSeparator')) })
+      : '';
+  const invalidScoreClassName = 'border-destructive focus-visible:ring-destructive';
 
   const fetchBroadcastState = useCallback(async () => {
     try {
@@ -116,44 +104,56 @@ export default function BroadcastPage({
         const data = json.data ?? json;
         const layout = normalizeOverlayBroadcastLayout(data.layout);
         setCurrentState({
-          player1Name: data.player1Name ?? "",
-          player2Name: data.player2Name ?? "",
+          player1Name: data.player1Name ?? '',
+          player2Name: data.player2Name ?? '',
           player1NoCamera: data.player1NoCamera === true,
           player2NoCamera: data.player2NoCamera === true,
-          matchLabel: data.matchLabel ?? "",
+          matchLabel: data.matchLabel ?? '',
           player1Wins: data.player1Wins ?? null,
           player2Wins: data.player2Wins ?? null,
           matchFt: data.matchFt ?? null,
           layout,
         });
-        setPlayer1Input(data.player1Name ?? "");
-        setPlayer2Input(data.player2Name ?? "");
-        setMatchLabelInput(data.matchLabel ?? "");
-        setPlayer1WinsInput(data.player1Wins === null || data.player1Wins === undefined ? "" : String(data.player1Wins));
-        setPlayer2WinsInput(data.player2Wins === null || data.player2Wins === undefined ? "" : String(data.player2Wins));
-        setMatchFtInput(data.matchFt === null || data.matchFt === undefined ? "" : String(data.matchFt));
+        setPlayer1Input(data.player1Name ?? '');
+        setPlayer2Input(data.player2Name ?? '');
+        setMatchLabelInput(data.matchLabel ?? '');
+        setPlayer1WinsInput(
+          data.player1Wins === null || data.player1Wins === undefined ? '' : String(data.player1Wins),
+        );
+        setPlayer2WinsInput(
+          data.player2Wins === null || data.player2Wins === undefined ? '' : String(data.player2Wins),
+        );
+        setMatchFtInput(data.matchFt === null || data.matchFt === undefined ? '' : String(data.matchFt));
         setLayoutInput(layout);
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }, [tournamentId]);
 
   useEffect(() => {
     fetchBroadcastState();
     /* Fetch player list for the dropdown */
-    fetch("/api/players")
-      .then((r) => r.ok ? r.json() : null)
+    fetch('/api/players')
+      .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
         const data = json?.data ?? json;
         if (Array.isArray(data)) {
-          setPlayers(data.filter((p: Player) => !("deletedAt" in p) || !p.deletedAt).map((p: Player) => ({
-            id: p.id,
-            name: p.name,
-            nickname: p.nickname,
-            noCamera: p.noCamera === true,
-          })));
+          setPlayers(
+            data
+              .filter((p: Player) => !('deletedAt' in p) || !p.deletedAt)
+              .map((p: Player) => ({
+                id: p.id,
+                name: p.name,
+                nickname: p.nickname,
+                noCamera: p.noCamera === true,
+              })),
+          );
         }
       })
-      .catch(() => { /* silent */ });
+      .catch(() => {
+        /* silent */
+      });
   }, [fetchBroadcastState]);
 
   const handleSave = async () => {
@@ -165,8 +165,8 @@ export default function BroadcastPage({
     const player2 = players.find((p) => p.nickname === player2Input.trim());
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           player1Name: player1Input.trim(),
           player2Name: player2Input.trim(),
@@ -194,11 +194,11 @@ export default function BroadcastPage({
     setSaving(true);
     try {
       await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player1Name: "",
-          player2Name: "",
+          player1Name: '',
+          player2Name: '',
           player1NoCamera: false,
           player2NoCamera: false,
           matchLabel: null,
@@ -208,12 +208,12 @@ export default function BroadcastPage({
           layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
         }),
       });
-      setPlayer1Input("");
-      setPlayer2Input("");
-      setMatchLabelInput("");
-      setPlayer1WinsInput("");
-      setPlayer2WinsInput("");
-      setMatchFtInput("");
+      setPlayer1Input('');
+      setPlayer2Input('');
+      setMatchLabelInput('');
+      setPlayer1WinsInput('');
+      setPlayer2WinsInput('');
+      setMatchFtInput('');
       setLayoutInput(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
       await fetchBroadcastState();
     } finally {
@@ -222,38 +222,34 @@ export default function BroadcastPage({
   };
 
   if (!isAdmin) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        {t("noPermission")}
-      </div>
-    );
+    return <div className="text-center py-8 text-muted-foreground">{t('noPermission')}</div>;
   }
 
   return (
     <div className="space-y-7 max-w-3xl">
       <header className="border-b border-foreground/15 pb-4">
-        <h2 className="font-display text-3xl tracking-wide leading-none">{tb("title")}</h2>
-        <p className="text-muted-foreground text-sm mt-2">{tb("description")}</p>
+        <h2 className="font-display text-3xl tracking-wide leading-none">{tb('title')}</h2>
+        <p className="text-muted-foreground text-sm mt-2">{tb('description')}</p>
       </header>
 
       {/* Current overlay state preview */}
       <section className="border border-foreground/15">
         <div className="px-5 pt-4 pb-1">
-          <p className="text-sm font-semibold">{tb("currentDisplay")}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{tb("currentDisplayDescription")}</p>
+          <p className="text-sm font-semibold">{tb('currentDisplay')}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{tb('currentDisplayDescription')}</p>
         </div>
         <div className="grid grid-cols-2 divide-x divide-foreground/10">
           {[
             {
-              slot: "1P",
-              coords: `${tb("nameCoordinate")} x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y} / ${tb("scoreCoordinate")} x:${currentState.layout.player1Score.x}, y:${currentState.layout.player1Score.y}`,
+              slot: '1P',
+              coords: `${tb('nameCoordinate')} x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y} / ${tb('scoreCoordinate')} x:${currentState.layout.player1Score.x}, y:${currentState.layout.player1Score.y}`,
               value: currentState.player1Name,
               noCamera: currentState.player1NoCamera,
               score: currentState.player1Wins,
             },
             {
-              slot: "2P",
-              coords: `${tb("nameCoordinate")} x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y} / ${tb("scoreCoordinate")} x:${currentState.layout.player2Score.x}, y:${currentState.layout.player2Score.y}`,
+              slot: '2P',
+              coords: `${tb('nameCoordinate')} x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y} / ${tb('scoreCoordinate')} x:${currentState.layout.player2Score.x}, y:${currentState.layout.player2Score.y}`,
               value: currentState.player2Name,
               noCamera: currentState.player2NoCamera,
               score: currentState.player2Wins,
@@ -264,38 +260,42 @@ export default function BroadcastPage({
                 <span className="font-semibold text-foreground">{p.slot}</span>
                 <span>{p.coords}</span>
               </div>
-              <p className={`text-2xl font-semibold ${p.value ? "" : "text-muted-foreground"}`}>
-                {p.value || tb("notSet")}
+              <p className={`text-2xl font-semibold ${p.value ? '' : 'text-muted-foreground'}`}>
+                {p.value || tb('notSet')}
               </p>
-              {p.noCamera && <p className="mt-1 text-xs font-semibold text-yellow-600">{tb("noCamera")}</p>}
+              {p.noCamera && <p className="mt-1 text-xs font-semibold text-yellow-600">{tb('noCamera')}</p>}
               <p className="mt-3 text-sm text-muted-foreground">
-                {tb("score")}: {" "}
+                {tb('score')}:{' '}
                 <span className="font-semibold text-foreground">
-                  {p.score === null ? tb("notSet") : currentState.matchFt ? `${p.score} / ${currentState.matchFt}` : p.score}
+                  {p.score === null
+                    ? tb('notSet')
+                    : currentState.matchFt
+                      ? `${p.score} / ${currentState.matchFt}`
+                      : p.score}
                 </span>
               </p>
             </div>
           ))}
         </div>
         <div className="border-t border-foreground/10 px-5 py-3 text-sm text-muted-foreground">
-          {tb("footer")} x:{currentState.layout.footer.x}, y:{currentState.layout.footer.y}: {" "}
-          <span className="font-semibold text-foreground">{currentState.matchLabel || tb("notSet")}</span>
+          {tb('footer')} x:{currentState.layout.footer.x}, y:{currentState.layout.footer.y}:{' '}
+          <span className="font-semibold text-foreground">{currentState.matchLabel || tb('notSet')}</span>
         </div>
       </section>
 
       {/* Name input form */}
       <section className="border border-foreground/15 p-5 space-y-4">
         <div>
-          <p className="text-sm font-semibold">{tb("setNames")}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{tb("setNamesDescription")}</p>
+          <p className="text-sm font-semibold">{tb('setNames')}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{tb('setNamesDescription')}</p>
         </div>
         <div className="space-y-2">
-          <Label>{tb("playerName", { player: "1P" })}</Label>
+          <Label>{tb('playerName', { player: '1P' })}</Label>
           {/* Player selector dropdown */}
           {players.length > 0 && (
             <Select onValueChange={(val) => setPlayer1Input(val)} value="">
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={tb("playerListPlaceholder")} />
+                <SelectValue placeholder={tb('playerListPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {players.map((p) => (
@@ -309,16 +309,16 @@ export default function BroadcastPage({
           <Input
             value={player1Input}
             onChange={(e) => setPlayer1Input(e.target.value)}
-            placeholder={tb("playerNamePlaceholder", { player: "1P" })}
+            placeholder={tb('playerNamePlaceholder', { player: '1P' })}
             maxLength={50}
           />
         </div>
         <div className="space-y-2">
-          <Label>{tb("playerName", { player: "2P" })}</Label>
+          <Label>{tb('playerName', { player: '2P' })}</Label>
           {players.length > 0 && (
             <Select onValueChange={(val) => setPlayer2Input(val)} value="">
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={tb("playerListPlaceholder")} />
+                <SelectValue placeholder={tb('playerListPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {players.map((p) => (
@@ -332,28 +332,28 @@ export default function BroadcastPage({
           <Input
             value={player2Input}
             onChange={(e) => setPlayer2Input(e.target.value)}
-            placeholder={tb("playerNamePlaceholder", { player: "2P" })}
+            placeholder={tb('playerNamePlaceholder', { player: '2P' })}
             maxLength={50}
           />
         </div>
         <div className="border-t border-foreground/10 pt-4 space-y-4">
           <div>
-            <p className="text-sm font-semibold">{tb("setScoreFields")}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{tb("setScoreFieldsDescription")}</p>
+            <p className="text-sm font-semibold">{tb('setScoreFields')}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{tb('setScoreFieldsDescription')}</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="broadcast-match-label">{tb("footerLabel")}</Label>
+            <Label htmlFor="broadcast-match-label">{tb('footerLabel')}</Label>
             <Input
               id="broadcast-match-label"
               value={matchLabelInput}
               onChange={(e) => setMatchLabelInput(e.target.value)}
-              placeholder={tb("footerLabelPlaceholder")}
+              placeholder={tb('footerLabelPlaceholder')}
               maxLength={50}
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="broadcast-player1-wins">{tb("playerScore", { player: "1P" })}</Label>
+              <Label htmlFor="broadcast-player1-wins">{tb('playerScore', { player: '1P' })}</Label>
               <Input
                 id="broadcast-player1-wins"
                 value={player1WinsInput}
@@ -368,7 +368,7 @@ export default function BroadcastPage({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="broadcast-player2-wins">{tb("playerScore", { player: "2P" })}</Label>
+              <Label htmlFor="broadcast-player2-wins">{tb('playerScore', { player: '2P' })}</Label>
               <Input
                 id="broadcast-player2-wins"
                 value={player2WinsInput}
@@ -394,7 +394,7 @@ export default function BroadcastPage({
                 step={1}
                 aria-invalid={!isBroadcastIntegerInputValid(matchFtInput)}
                 className={!isBroadcastIntegerInputValid(matchFtInput) ? invalidScoreClassName : undefined}
-                placeholder={tb("optional")}
+                placeholder={tb('optional')}
               />
             </div>
           </div>
@@ -405,15 +405,15 @@ export default function BroadcastPage({
           )}
           <div className="border-t border-foreground/10 pt-4 space-y-3">
             <div>
-              <p className="text-sm font-semibold">{tb("adjustPositions")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{tb("adjustPositionsDescription")}</p>
+              <p className="text-sm font-semibold">{tb('adjustPositions')}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{tb('adjustPositionsDescription')}</p>
             </div>
             {[
-              ["player1Name", tb("playerName", { player: "1P" })],
-              ["player1Score", tb("playerScore", { player: "1P" })],
-              ["player2Name", tb("playerName", { player: "2P" })],
-              ["player2Score", tb("playerScore", { player: "2P" })],
-              ["footer", tb("footer")],
+              ['player1Name', tb('playerName', { player: '1P' })],
+              ['player1Score', tb('playerScore', { player: '1P' })],
+              ['player2Name', tb('playerName', { player: '2P' })],
+              ['player2Score', tb('playerScore', { player: '2P' })],
+              ['footer', tb('footer')],
             ].map(([key, label]) => {
               const positionKey = key as keyof OverlayBroadcastLayout;
               const position = layoutInput[positionKey];
@@ -474,19 +474,19 @@ export default function BroadcastPage({
           <Button
             onClick={handleSave}
             disabled={saving}
-            className={savedFlash ? "bg-green-600 hover:bg-green-600" : ""}
+            className={savedFlash ? 'bg-green-600 hover:bg-green-600' : ''}
           >
-            {savedFlash ? `✓ ${t("broadcastReflected")}` : t("broadcastReflect")}
+            {savedFlash ? `✓ ${t('broadcastReflected')}` : t('broadcastReflect')}
           </Button>
           <Button variant="outline" onClick={handleClear} disabled={saving}>
-            {tb("clear")}
+            {tb('clear')}
           </Button>
         </div>
       </section>
 
       <div className="text-sm text-muted-foreground">
         <p>
-          {tb("overlayUrl")}: {" "}
+          {tb('overlayUrl')}:{' '}
           <Link
             href={`/tournaments/${tournamentId}/overlay/dashboard`}
             className="underline"
