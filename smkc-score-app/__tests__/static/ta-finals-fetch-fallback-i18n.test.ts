@@ -20,7 +20,8 @@ describe('TA finals fetch fallback i18n', () => {
   it('uses the shared localized fallback in phase 1/2 and phase 3 fetch paths', () => {
     for (const source of [eliminationPhase, finalsPage]) {
       expect(source).toMatch(/errorData\.error\s*\|\|\s*tCommon\('networkError'\)/);
-      expect(source).toMatch(/err instanceof Error \? err\.message : tCommon\('networkError'\)/);
+      expect(source).toContain("setError(tCommon('networkError'));");
+      expect(source).not.toContain("err instanceof Error ? err.message : tCommon('networkError')");
     }
   });
 
