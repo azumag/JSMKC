@@ -144,6 +144,30 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     }
   };
 
+  const selectLoginUrl = () => {
+    const input = document.getElementById('qr-login-url') as HTMLInputElement | null;
+    if (!input) return;
+    input.focus();
+    input.select();
+  };
+
+  const handleCopyLoginUrl = async () => {
+    if (!loginUrl) return;
+
+    if (!navigator.clipboard?.writeText) {
+      selectLoginUrl();
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(loginUrl);
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to copy QR login URL', metadata);
+      selectLoginUrl();
+    }
+  };
+
   /**
    * Prints the QR code via a dedicated print window rather than the main
    * app's print stylesheet — the code is meant to be handed to a player
@@ -213,7 +237,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
                 <Label htmlFor="qr-login-url">{t('qrLoginUrl')}</Label>
                 <div className="flex gap-2">
                   <Input id="qr-login-url" value={loginUrl} readOnly className="font-mono text-xs" />
-                  <Button type="button" variant="outline" onClick={() => navigator.clipboard.writeText(loginUrl)}>
+                  <Button type="button" variant="outline" onClick={() => void handleCopyLoginUrl()}>
                     {tc('copy')}
                   </Button>
                 </div>
