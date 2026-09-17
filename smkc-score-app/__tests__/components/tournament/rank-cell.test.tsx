@@ -215,7 +215,9 @@ describe('RankCell — edge cases', () => {
     const rejection = new Error('Network error from internal-rank-service');
     const failingSave = jest.fn().mockRejectedValue(rejection);
 
-    render(<RankCell qualificationId="qual-err" rankOverride={null} autoRank={3} isAdmin={true} onSave={failingSave} />);
+    render(
+      <RankCell qualificationId="qual-err" rankOverride={null} autoRank={3} isAdmin={true} onSave={failingSave} />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -239,7 +241,9 @@ describe('RankCell — edge cases', () => {
     // After a failed save, reopening the editor (openEdit) clears the previous error.
     const failingSave = jest.fn().mockRejectedValueOnce(new Error('Server error')).mockResolvedValue(undefined);
 
-    render(<RankCell qualificationId="qual-retry" rankOverride={null} autoRank={4} isAdmin={true} onSave={failingSave} />);
+    render(
+      <RankCell qualificationId="qual-retry" rankOverride={null} autoRank={4} isAdmin={true} onSave={failingSave} />,
+    );
 
     // First attempt → error
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
@@ -260,7 +264,9 @@ describe('RankCell — edge cases', () => {
     const rejection = new Error('Clear failed at internal-rank-service');
     const failingSave = jest.fn().mockRejectedValue(rejection);
 
-    render(<RankCell qualificationId="qual-clear-err" rankOverride={5} autoRank={3} isAdmin={true} onSave={failingSave} />);
+    render(
+      <RankCell qualificationId="qual-clear-err" rankOverride={5} autoRank={3} isAdmin={true} onSave={failingSave} />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     await act(async () => {
