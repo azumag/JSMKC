@@ -52,6 +52,7 @@ function buildLoginUrl(token: string): string {
 export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDialogProps) {
   const t = useTranslations('players');
   const tc = useTranslations('common');
+  const te = useTranslations('errors');
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -269,15 +270,32 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     heading.textContent = playerNickname;
 
     const img = doc.createElement('img');
-    img.src = qrImageUrl;
     img.width = 280;
     img.height = 280;
     img.alt = `${playerNickname} QR login`;
+    img.addEventListener(
+      'load',
+      () => {
+        printWindow.focus();
+        printWindow.print();
+      },
+      { once: true },
+    );
+    img.addEventListener(
+      'error',
+      () => {
+        logger.error('Failed to load QR login image in print window', { playerId });
+        setError(te('genericError'));
+        printWindow.close();
+      },
+      { once: true },
+    );
 
     doc.body.appendChild(heading);
     doc.body.appendChild(img);
-    printWindow.focus();
-    printWindow.print();
+    // Attach load/error handlers before setting src so even an immediately
+    // available data URI cannot race ahead of the print readiness gate.
+    img.src = qrImageUrl;
   };
 
   return (
