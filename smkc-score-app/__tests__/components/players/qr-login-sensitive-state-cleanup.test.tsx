@@ -34,10 +34,7 @@ describe('QR login sensitive state cleanup (issue #3655)', () => {
   });
 
   it('clears both sensitive states on every dialog transition', () => {
-    const source = fs.readFileSync(
-      path.join(process.cwd(), 'src/components/players/qr-login-dialog.tsx'),
-      'utf8',
-    );
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/components/players/qr-login-dialog.tsx'), 'utf8');
     const handler = source.slice(source.indexOf('const handleOpenChange'), source.indexOf('const handleIssue'));
 
     expect(handler).toContain('dialogSessionRef.current += 1;');
