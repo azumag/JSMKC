@@ -142,8 +142,13 @@ export default function MatchRaceParticipantPage({
   const { id: tournamentId } = use(params);
   const tPart = useTranslations("participant");
   const tMatch = useTranslations("match");
+  const tCommon = useTranslations("common");
 
-  const ctx = useParticipantMatches<MRMatch>({ tournamentId, mode: "mr" });
+  const ctx = useParticipantMatches<MRMatch>({
+    tournamentId,
+    mode: "mr",
+    networkErrorMessage: tCommon("networkError"),
+  });
 
   const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
 
