@@ -9,21 +9,24 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { RankCell } from '@/components/tournament/rank-cell';
 
-const TRANSLATIONS: Record<string, Record<string, string>> = {
-  common: {
-    networkError: 'common.networkError',
-  },
-  rankCell: {
-    rankInput: 'Rank override',
-    editRank: 'Edit rank',
-    saveRank: 'Save rank',
-    clearRankOverride: 'Clear rank override',
-  },
-};
+jest.mock('next-intl', () => {
+  const translations: Record<string, Record<string, string>> = {
+    common: {
+      networkError: 'common.networkError',
+    },
+    rankCell: {
+      rankInput: 'Rank override',
+      editRank: 'Edit rank',
+      saveRank: 'Save rank',
+      clearRankOverride: 'Clear rank override',
+    },
+  };
 
-jest.mock('next-intl', () => ({
-  useTranslations: (namespace: string) => (key: string) => TRANSLATIONS[namespace]?.[key] ?? `${namespace}.${key}`,
-}));
+  return {
+    useTranslations: (namespace: string) => (key: string) =>
+      translations[namespace]?.[key] ?? `${namespace}.${key}`,
+  };
+});
 
 jest.mock('@/lib/client-logger', () => {
   const error = jest.fn();
@@ -52,7 +55,6 @@ describe('RankCell — view mode', () => {
   it('TC-2644: non-admin sees amber override badge when rankOverride is set', () => {
     render(<RankCell qualificationId="qual-1" rankOverride={2} autoRank={5} isAdmin={false} onSave={noop} />);
 
-    // Override value is shown, not auto rank
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.queryByText('5')).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
