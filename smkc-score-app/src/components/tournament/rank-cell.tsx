@@ -54,16 +54,16 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   // Unexpected rejected callbacks show a safe localized error; API failures normally return false instead.
-  const [saveFailed, setSaveFailed] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   const openEdit = () => {
     setInputValue(rankOverride?.toString() ?? '');
-    setSaveFailed(false);
+    setSaveError(false);
     setIsEditing(true);
   };
 
   const commitSave = async () => {
-    setSaveFailed(false);
+    setSaveError(false);
     try {
       const v = parseInt(inputValue);
       // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
@@ -77,12 +77,12 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         qualificationId,
         action: 'save',
       });
-      setSaveFailed(true);
+      setSaveError(true);
     }
   };
 
   const commitClear = async () => {
-    setSaveFailed(false);
+    setSaveError(false);
     try {
       const saved = await onSave(qualificationId, null);
       if (saved !== false) setIsEditing(false);
@@ -92,7 +92,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         qualificationId,
         action: 'clear',
       });
-      setSaveFailed(true);
+      setSaveError(true);
     }
   };
 
@@ -123,7 +123,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             </Button>
           )}
         </div>
-        {saveFailed && <RankCellSaveError />}
+        {saveError && <RankCellSaveError />}
       </div>
     );
   }
