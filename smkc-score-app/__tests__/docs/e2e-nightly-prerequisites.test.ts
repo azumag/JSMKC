@@ -8,6 +8,7 @@ const gitignorePath = path.resolve(__dirname, '..', '..', '..', '.gitignore');
 const gitignoreLines = fs.readFileSync(gitignorePath, 'utf8').split(/\r?\n/);
 
 interface WorkflowStep {
+  id?: string;
   name?: string;
   uses?: string;
   env?: Record<string, unknown>;
@@ -16,6 +17,9 @@ interface WorkflowStep {
 }
 
 interface WorkflowJob {
+  needs?: string | string[];
+  if?: string;
+  outputs?: Record<string, unknown>;
   steps?: WorkflowStep[];
 }
 
@@ -28,26 +32,28 @@ function loadWorkflow(): WorkflowDocument {
 }
 
 describe('nightly E2E prerequisites and diagnostics', () => {
-  it('fails before checkout and dependency bootstrap when the admin profile secret is missing', () => {
-    const steps = loadWorkflow().jobs?.e2e?.steps ?? [];
-    const preflightIndex = steps.findIndex((step) => step.name === 'Validate admin browser profile secret');
-    const checkoutIndex = steps.findIndex((step) => step.uses?.startsWith('actions/checkout@'));
-    const nodeIndex = steps.findIndex((step) => step.name === 'Setup Node.js');
-    const installIndex = steps.findIndex((step) => step.name === 'Install dependencies');
-    const restoreProfileIndex = steps.findIndex((step) => step.name === 'Restore admin browser profile');
+  it('skips scheduled E2E when the admin profile is absent but keeps manual dispatch fail-closed', () => {
+    const jobs = loadWorkflow().jobs ?? {};
+    const preflightJob = jobs.profile_preflight;
+    const e2eJob = jobs.e2e;
+    const preflight = preflightJob?.steps?.find((step) => step.name === 'Validate admin browser profile secret');
 
-    expect(preflightIndex).toBeGreaterThanOrEqual(0);
-    expect(checkoutIndex).toBeGreaterThan(preflightIndex);
-    expect(nodeIndex).toBeGreaterThan(preflightIndex);
-    expect(installIndex).toBeGreaterThan(preflightIndex);
-    expect(restoreProfileIndex).toBeGreaterThan(preflightIndex);
+    expect(preflight?.id).toBe('profile');
+    expect(preflight?.env?.PROFILE_ARCHIVE).toBe('${{ secrets.E2E_PROFILE_ARCHIVE }}');
+    expect(preflight?.run).toContain('if [ -z "${PROFILE_ARCHIVE}" ]; then');
+    expect(preflight?.run).toContain('if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then');
+    expect(preflight?.run).toContain('::notice::E2E_PROFILE_ARCHIVE is not configured; skipping scheduled nightly E2E');
+    expect(preflight?.run).toContain('echo "available=false" >> "${GITHUB_OUTPUT}"');
+    expect(preflight?.run).toContain(
+      '::error::E2E_PROFILE_ARCHIVE is not configured; manually dispatched E2E requires',
+    );
+    expect(preflight?.run).toContain('exit 1');
+    expect(preflight?.run).toContain('echo "available=true" >> "${GITHUB_OUTPUT}"');
+    expect(preflight?.run).not.toContain('echo "${PROFILE_ARCHIVE}"');
 
-    const preflight = steps[preflightIndex];
-    expect(preflight.env?.PROFILE_ARCHIVE).toBe('${{ secrets.E2E_PROFILE_ARCHIVE }}');
-    expect(preflight.run).toContain('if [ -z "${PROFILE_ARCHIVE}" ]; then');
-    expect(preflight.run).toContain('::error::E2E_PROFILE_ARCHIVE is not configured');
-    expect(preflight.run).toContain('exit 1');
-    expect(preflight.run).not.toContain('echo "${PROFILE_ARCHIVE}"');
+    expect(preflightJob?.outputs?.profile_available).toBe('${{ steps.profile.outputs.available }}');
+    expect(e2eJob?.needs).toBe('profile_preflight');
+    expect(e2eJob?.if).toBe("needs.profile_preflight.outputs.profile_available == 'true'");
   });
 
   it('keeps the authenticated profile owner-only and removes its temporary archive on exit', () => {

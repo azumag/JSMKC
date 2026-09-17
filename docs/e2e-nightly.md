@@ -4,9 +4,14 @@
 
 ## Admin profile prerequisite
 
-The workflow requires `E2E_PROFILE_ARCHIVE`, which contains the persistent browser profile with an authenticated preview admin session. This prerequisite is checked before checkout, Node setup, dependency installation, or Playwright browser setup. If the secret is missing, the job exits immediately with an explicit error without printing the secret value.
+The workflow requires `E2E_PROFILE_ARCHIVE`, which contains the persistent browser profile with an authenticated preview admin session. A dedicated preflight job checks this prerequisite before checkout, Node setup, dependency installation, or Playwright browser setup.
 
-Failing early is intentional: a GitHub-hosted runner cannot supply a local authenticated profile later in the job, so continuing through npm and browser bootstrap would only spend Actions time before the admin-session preflight inevitably fails.
+Missing-secret handling depends on how the workflow was started:
+
+- scheduled nightly runs emit a notice and skip the E2E job when `E2E_PROFILE_ARCHIVE` is not configured;
+- manually dispatched runs fail immediately with an explicit error when the secret is missing.
+
+This keeps unattended schedules from producing a known-red Actions run while the optional credential is not configured, but preserves fail-closed behavior when someone explicitly requests an E2E run. In both cases the secret value is never printed. Once the repository secret is configured, scheduled runs automatically proceed through the full E2E job again.
 
 After the prerequisite passes, the profile is restored under `/tmp/playwright-smkc-preview-profile` immediately before the E2E suite. Invalid base64 or tar data is treated as a hard restore failure rather than being downgraded to a warning.
 
@@ -57,9 +62,9 @@ Broad `restore-keys` are intentionally not used. A cache created for an older lo
 
 ## Diagnostic artifact retention
 
-The workflow uploads `/tmp/e2e-output/console.log` with `if: always()` when a console log exists. These logs are short-lived debugging evidence rather than release artifacts, so `retention-days` is fixed to 14 days instead of inheriting a potentially longer repository default.
+The E2E job uploads `/tmp/e2e-output/console.log` with `if: always()` when a console log exists. These logs are short-lived debugging evidence rather than release artifacts, so `retention-days` is fixed to 14 days instead of inheriting a potentially longer repository default.
 
-If the prerequisite check fails before the E2E suite creates the log, `if-no-files-found: ignore` keeps the artifact step from introducing a second failure.
+When a scheduled run skips the E2E job because the admin profile secret is absent, no console-log artifact is created. If a started E2E job reaches the upload step without producing a log, `if-no-files-found: ignore` prevents the artifact step from introducing a second failure.
 
 ## Separate runtime prerequisites
 
