@@ -79,9 +79,14 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     isCurrentDialogSession(dialogSession) && statusRequestRef.current === statusRequest;
 
   const generateQrImage = async (url: string, dialogSession: number) => {
-    const svg = await QRCode.toString(url, { type: 'svg', margin: 1 });
-    if (!isCurrentDialogSession(dialogSession)) return;
-    setQrImageUrl(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+    try {
+      const svg = await QRCode.toString(url, { type: 'svg', margin: 1 });
+      if (!isCurrentDialogSession(dialogSession)) return;
+      setQrImageUrl(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to generate QR login image', metadata);
+    }
   };
 
   const fetchStatus = async (dialogSession: number) => {
@@ -309,12 +314,14 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
 
           {loading ? (
             <div className="text-sm text-muted-foreground">{tc('loading')}</div>
-          ) : rawToken && qrImageUrl && loginUrl ? (
+          ) : rawToken && loginUrl ? (
             <div className="space-y-4">
-              <div className="flex justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element -- locally generated data: URI, not an optimizable remote image */}
-                <img src={qrImageUrl} alt={t('qrCodeAlt', { nickname: playerNickname })} width={220} height={220} />
-              </div>
+              {qrImageUrl && (
+                <div className="flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- locally generated data: URI, not an optimizable remote image */}
+                  <img src={qrImageUrl} alt={t('qrCodeAlt', { nickname: playerNickname })} width={220} height={220} />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="qr-login-url">{t('qrLoginUrl')}</Label>
                 <div className="flex gap-2">
@@ -325,9 +332,11 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">{t('qrCodeNote')}</p>
-              <Button type="button" variant="outline" className="w-full" onClick={handlePrint}>
-                {t('printQrCode')}
-              </Button>
+              {qrImageUrl && (
+                <Button type="button" variant="outline" className="w-full" onClick={handlePrint}>
+                  {t('printQrCode')}
+                </Button>
+              )}
             </div>
           ) : status?.active ? (
             <p className="text-sm text-muted-foreground">{t('qrCodeActiveNote')}</p>
