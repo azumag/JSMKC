@@ -9,16 +9,19 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { RankCell } from '@/components/tournament/rank-cell';
 
-const mockLoggerError = jest.fn();
-
 jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => `common.${key}`,
 }));
 
-jest.mock('@/lib/client-logger', () => ({
-  createLogger: () => ({ error: mockLoggerError, warn: jest.fn(), info: jest.fn() }),
-}));
+jest.mock('@/lib/client-logger', () => {
+  const error = jest.fn();
+  return {
+    __mockLoggerError: error,
+    createLogger: () => ({ error, warn: jest.fn(), info: jest.fn() }),
+  };
+});
 
+const mockLoggerError = (jest.requireMock('@/lib/client-logger') as { __mockLoggerError: jest.Mock }).__mockLoggerError;
 const noop = jest.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
