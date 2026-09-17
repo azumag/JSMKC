@@ -36,13 +36,16 @@ jest.mock('@/lib/fetch-with-retry', () => ({
   fetchWithRetry: jest.fn(),
 }));
 
-jest.mock('@/lib/client-logger', () => ({
-  createLogger: () => ({ error: jest.fn(), info: jest.fn(), warn: jest.fn() }),
-}));
+jest.mock('@/lib/client-logger', () => {
+  const logger = { error: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  return { createLogger: () => logger, __mockLogger: logger };
+});
 
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 const mockFetchWithRetry = fetchWithRetry as jest.MockedFunction<typeof fetchWithRetry>;
+const mockLoggerError = (jest.requireMock('@/lib/client-logger') as { __mockLogger: { error: jest.Mock } }).__mockLogger
+  .error;
 
 const summaryTournament = {
   id: 'tournament-1',
@@ -74,6 +77,7 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
     mockFetchWithRetry.mockResolvedValue(summaryResponse as never);
     global.fetch = jest.fn() as unknown as typeof fetch;
+    mockLoggerError.mockClear();
   });
 
   it('renders the status badge from the fetched tournament summary', async () => {
@@ -110,7 +114,7 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
     });
   });
 
-  it('shows the error in role="alert" when the status update is rejected', async () => {
+  it('shows a concrete API error in role="alert" when the status update is rejected', async () => {
     (global.fetch as jest.Mock).mockResolvedValue(errorResponse);
 
     render(<TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>);
@@ -124,6 +128,45 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Status transition rejected');
     });
+  });
+
+  it('uses the localized network fallback for a rejected status request and logs the raw detail', async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('browser transport detail'));
+
+    render(<TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Tournament')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'startTournament' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    });
+    expect(screen.queryByText('browser transport detail')).not.toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to update status:',
+      expect.objectContaining({ message: 'browser transport detail' }),
+    );
+    expect(screen.getByRole('button', { name: 'startTournament' })).not.toBeDisabled();
+  });
+
+  it('uses the localized network fallback for a generic non-JSON non-2xx response', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(new Response('upstream failure', { status: 502 }));
+
+    render(<TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>);
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Tournament')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'startTournament' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    });
+    expect(screen.queryByText('HTTP 502')).not.toBeInTheDocument();
   });
 
   it('blocks duplicate clicks while a status update is in flight', async () => {
