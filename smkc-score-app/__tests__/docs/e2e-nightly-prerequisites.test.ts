@@ -44,7 +44,9 @@ describe('nightly E2E prerequisites and diagnostics', () => {
     expect(preflight?.run).toContain('if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then');
     expect(preflight?.run).toContain('::notice::E2E_PROFILE_ARCHIVE is not configured; skipping scheduled nightly E2E');
     expect(preflight?.run).toContain('echo "available=false" >> "${GITHUB_OUTPUT}"');
-    expect(preflight?.run).toContain('::error::E2E_PROFILE_ARCHIVE is not configured; manually dispatched E2E requires');
+    expect(preflight?.run).toContain(
+      '::error::E2E_PROFILE_ARCHIVE is not configured; manually dispatched E2E requires',
+    );
     expect(preflight?.run).toContain('exit 1');
     expect(preflight?.run).toContain('echo "available=true" >> "${GITHUB_OUTPUT}"');
     expect(preflight?.run).not.toContain('echo "${PROFILE_ARCHIVE}"');
