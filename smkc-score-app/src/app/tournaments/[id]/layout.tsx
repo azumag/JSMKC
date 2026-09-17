@@ -24,7 +24,11 @@ import { createLogger } from '@/lib/client-logger';
 import { cn } from '@/lib/utils';
 import { getTabHydrationGuardProps } from '@/lib/tournament-tab-hydration';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
-import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
+import {
+  canUpdateTournamentStatus,
+  isUserFacingTournamentStatusUpdateError,
+  parseTournamentStatusUpdateResponse,
+} from '@/lib/tournament-status-update';
 
 const logger = createLogger({ serviceName: 'tournaments-layout' });
 
@@ -152,7 +156,7 @@ export default function TournamentLayout({
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to update status:', metadata);
-      setStatusError(err instanceof Error ? err.message : tc('networkError'));
+      setStatusError(isUserFacingTournamentStatusUpdateError(err) ? err.message : tc('networkError'));
     } finally {
       setStatusUpdating(false);
     }
