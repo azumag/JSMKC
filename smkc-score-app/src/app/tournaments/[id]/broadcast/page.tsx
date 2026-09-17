@@ -11,32 +11,26 @@
  *   1P: x:80, y:480, width:230px, height:48px
  *   2P: x:80, y:870, width:230px, height:48px
  */
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, use } from "react";
-import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useState, useEffect, useCallback, use } from 'react';
+import { useSession } from 'next-auth/react';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
-} from "@/lib/overlay/layout";
+} from '@/lib/overlay/layout';
 import {
   invalidBroadcastIntegerInputLabels,
   isBroadcastIntegerInputValid,
   nullableBroadcastIntegerInput,
-} from "@/lib/broadcast-input";
+} from '@/lib/broadcast-input';
 
 interface Player {
   id: string;
@@ -62,49 +56,45 @@ const coordinateInput = (value: string, fallback: number) => {
   return Number.isFinite(next) ? next : fallback;
 };
 
-export default function BroadcastPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function BroadcastPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
   const { data: session } = useSession();
-  const isAdmin = session?.user && session.user.role === "admin";
-  const t = useTranslations("common");
+  const isAdmin = session?.user && session.user.role === 'admin';
+  const t = useTranslations('common');
+  const tb = useTranslations('broadcast');
 
   const [currentState, setCurrentState] = useState<BroadcastState>({
-    player1Name: "",
-    player2Name: "",
+    player1Name: '',
+    player2Name: '',
     player1NoCamera: false,
     player2NoCamera: false,
-    matchLabel: "",
+    matchLabel: '',
     player1Wins: null,
     player2Wins: null,
     matchFt: null,
     layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
   });
-  const [player1Input, setPlayer1Input] = useState("");
-  const [player2Input, setPlayer2Input] = useState("");
-  const [matchLabelInput, setMatchLabelInput] = useState("");
-  const [player1WinsInput, setPlayer1WinsInput] = useState("");
-  const [player2WinsInput, setPlayer2WinsInput] = useState("");
-  const [matchFtInput, setMatchFtInput] = useState("");
-  const [layoutInput, setLayoutInput] = useState<OverlayBroadcastLayout>(
-    DEFAULT_OVERLAY_BROADCAST_LAYOUT,
-  );
+  const [player1Input, setPlayer1Input] = useState('');
+  const [player2Input, setPlayer2Input] = useState('');
+  const [matchLabelInput, setMatchLabelInput] = useState('');
+  const [player1WinsInput, setPlayer1WinsInput] = useState('');
+  const [player2WinsInput, setPlayer2WinsInput] = useState('');
+  const [matchFtInput, setMatchFtInput] = useState('');
+  const [layoutInput, setLayoutInput] = useState<OverlayBroadcastLayout>(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
   const [players, setPlayers] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
 
   const invalidScoreLabels = invalidBroadcastIntegerInputLabels([
-    { label: "1P 点数", value: player1WinsInput },
-    { label: "2P 点数", value: player2WinsInput },
-    { label: "FT", value: matchFtInput },
+    { label: tb('playerScore', { player: '1P' }), value: player1WinsInput },
+    { label: tb('playerScore', { player: '2P' }), value: player2WinsInput },
+    { label: 'FT', value: matchFtInput },
   ]);
-  const scoreInputError = invalidScoreLabels.length > 0
-    ? `${invalidScoreLabels.join("、")}は0以上の整数で入力してください。`
-    : "";
-  const invalidScoreClassName = "border-destructive focus-visible:ring-destructive";
+  const scoreInputError =
+    invalidScoreLabels.length > 0
+      ? tb('scoreValidation', { labels: invalidScoreLabels.join(tb('listSeparator')) })
+      : '';
+  const invalidScoreClassName = 'border-destructive focus-visible:ring-destructive';
 
   const fetchBroadcastState = useCallback(async () => {
     try {
@@ -114,44 +104,56 @@ export default function BroadcastPage({
         const data = json.data ?? json;
         const layout = normalizeOverlayBroadcastLayout(data.layout);
         setCurrentState({
-          player1Name: data.player1Name ?? "",
-          player2Name: data.player2Name ?? "",
+          player1Name: data.player1Name ?? '',
+          player2Name: data.player2Name ?? '',
           player1NoCamera: data.player1NoCamera === true,
           player2NoCamera: data.player2NoCamera === true,
-          matchLabel: data.matchLabel ?? "",
+          matchLabel: data.matchLabel ?? '',
           player1Wins: data.player1Wins ?? null,
           player2Wins: data.player2Wins ?? null,
           matchFt: data.matchFt ?? null,
           layout,
         });
-        setPlayer1Input(data.player1Name ?? "");
-        setPlayer2Input(data.player2Name ?? "");
-        setMatchLabelInput(data.matchLabel ?? "");
-        setPlayer1WinsInput(data.player1Wins === null || data.player1Wins === undefined ? "" : String(data.player1Wins));
-        setPlayer2WinsInput(data.player2Wins === null || data.player2Wins === undefined ? "" : String(data.player2Wins));
-        setMatchFtInput(data.matchFt === null || data.matchFt === undefined ? "" : String(data.matchFt));
+        setPlayer1Input(data.player1Name ?? '');
+        setPlayer2Input(data.player2Name ?? '');
+        setMatchLabelInput(data.matchLabel ?? '');
+        setPlayer1WinsInput(
+          data.player1Wins === null || data.player1Wins === undefined ? '' : String(data.player1Wins),
+        );
+        setPlayer2WinsInput(
+          data.player2Wins === null || data.player2Wins === undefined ? '' : String(data.player2Wins),
+        );
+        setMatchFtInput(data.matchFt === null || data.matchFt === undefined ? '' : String(data.matchFt));
         setLayoutInput(layout);
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
   }, [tournamentId]);
 
   useEffect(() => {
     fetchBroadcastState();
     /* Fetch player list for the dropdown */
-    fetch("/api/players")
-      .then((r) => r.ok ? r.json() : null)
+    fetch('/api/players')
+      .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
         const data = json?.data ?? json;
         if (Array.isArray(data)) {
-          setPlayers(data.filter((p: Player) => !("deletedAt" in p) || !p.deletedAt).map((p: Player) => ({
-            id: p.id,
-            name: p.name,
-            nickname: p.nickname,
-            noCamera: p.noCamera === true,
-          })));
+          setPlayers(
+            data
+              .filter((p: Player) => !('deletedAt' in p) || !p.deletedAt)
+              .map((p: Player) => ({
+                id: p.id,
+                name: p.name,
+                nickname: p.nickname,
+                noCamera: p.noCamera === true,
+              })),
+          );
         }
       })
-      .catch(() => { /* silent */ });
+      .catch(() => {
+        /* silent */
+      });
   }, [fetchBroadcastState]);
 
   const handleSave = async () => {
@@ -163,8 +165,8 @@ export default function BroadcastPage({
     const player2 = players.find((p) => p.nickname === player2Input.trim());
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           player1Name: player1Input.trim(),
           player2Name: player2Input.trim(),
@@ -192,11 +194,11 @@ export default function BroadcastPage({
     setSaving(true);
     try {
       await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player1Name: "",
-          player2Name: "",
+          player1Name: '',
+          player2Name: '',
           player1NoCamera: false,
           player2NoCamera: false,
           matchLabel: null,
@@ -206,12 +208,12 @@ export default function BroadcastPage({
           layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
         }),
       });
-      setPlayer1Input("");
-      setPlayer2Input("");
-      setMatchLabelInput("");
-      setPlayer1WinsInput("");
-      setPlayer2WinsInput("");
-      setMatchFtInput("");
+      setPlayer1Input('');
+      setPlayer2Input('');
+      setMatchLabelInput('');
+      setPlayer1WinsInput('');
+      setPlayer2WinsInput('');
+      setMatchFtInput('');
       setLayoutInput(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
       await fetchBroadcastState();
     } finally {
@@ -220,42 +222,34 @@ export default function BroadcastPage({
   };
 
   if (!isAdmin) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        {t("noPermission")}
-      </div>
-    );
+    return <div className="text-center py-8 text-muted-foreground">{t('noPermission')}</div>;
   }
 
   return (
     <div className="space-y-7 max-w-3xl">
       <header className="border-b border-foreground/15 pb-4">
-        <h2 className="font-display text-3xl tracking-wide leading-none">
-          配信管理
-        </h2>
-        <p className="text-muted-foreground text-sm mt-2">
-          オーバーレイに表示する1P/2Pの名前と点数欄を設定します。
-        </p>
+        <h2 className="font-display text-3xl tracking-wide leading-none">{tb('title')}</h2>
+        <p className="text-muted-foreground text-sm mt-2">{tb('description')}</p>
       </header>
 
       {/* Current overlay state preview */}
       <section className="border border-foreground/15">
         <div className="px-5 pt-4 pb-1">
-          <p className="text-sm font-semibold">現在の配信表示</p>
-          <p className="text-xs text-muted-foreground mt-0.5">OBSオーバーレイに現在表示されている名前と点数</p>
+          <p className="text-sm font-semibold">{tb('currentDisplay')}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{tb('currentDisplayDescription')}</p>
         </div>
         <div className="grid grid-cols-2 divide-x divide-foreground/10">
           {[
             {
-              slot: "1P",
-              coords: `name x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y} / score x:${currentState.layout.player1Score.x}, y:${currentState.layout.player1Score.y}`,
+              slot: '1P',
+              coords: `${tb('nameCoordinate')} x:${currentState.layout.player1Name.x}, y:${currentState.layout.player1Name.y} / ${tb('scoreCoordinate')} x:${currentState.layout.player1Score.x}, y:${currentState.layout.player1Score.y}`,
               value: currentState.player1Name,
               noCamera: currentState.player1NoCamera,
               score: currentState.player1Wins,
             },
             {
-              slot: "2P",
-              coords: `name x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y} / score x:${currentState.layout.player2Score.x}, y:${currentState.layout.player2Score.y}`,
+              slot: '2P',
+              coords: `${tb('nameCoordinate')} x:${currentState.layout.player2Name.x}, y:${currentState.layout.player2Name.y} / ${tb('scoreCoordinate')} x:${currentState.layout.player2Score.x}, y:${currentState.layout.player2Score.y}`,
               value: currentState.player2Name,
               noCamera: currentState.player2NoCamera,
               score: currentState.player2Wins,
@@ -266,237 +260,233 @@ export default function BroadcastPage({
                 <span className="font-semibold text-foreground">{p.slot}</span>
                 <span>{p.coords}</span>
               </div>
-              <p className={`text-2xl font-semibold ${p.value ? "" : "text-muted-foreground"}`}>
-                {p.value || "未設定"}
+              <p className={`text-2xl font-semibold ${p.value ? '' : 'text-muted-foreground'}`}>
+                {p.value || tb('notSet')}
               </p>
-              {p.noCamera && (
-                <p className="mt-1 text-xs font-semibold text-yellow-600">No camera</p>
-              )}
+              {p.noCamera && <p className="mt-1 text-xs font-semibold text-yellow-600">{tb('noCamera')}</p>}
               <p className="mt-3 text-sm text-muted-foreground">
-                点数:{" "}
+                {tb('score')}:{' '}
                 <span className="font-semibold text-foreground">
-                  {p.score === null ? "未設定" : currentState.matchFt ? `${p.score} / ${currentState.matchFt}` : p.score}
+                  {p.score === null
+                    ? tb('notSet')
+                    : currentState.matchFt
+                      ? `${p.score} / ${currentState.matchFt}`
+                      : p.score}
                 </span>
               </p>
             </div>
           ))}
         </div>
         <div className="border-t border-foreground/10 px-5 py-3 text-sm text-muted-foreground">
-          下枠 x:{currentState.layout.footer.x}, y:{currentState.layout.footer.y}:{" "}
-          <span className="font-semibold text-foreground">
-            {currentState.matchLabel || "未設定"}
-          </span>
+          {tb('footer')} x:{currentState.layout.footer.x}, y:{currentState.layout.footer.y}:{' '}
+          <span className="font-semibold text-foreground">{currentState.matchLabel || tb('notSet')}</span>
         </div>
       </section>
 
       {/* Name input form */}
       <section className="border border-foreground/15 p-5 space-y-4">
         <div>
-          <p className="text-sm font-semibold">名前を設定</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            プレイヤーリストから選ぶか、直接入力してください。
-          </p>
+          <p className="text-sm font-semibold">{tb('setNames')}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{tb('setNamesDescription')}</p>
         </div>
+        <div className="space-y-2">
+          <Label>{tb('playerName', { player: '1P' })}</Label>
+          {/* Player selector dropdown */}
+          {players.length > 0 && (
+            <Select onValueChange={(val) => setPlayer1Input(val)} value="">
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={tb('playerListPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {players.map((p) => (
+                  <SelectItem key={p.id} value={p.nickname}>
+                    {p.nickname}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Input
+            value={player1Input}
+            onChange={(e) => setPlayer1Input(e.target.value)}
+            placeholder={tb('playerNamePlaceholder', { player: '1P' })}
+            maxLength={50}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>{tb('playerName', { player: '2P' })}</Label>
+          {players.length > 0 && (
+            <Select onValueChange={(val) => setPlayer2Input(val)} value="">
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={tb('playerListPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {players.map((p) => (
+                  <SelectItem key={p.id} value={p.nickname}>
+                    {p.nickname}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Input
+            value={player2Input}
+            onChange={(e) => setPlayer2Input(e.target.value)}
+            placeholder={tb('playerNamePlaceholder', { player: '2P' })}
+            maxLength={50}
+          />
+        </div>
+        <div className="border-t border-foreground/10 pt-4 space-y-4">
+          <div>
+            <p className="text-sm font-semibold">{tb('setScoreFields')}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{tb('setScoreFieldsDescription')}</p>
+          </div>
           <div className="space-y-2">
-            <Label>1P 名前</Label>
-            {/* Player selector dropdown */}
-            {players.length > 0 && (
-              <Select
-                onValueChange={(val) => setPlayer1Input(val)}
-                value=""
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="プレイヤーリストから選択..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={p.nickname}>
-                      {p.nickname}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Label htmlFor="broadcast-match-label">{tb('footerLabel')}</Label>
             <Input
-              value={player1Input}
-              onChange={(e) => setPlayer1Input(e.target.value)}
-              placeholder="1P の名前を入力..."
+              id="broadcast-match-label"
+              value={matchLabelInput}
+              onChange={(e) => setMatchLabelInput(e.target.value)}
+              placeholder={tb('footerLabelPlaceholder')}
               maxLength={50}
             />
           </div>
-          <div className="space-y-2">
-            <Label>2P 名前</Label>
-            {players.length > 0 && (
-              <Select
-                onValueChange={(val) => setPlayer2Input(val)}
-                value=""
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="プレイヤーリストから選択..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {players.map((p) => (
-                    <SelectItem key={p.id} value={p.nickname}>
-                      {p.nickname}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Input
-              value={player2Input}
-              onChange={(e) => setPlayer2Input(e.target.value)}
-              placeholder="2P の名前を入力..."
-              maxLength={50}
-            />
-          </div>
-          <div className="border-t border-foreground/10 pt-4 space-y-4">
-            <div>
-              <p className="text-sm font-semibold">点数欄を設定</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                ダッシュボードの 1P/2P 横に出す点数と、下枠ラベルを直接入力します。
-              </p>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="broadcast-match-label">下枠ラベル</Label>
+              <Label htmlFor="broadcast-player1-wins">{tb('playerScore', { player: '1P' })}</Label>
               <Input
-                id="broadcast-match-label"
-                value={matchLabelInput}
-                onChange={(e) => setMatchLabelInput(e.target.value)}
-                placeholder="例: Winners Final"
-                maxLength={50}
+                id="broadcast-player1-wins"
+                value={player1WinsInput}
+                onChange={(e) => setPlayer1WinsInput(e.target.value)}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                aria-invalid={!isBroadcastIntegerInputValid(player1WinsInput)}
+                className={!isBroadcastIntegerInputValid(player1WinsInput) ? invalidScoreClassName : undefined}
+                placeholder="0"
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="broadcast-player1-wins">1P 点数</Label>
-                <Input
-                  id="broadcast-player1-wins"
-                  value={player1WinsInput}
-                  onChange={(e) => setPlayer1WinsInput(e.target.value)}
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1}
-                  aria-invalid={!isBroadcastIntegerInputValid(player1WinsInput)}
-                  className={!isBroadcastIntegerInputValid(player1WinsInput) ? invalidScoreClassName : undefined}
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="broadcast-player2-wins">2P 点数</Label>
-                <Input
-                  id="broadcast-player2-wins"
-                  value={player2WinsInput}
-                  onChange={(e) => setPlayer2WinsInput(e.target.value)}
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1}
-                  aria-invalid={!isBroadcastIntegerInputValid(player2WinsInput)}
-                  className={!isBroadcastIntegerInputValid(player2WinsInput) ? invalidScoreClassName : undefined}
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="broadcast-match-ft">FT</Label>
-                <Input
-                  id="broadcast-match-ft"
-                  value={matchFtInput}
-                  onChange={(e) => setMatchFtInput(e.target.value)}
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1}
-                  aria-invalid={!isBroadcastIntegerInputValid(matchFtInput)}
-                  className={!isBroadcastIntegerInputValid(matchFtInput) ? invalidScoreClassName : undefined}
-                  placeholder="任意"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="broadcast-player2-wins">{tb('playerScore', { player: '2P' })}</Label>
+              <Input
+                id="broadcast-player2-wins"
+                value={player2WinsInput}
+                onChange={(e) => setPlayer2WinsInput(e.target.value)}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                aria-invalid={!isBroadcastIntegerInputValid(player2WinsInput)}
+                className={!isBroadcastIntegerInputValid(player2WinsInput) ? invalidScoreClassName : undefined}
+                placeholder="0"
+              />
             </div>
-            {scoreInputError && (
-              <p className="text-sm font-semibold text-destructive" role="alert">
-                {scoreInputError}
-              </p>
-            )}
-            <div className="border-t border-foreground/10 pt-4 space-y-3">
-              <div>
-                <p className="text-sm font-semibold">表示位置を調整</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  OBS 1920×1080 キャンバス上の左上座標を指定します。
-                </p>
-              </div>
-              {[
-                ["player1Name", "1P 名前"],
-                ["player1Score", "1P 点数"],
-                ["player2Name", "2P 名前"],
-                ["player2Score", "2P 点数"],
-                ["footer", "下枠"],
-              ].map(([key, label]) => {
-                const positionKey = key as keyof OverlayBroadcastLayout;
-                const position = layoutInput[positionKey];
-                const fallback = DEFAULT_OVERLAY_BROADCAST_LAYOUT[positionKey];
-                return (
-                  <div key={key} className="grid gap-2 sm:grid-cols-[110px_1fr_1fr] sm:items-end">
-                    <Label className="pb-2">{label}</Label>
-                    <div className="space-y-1">
-                      <Label htmlFor={`broadcast-layout-${key}-x`} className="text-xs text-muted-foreground">X</Label>
-                      <Input
-                        id={`broadcast-layout-${key}-x`}
-                        data-testid={`broadcast-layout-${key}-x`}
-                        value={String(position.x)}
-                        onChange={(e) => setLayoutInput((current) => ({
+            <div className="space-y-2">
+              <Label htmlFor="broadcast-match-ft">FT</Label>
+              <Input
+                id="broadcast-match-ft"
+                value={matchFtInput}
+                onChange={(e) => setMatchFtInput(e.target.value)}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                aria-invalid={!isBroadcastIntegerInputValid(matchFtInput)}
+                className={!isBroadcastIntegerInputValid(matchFtInput) ? invalidScoreClassName : undefined}
+                placeholder={tb('optional')}
+              />
+            </div>
+          </div>
+          {scoreInputError && (
+            <p className="text-sm font-semibold text-destructive" role="alert">
+              {scoreInputError}
+            </p>
+          )}
+          <div className="border-t border-foreground/10 pt-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold">{tb('adjustPositions')}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{tb('adjustPositionsDescription')}</p>
+            </div>
+            {[
+              ['player1Name', tb('playerName', { player: '1P' })],
+              ['player1Score', tb('playerScore', { player: '1P' })],
+              ['player2Name', tb('playerName', { player: '2P' })],
+              ['player2Score', tb('playerScore', { player: '2P' })],
+              ['footer', tb('footer')],
+            ].map(([key, label]) => {
+              const positionKey = key as keyof OverlayBroadcastLayout;
+              const position = layoutInput[positionKey];
+              const fallback = DEFAULT_OVERLAY_BROADCAST_LAYOUT[positionKey];
+              return (
+                <div key={key} className="grid gap-2 sm:grid-cols-[110px_1fr_1fr] sm:items-end">
+                  <Label className="pb-2">{label}</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor={`broadcast-layout-${key}-x`} className="text-xs text-muted-foreground">
+                      X
+                    </Label>
+                    <Input
+                      id={`broadcast-layout-${key}-x`}
+                      data-testid={`broadcast-layout-${key}-x`}
+                      value={String(position.x)}
+                      onChange={(e) =>
+                        setLayoutInput((current) => ({
                           ...current,
                           [positionKey]: {
                             ...current[positionKey],
                             x: coordinateInput(e.target.value, fallback.x),
                           },
-                        }))}
-                        type="number"
-                        inputMode="numeric"
-                        step={1}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor={`broadcast-layout-${key}-y`} className="text-xs text-muted-foreground">Y</Label>
-                      <Input
-                        id={`broadcast-layout-${key}-y`}
-                        data-testid={`broadcast-layout-${key}-y`}
-                        value={String(position.y)}
-                        onChange={(e) => setLayoutInput((current) => ({
+                        }))
+                      }
+                      type="number"
+                      inputMode="numeric"
+                      step={1}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`broadcast-layout-${key}-y`} className="text-xs text-muted-foreground">
+                      Y
+                    </Label>
+                    <Input
+                      id={`broadcast-layout-${key}-y`}
+                      data-testid={`broadcast-layout-${key}-y`}
+                      value={String(position.y)}
+                      onChange={(e) =>
+                        setLayoutInput((current) => ({
                           ...current,
                           [positionKey]: {
                             ...current[positionKey],
                             y: coordinateInput(e.target.value, fallback.y),
                           },
-                        }))}
-                        type="number"
-                        inputMode="numeric"
-                        step={1}
-                      />
-                    </div>
+                        }))
+                      }
+                      type="number"
+                      inputMode="numeric"
+                      step={1}
+                    />
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className={savedFlash ? "bg-green-600 hover:bg-green-600" : ""}
-            >
-              {savedFlash ? "✓ 反映しました" : "配信に反映"}
-            </Button>
-            <Button variant="outline" onClick={handleClear} disabled={saving}>
-              クリア
-            </Button>
-          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className={savedFlash ? 'bg-green-600 hover:bg-green-600' : ''}
+          >
+            {savedFlash ? `✓ ${t('broadcastReflected')}` : t('broadcastReflect')}
+          </Button>
+          <Button variant="outline" onClick={handleClear} disabled={saving}>
+            {tb('clear')}
+          </Button>
+        </div>
       </section>
 
       <div className="text-sm text-muted-foreground">
         <p>
-          オーバーレイURL:{" "}
+          {tb('overlayUrl')}:{' '}
           <Link
             href={`/tournaments/${tournamentId}/overlay/dashboard`}
             className="underline"
