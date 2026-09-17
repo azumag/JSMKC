@@ -13,7 +13,7 @@
  *
  * Covers:
  * - Success cases: Returning polling statistics and mock provenance
- * - Consistency: Warnings are derived from the exact metrics returned
+ * - Safety: Mock metrics never produce operational warnings
  * - Authentication: Rejecting unauthenticated requests with 401 status
  * - Error handling: Graceful handling of auth errors with structured logging
  *
@@ -84,23 +84,23 @@ describe('GET /api/monitor/polling-stats', () => {
               end: expect.any(String),
               duration: '1 hour',
             }),
-            warnings: expect.any(Array),
+            warnings: [],
           }),
         }),
       );
     });
 
-    it('should derive warnings from the same metrics returned in the response', async () => {
+    it('should not emit operational warnings when mock metrics exceed warning thresholds', async () => {
       jest.mocked(auth).mockResolvedValue({
         user: { id: 'admin-1', role: 'admin' },
       });
 
       const randomSpy = jest
         .spyOn(Math, 'random')
-        .mockReturnValueOnce(0.75) // totalRequests = 1250 -> warning
+        .mockReturnValueOnce(0.75) // totalRequests = 1250 -> would exceed the telemetry warning threshold
         .mockReturnValueOnce(0) // averageResponseTime = 100
-        .mockReturnValueOnce(0.8) // activeConnections = 50 -> warning
-        .mockReturnValueOnce(0.2); // errorRate = 1 -> no warning
+        .mockReturnValueOnce(0.8) // activeConnections = 50 -> would exceed the telemetry warning threshold
+        .mockReturnValueOnce(0.2); // errorRate = 1
 
       await pollingStatsRoute.GET(new NextRequest('http://localhost:3000/api/monitor/polling-stats'));
 
@@ -114,13 +114,13 @@ describe('GET /api/monitor/polling-stats', () => {
             averageResponseTime: 100,
             activeConnections: 50,
             errorRate: 1,
-            warnings: [
-              'High request volume detected - consider increasing polling intervals',
-              'High number of active connections - monitor server resources',
-            ],
+            warnings: [],
           }),
         }),
       );
+
+      const mockLogger = loggerMock.createLogger();
+      expect(mockLogger.warn).not.toHaveBeenCalledWith('ALERT', expect.any(Object));
     });
   });
 
