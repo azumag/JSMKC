@@ -439,6 +439,16 @@ export default function PlayersPage() {
   };
 
   /**
+   * Keeps password-dialog visibility and sensitive plaintext cleanup in one
+   * place so every close path (overlay, Escape, or explicit acknowledgement)
+   * clears the one-time credential immediately.
+   */
+  const handlePasswordDialogOpenChange = (open: boolean) => {
+    setIsPasswordDialogOpen(open);
+    if (!open) setTemporaryPassword('');
+  };
+
+  /**
    * Opens the edit dialog pre-populated with the selected player's data.
    * Resets the error state and sets the editing player ID for the
    * update handler to reference.
@@ -752,13 +762,7 @@ export default function PlayersPage() {
        * Admin must copy and share it with the player, as it cannot
        * be retrieved again (stored as a hash in the database).
        */}
-      <Dialog
-        open={isPasswordDialogOpen}
-        onOpenChange={(open) => {
-          setIsPasswordDialogOpen(open);
-          if (!open) setTemporaryPassword('');
-        }}
-      >
+      <Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{isPasswordReset ? t('passwordResetSuccess') : t('createdSuccess')}</DialogTitle>
@@ -777,7 +781,7 @@ export default function PlayersPage() {
             <div className="text-sm text-muted-foreground">{t('passwordNote')}</div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setIsPasswordDialogOpen(false)}>{t('savedIt')}</Button>
+            <Button onClick={() => handlePasswordDialogOpenChange(false)}>{t('savedIt')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
