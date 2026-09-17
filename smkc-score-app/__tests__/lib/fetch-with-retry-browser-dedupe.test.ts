@@ -1,5 +1,3 @@
-/** @jest-environment jsdom */
-
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 function makeFetchResponse(): Response {
@@ -22,14 +20,25 @@ function deferred<T>() {
 }
 
 describe('fetchWithRetry browser GET dedupe', () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   let fetchSpy: jest.SpyInstance;
 
   beforeEach(() => {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { location: new URL('http://localhost/') },
+      writable: true,
+    });
     fetchSpy = jest.spyOn(globalThis, 'fetch');
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      Reflect.deleteProperty(globalThis, 'window');
+    }
   });
 
   it('dedupes concurrent plain same-origin API GETs', async () => {
@@ -71,6 +80,16 @@ describe('fetchWithRetry browser GET dedupe', () => {
       fetchWithRetry('/api/header-specific', { headers: { 'x-request-scope': 'first' } }),
       fetchWithRetry('/api/header-specific', { headers: { 'x-request-scope': 'second' } }),
     ]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not dedupe Request inputs with their own request semantics', async () => {
+    fetchSpy.mockImplementation(async () => makeFetchResponse());
+    const firstRequest = new Request('http://localhost/api/request-specific');
+    const secondRequest = new Request('http://localhost/api/request-specific');
+
+    await Promise.all([fetchWithRetry(firstRequest), fetchWithRetry(secondRequest)]);
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
