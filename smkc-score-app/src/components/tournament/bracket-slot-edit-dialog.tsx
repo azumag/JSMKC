@@ -31,8 +31,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { getFinalsSlotStatus, type SlotStatusMatch } from '@/lib/finals-slot-status';
+import { createLogger } from '@/lib/client-logger';
 import type { BracketMatch } from '@/types/bracket';
 import type { Player } from '@/lib/types';
+
+const logger = createLogger({ serviceName: 'bracket-slot-edit' });
 
 export interface SlotEditMatchData extends SlotStatusMatch {
   id: string;
@@ -100,10 +103,12 @@ export function BracketSlotEditDialog({
   onSaved,
 }: BracketSlotEditDialogProps) {
   const tf = useTranslations('finals');
+  const tCommon = useTranslations('common');
   const [tab, setTab] = useState<SlotEditTab>('swap');
   const [saving, setSaving] = useState(false);
   const [qualifications, setQualifications] = useState<QualificationCandidate[]>([]);
   const [loadingQuals, setLoadingQuals] = useState(false);
+  const [candidateLoadFailed, setCandidateLoadFailed] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [selectedTargetKey, setSelectedTargetKey] = useState('');
   const [pending, setPending] = useState<PendingSlotEdit | null>(null);
@@ -122,16 +127,25 @@ export function BracketSlotEditDialog({
     if (!open || tab !== 'assign') return;
     let cancelled = false;
     setLoadingQuals(true);
+    setCandidateLoadFailed(false);
     fetch(qualificationApiPath)
-      .then((r) => r.json())
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Qualification candidate request failed with HTTP ${response.status}`);
+        }
+        return response.json();
+      })
       .then((json) => {
         if (cancelled) return;
         const data = (json && typeof json === 'object' && 'data' in json ? json.data : json) as
           { qualifications?: Array<{ playerId: string; player: Player }> } | undefined;
         setQualifications((data?.qualifications ?? []).map((q) => ({ playerId: q.playerId, player: q.player })));
       })
-      .catch(() => {
-        /* Candidate list is best-effort; the select just stays empty. */
+      .catch((error) => {
+        if (cancelled) return;
+        setQualifications([]);
+        setCandidateLoadFailed(true);
+        logger.error('Failed to load bracket slot assign candidates:', { error, qualificationApiPath });
       })
       .finally(() => {
         if (!cancelled) setLoadingQuals(false);
@@ -311,6 +325,10 @@ export function BracketSlotEditDialog({
               <div className="space-y-3 py-2">
                 {loadingQuals ? (
                   <p className="text-sm text-muted-foreground">{tf('slotEditLoadingCandidates')}</p>
+                ) : candidateLoadFailed ? (
+                  <p className="text-sm text-destructive" role="alert" data-testid="slot-edit-candidate-load-error">
+                    {tCommon('networkError')}
+                  </p>
                 ) : assignCandidates.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{tf('slotEditNoCandidates')}</p>
                 ) : (
