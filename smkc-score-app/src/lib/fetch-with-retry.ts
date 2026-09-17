@@ -80,10 +80,7 @@ async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
  * Fetch with automatic retry on 500+ status codes.
  * Returns the last response (successful or final failure).
  */
-export async function fetchWithRetry(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
+export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (isDedupeSafeBrowserApiGet(input, init)) {
     const key = dedupeKey(input);
     let request = inFlightApiGets.get(key);
@@ -104,10 +101,7 @@ export async function fetchWithRetry(
   return fetchWithRetryRaw(input, init);
 }
 
-async function fetchWithRetryRaw(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
+async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   let lastResponse: Response | undefined;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
