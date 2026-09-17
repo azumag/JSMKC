@@ -105,11 +105,12 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     dialogSessionRef.current = dialogSession;
     setOpen(nextOpen);
 
-    // Async work from the previous dialog session may still be in flight.
-    // The generation change above makes its state updates stale; reset the
-    // busy flags immediately so the new session is not blocked by old work.
+    // Read-only status work from the previous dialog session may still be in
+    // flight. The generation change above makes those updates stale, so the
+    // new session owns its loading state immediately. Do not reset
+    // `submitting` here: POST/DELETE mutations must stay serialized across a
+    // close/reopen until the in-flight server mutation actually settles.
     setLoading(false);
-    setSubmitting(false);
 
     // The token and the generated QR both contain a one-time bearer
     // credential, so discard them immediately on every dialog transition.
@@ -153,7 +154,10 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       logger.error('Failed to issue QR login token', metadata);
       if (isCurrentDialogSession(dialogSession)) setError(t('failedToIssueQrCode'));
     } finally {
-      if (isCurrentDialogSession(dialogSession)) setSubmitting(false);
+      // `submitting` represents the one serialized server mutation, not a
+      // dialog-session-local visual. Even if the dialog was reopened, this
+      // request settling is what safely releases the mutation lock.
+      setSubmitting(false);
     }
   };
 
@@ -178,7 +182,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       logger.error('Failed to revoke QR login token', metadata);
       if (isCurrentDialogSession(dialogSession)) setError(t('failedToRevokeQrCode'));
     } finally {
-      if (isCurrentDialogSession(dialogSession)) setSubmitting(false);
+      setSubmitting(false);
     }
   };
 
