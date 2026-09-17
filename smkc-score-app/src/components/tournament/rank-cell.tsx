@@ -51,6 +51,7 @@ function RankCellSaveError() {
  * ever in edit mode at a time and there is no need to lift this state.
  */
 export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onSave }: RankCellProps) {
+  const tRankCell = useTranslations('rankCell');
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   // Unexpected rejected callbacks show a safe localized error; API failures normally return false instead.
@@ -105,6 +106,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             type="number"
             min={1}
             value={inputValue}
+            aria-label={tRankCell('rankInput')}
             onChange={(e) => setInputValue(e.target.value)}
             className="w-14 h-7 text-center text-sm p-1"
             onKeyDown={(e) => {
@@ -113,12 +115,24 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             }}
             autoFocus
           />
-          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={commitSave}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-1 text-xs"
+            onClick={commitSave}
+            aria-label={tRankCell('saveRank')}
+          >
             ✓
           </Button>
           {rankOverride != null && (
             /* Clear button: removes override and restores automatic rank */
-            <Button size="sm" variant="ghost" className="h-7 px-1 text-xs text-destructive" onClick={commitClear}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-1 text-xs text-destructive"
+              onClick={commitClear}
+              aria-label={tRankCell('clearRankOverride')}
+            >
               ✕
             </Button>
           )}
@@ -144,7 +158,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
           variant="ghost"
           className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
           onClick={openEdit}
-          aria-label="Edit rank"
+          aria-label={tRankCell('editRank')}
         >
           ✎
         </Button>

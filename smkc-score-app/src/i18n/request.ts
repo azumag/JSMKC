@@ -21,6 +21,8 @@ import enLoadingSpinner from '../../messages/loading-spinner/en.json';
 import jaLoadingSpinner from '../../messages/loading-spinner/ja.json';
 import enMatchValidation from '../../messages/match-validation/en.json';
 import jaMatchValidation from '../../messages/match-validation/ja.json';
+import enRankCell from '../../messages/rank-cell/en.json';
+import jaRankCell from '../../messages/rank-cell/ja.json';
 import enTaPromotion from '../../messages/ta-promotion/en.json';
 import jaTaPromotion from '../../messages/ta-promotion/ja.json';
 import { type Locale, locales, defaultLocale, LOCALE_COOKIE } from './config';
@@ -50,6 +52,11 @@ const matchValidationMessages = {
   ja: jaMatchValidation,
 } satisfies Record<Locale, typeof enMatchValidation>;
 
+const rankCellMessages = {
+  en: enRankCell,
+  ja: jaRankCell,
+} satisfies Record<Locale, typeof enRankCell>;
+
 const taPromotionMessages = {
   en: enTaPromotion,
   ja: jaTaPromotion,
@@ -70,6 +77,7 @@ async function loadMessages(locale: Locale) {
     loadingOverlay: loadingOverlayMessages[locale],
     loadingSkeleton: loadingSkeletonMessages[locale],
     loadingSpinner: loadingSpinnerMessages[locale],
+    rankCell: rankCellMessages[locale],
     match: {
       ...messages.match,
       ...matchValidationMessages[locale],
