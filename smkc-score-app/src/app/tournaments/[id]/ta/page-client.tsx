@@ -622,11 +622,22 @@ export default function TimeAttackPageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ frozenStages: newFrozen }),
       });
-      if (!response.ok) throw new Error('Failed to update freeze state');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error('Failed to update TA qualification freeze state:', {
+          status: response.status,
+          error: errorData.error,
+          tournamentId,
+        });
+        toast.error(errorData.error || tc('networkError'));
+        return;
+      }
       refetch();
       toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to toggle freeze');
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to update TA qualification freeze state:', { ...metadata, tournamentId });
+      toast.error(tc('networkError'));
     }
   };
 
