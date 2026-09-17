@@ -31,6 +31,7 @@ function isValidLocale(locale: string): locale is Locale {
 export function LocaleSwitcher() {
   const locale = useLocale();
   const tCommon = useTranslations('common');
+  const tLocaleSwitcher = useTranslations('localeSwitcher');
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -60,8 +61,9 @@ export function LocaleSwitcher() {
         throw new Error(`Failed to switch locale: ${response.status}`);
       }
 
-      // Show success toast before refreshing
-      toast.success(newLocale === 'ja' ? '日本語に切り替えました' : 'Switched to English');
+      toast.success(
+        newLocale === 'ja' ? tLocaleSwitcher('switchedToJapanese') : tLocaleSwitcher('switchedToEnglish'),
+      );
 
       // Refresh the page to apply the new locale
       router.refresh();
@@ -86,7 +88,7 @@ export function LocaleSwitcher() {
       type="button"
       role="switch"
       aria-checked={isJapanese}
-      aria-label={isJapanese ? 'Switch to English' : '日本語に切り替え'}
+      aria-label={isJapanese ? tLocaleSwitcher('switchToEnglish') : tLocaleSwitcher('switchToJapanese')}
       onClick={switchLocale}
       onKeyDown={handleKeyDown}
       disabled={isLoading}
