@@ -59,9 +59,13 @@ const mockSummaryData = {
   taBattleRoyaleMode: true,
 };
 
-jest.mock('@/lib/client-logger', () => ({
-  createLogger: () => ({ error: jest.fn(), info: jest.fn(), warn: jest.fn() }),
-}));
+jest.mock('@/lib/client-logger', () => {
+  const logger = { error: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  return { createLogger: () => logger, __mockLogger: logger };
+});
+
+const mockLoggerError = (jest.requireMock('@/lib/client-logger') as { __mockLogger: { error: jest.Mock } }).__mockLogger
+  .error;
 
 const player = (id: string, nickname: string) => ({ id, name: nickname, nickname });
 
@@ -152,6 +156,7 @@ describe('TA participant page', () => {
       ok: true,
       json: jest.fn().mockResolvedValue({ data: baseTaData }),
     });
+    mockLoggerError.mockClear();
   });
 
   it('shows the Phase 3 report card when enabled and the player has a phase3 entry', async () => {
@@ -267,5 +272,160 @@ describe('TA participant page', () => {
       expect(screen.getByText('loggedInAsPlayer')).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'debugRandomFill' })).not.toBeInTheDocument();
+  });
+});
+
+describe('TA participant page mutation request rejection fallbacks (issue #3606)', () => {
+  beforeEach(() => {
+    mockUseSession.mockReturnValue({
+      data: { user: { role: 'player', userType: 'player', playerId: 'player-1' } },
+    } as ReturnType<typeof useSession>);
+    mockUseTournamentDebugMode.mockReturnValue(false);
+    mockLoggerError.mockClear();
+  });
+
+  it('localizes an own qualification submission that is rejected by the network and preserves the input', async () => {
+    const customEntries = {
+      ...baseTaData,
+      entries: [{ ...baseTaData.entries[0], times: { MC1: '1:23.45' } }],
+    };
+    (usePolling as jest.Mock).mockImplementation((fetcher: unknown) => {
+      const source = typeof fetcher === 'function' ? String(fetcher) : '';
+      const isPhase3Poller = source.includes('/ta/phases');
+      return isPhase3Poller
+        ? { data: basePhase3Data, error: null, refetch: jest.fn() }
+        : { data: customEntries, error: null, refetch: jest.fn() };
+    });
+    (global.fetch as jest.Mock) = jest.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') return Promise.reject(new Error('own qualification network failure'));
+      return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue({ data: customEntries }) });
+    });
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    const submitButton = await screen.findByRole('button', { name: 'submitTimes' });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('networkError')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/own qualification network failure/)).not.toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to submit TA qualification times:',
+      expect.objectContaining({ error: expect.any(Error) }),
+    );
+    expect(submitButton).not.toBeDisabled();
+    expect(screen.getByDisplayValue('1:23.45')).toBeInTheDocument();
+  });
+
+  it('localizes a partner qualification submission that is rejected by the network', async () => {
+    const customEntries = {
+      ...baseTaData,
+      entries: [
+        { ...baseTaData.entries[0], partnerId: 'player-2', times: {} },
+        {
+          id: 'e2',
+          playerId: 'player-2',
+          partnerId: 'player-1',
+          stage: 'qualification',
+          lives: 3,
+          eliminated: false,
+          times: { MC1: '2:00.00' },
+          totalTime: null,
+          rank: null,
+          player: player('player-2', 'Luigi'),
+        },
+      ],
+    };
+    (usePolling as jest.Mock).mockImplementation((fetcher: unknown) => {
+      const source = typeof fetcher === 'function' ? String(fetcher) : '';
+      const isPhase3Poller = source.includes('/ta/phases');
+      return isPhase3Poller
+        ? { data: basePhase3Data, error: null, refetch: jest.fn() }
+        : { data: customEntries, error: null, refetch: jest.fn() };
+    });
+    (global.fetch as jest.Mock) = jest.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') return Promise.reject(new Error('partner qualification network failure'));
+      return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue({ data: customEntries }) });
+    });
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'submitTimes' })).toHaveLength(2);
+    });
+    const partnerSubmitButton = screen
+      .getAllByRole('button', { name: 'submitTimes' })
+      .find((button) => !button.hasAttribute('disabled'));
+    expect(partnerSubmitButton).toBeDefined();
+    fireEvent.click(partnerSubmitButton as HTMLElement);
+
+    await waitFor(() => {
+      expect(screen.getByText('networkError')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/partner qualification network failure/)).not.toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to submit partner TA qualification times:',
+      expect.objectContaining({ error: expect.any(Error) }),
+    );
+  });
+
+  it('keeps Phase 3 error-code mapping while localizing a request rejection and preserves the input', async () => {
+    (global.fetch as jest.Mock) = jest.fn().mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/ta/phases')) {
+        return Promise.reject(new Error('phase 3 network failure'));
+      }
+      return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue({ data: baseTaData }) });
+    });
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('phase3ReportTitle')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('reportTime'), { target: { value: '1:00.00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'reportTime' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('networkError')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/phase 3 network failure/)).not.toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to report TA Phase 3 time:',
+      expect.objectContaining({ error: expect.any(Error) }),
+    );
+    expect(screen.getByRole('button', { name: 'reportTime' })).not.toBeDisabled();
+    expect(screen.getByDisplayValue('1:00.00')).toBeInTheDocument();
+  });
+
+  it('localizes a TA registration submission that is rejected by the network', async () => {
+    const emptyEntries = { ...baseTaData, entries: [] };
+    (usePolling as jest.Mock).mockImplementation((fetcher: unknown) => {
+      const source = typeof fetcher === 'function' ? String(fetcher) : '';
+      const isPhase3Poller = source.includes('/ta/phases');
+      return isPhase3Poller
+        ? { data: basePhase3Data, error: null, refetch: jest.fn() }
+        : { data: emptyEntries, error: null, refetch: jest.fn() };
+    });
+    (global.fetch as jest.Mock) = jest.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.reject(new Error('registration network failure'));
+      return Promise.resolve({ ok: true, json: jest.fn().mockResolvedValue({ data: emptyEntries }) });
+    });
+
+    render(<TimeAttackParticipantPage params={Promise.resolve({ id: 'tournament-1' })} />);
+
+    const addButton = await screen.findByRole('button', { name: 'addToTA' });
+    fireEvent.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('networkError')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/registration network failure/)).not.toBeInTheDocument();
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      'Failed to add participant to TA:',
+      expect.objectContaining({ error: expect.any(Error) }),
+    );
+    expect(addButton).not.toBeDisabled();
   });
 });
