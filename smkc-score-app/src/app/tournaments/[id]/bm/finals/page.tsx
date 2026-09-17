@@ -666,7 +666,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
             {canResetBracket && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" disabled={creating} aria-label="Reset finals bracket">
+                  <Button variant="outline" disabled={creating} aria-label={tFinals('resetBracket')}>
                     {tFinals('resetBracket')}
                   </Button>
                 </AlertDialogTrigger>
