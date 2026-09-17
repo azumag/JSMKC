@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useTranslations } from "next-intl";
+import { useTranslations } from 'next-intl';
 
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { useModePublish } from "@/hooks/use-mode-publish";
-import type { RevealableMode } from "@/lib/public-modes";
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { useModePublish } from '@/hooks/use-mode-publish';
+import type { RevealableMode } from '@/lib/public-modes';
 
 interface ModePublishSwitchProps {
   tournamentId: string;
@@ -21,20 +21,13 @@ interface ModePublishSwitchProps {
  * publishes/unpublishes independently — toggling one mode does not affect
  * any other mode.
  */
-export function ModePublishSwitch({
-  tournamentId,
-  mode,
-  modeLabelKey,
-}: ModePublishSwitchProps) {
-  const tc = useTranslations("common");
-  const { isPublic, toggle, updating, loading, error } = useModePublish(
-    tournamentId,
-    mode
-  );
+export function ModePublishSwitch({ tournamentId, mode, modeLabelKey }: ModePublishSwitchProps) {
+  const tc = useTranslations('common');
+  const { isPublic, toggle, updating, loading, error } = useModePublish(tournamentId, mode);
 
-  const stateLabel = isPublic ? tc("publishMode") : tc("unpublishMode");
+  const stateLabel = isPublic ? tc('publishMode') : tc('unpublishMode');
   const ariaLabel = `${tc(modeLabelKey)}: ${stateLabel}`;
-  const initialStateUnknown = error === "load";
+  const initialStateUnknown = error === 'load';
 
   return (
     <div className="space-y-1">
@@ -45,16 +38,13 @@ export function ModePublishSwitch({
           disabled={updating || loading || initialStateUnknown}
           aria-label={ariaLabel}
         />
-        <Badge
-          variant={isPublic ? "default" : "secondary"}
-          className="text-xs"
-        >
+        <Badge variant={isPublic ? 'default' : 'secondary'} className="text-xs">
           {stateLabel}
         </Badge>
       </div>
       {error && (
         <p role="alert" className="text-xs text-destructive">
-          {tc("networkError")}
+          {tc('networkError')}
         </p>
       )}
     </div>
