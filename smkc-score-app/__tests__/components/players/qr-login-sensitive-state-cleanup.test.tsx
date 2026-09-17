@@ -1,9 +1,9 @@
 /**
  * @jest-environment jsdom
  *
- * Regression coverage for issues #3655 and #3657: one-time QR bearer
- * credentials and async dialog state must not survive or leak across dialog
- * sessions.
+ * Regression coverage for issues #3655, #3657, and #3659: one-time QR
+ * bearer credentials and async dialog state must not survive or leak across
+ * dialog sessions, and a stale mutation must resync current server status.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,7 +23,7 @@ jest.mock('qrcode', () => ({
   },
 }));
 
-describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
+describe('QR login dialog async lifecycle (issues #3655, #3657, and #3659)', () => {
   let fetchMock: jest.Mock;
 
   beforeEach(() => {
@@ -33,10 +33,12 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
     jest.mocked(QRCode.toString).mockClear();
   });
 
-  it('clears sensitive and read-only loading state on every dialog transition without releasing mutation lock', () => {
+  it('clears sensitive state without releasing mutation lock and tracks status request generation', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/components/players/qr-login-dialog.tsx'), 'utf8');
     const handler = source.slice(source.indexOf('const handleOpenChange'), source.indexOf('const handleIssue'));
 
+    expect(source).toContain('const statusRequestRef = useRef(0);');
+    expect(source).toContain('statusRequestRef.current === statusRequest');
     expect(handler).toContain('dialogSessionRef.current = dialogSession;');
     expect(handler).toContain('setLoading(false);');
     expect(handler).not.toContain('setSubmitting(false);');
@@ -50,17 +52,20 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
     const issueResponse = new Promise((resolve) => {
       resolveIssue = resolve;
     });
+    const inactiveStatus = {
+      ok: true,
+      json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
+    };
+    const activeStatus = {
+      ok: true,
+      json: async () => ({ success: true, data: { active: true, issuedAt: '2026-09-17T00:00:00.000Z' } }),
+    };
 
     fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
-      })
+      .mockResolvedValueOnce(inactiveStatus)
       .mockReturnValueOnce(issueResponse)
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: { active: true, issuedAt: '2026-09-17T00:00:00.000Z' } }),
-      });
+      .mockResolvedValueOnce(activeStatus)
+      .mockResolvedValueOnce(activeStatus);
 
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
@@ -93,13 +98,14 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
       await Promise.resolve();
     });
 
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
     await waitFor(() => expect(screen.getByRole('button', { name: 'reissueQrCode' })).not.toBeDisabled());
     expect(screen.queryByLabelText('qrLoginUrl')).not.toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
     expect(QRCode.toString).not.toHaveBeenCalled();
   });
 
-  it('ignores an old status response that finishes after the reopened session has loaded', async () => {
+  it('ignores an old dialog status response that finishes after the reopened session has loaded', async () => {
     let resolveOldStatus!: (value: unknown) => void;
     const oldStatusResponse = new Promise((resolve) => {
       resolveOldStatus = resolve;
@@ -133,20 +139,29 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
     expect(screen.getByRole('button', { name: 'reissueQrCode' })).toBeInTheDocument();
   });
 
-  it('keeps a pending issue mutation serialized across close and reopen until that request settles', async () => {
+  it('resyncs active status after an old issue settles and ignores the earlier reopen GET', async () => {
     let resolveIssue!: (value: unknown) => void;
+    let resolveReopenStatus!: (value: unknown) => void;
     const issueResponse = new Promise((resolve) => {
       resolveIssue = resolve;
+    });
+    const reopenStatusResponse = new Promise((resolve) => {
+      resolveReopenStatus = resolve;
     });
     const inactiveStatus = {
       ok: true,
       json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
     };
+    const activeStatus = {
+      ok: true,
+      json: async () => ({ success: true, data: { active: true, issuedAt: '2026-09-17T01:01:00.000Z' } }),
+    };
 
     fetchMock
       .mockResolvedValueOnce(inactiveStatus)
       .mockReturnValueOnce(issueResponse)
-      .mockResolvedValueOnce(inactiveStatus);
+      .mockReturnValueOnce(reopenStatusResponse)
+      .mockResolvedValueOnce(activeStatus);
 
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
@@ -159,30 +174,28 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'qrLogin' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    await waitFor(() => expect(screen.queryByText('loading')).not.toBeInTheDocument());
-
-    const savingButton = screen.getByRole('button', { name: 'saving' });
-    expect(savingButton).toBeDisabled();
-    fireEvent.click(savingButton);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole('button', { name: 'saving' })).toBeDisabled();
 
     await act(async () => {
-      resolveIssue({
-        ok: true,
-        json: async () => ({
-          success: true,
-          data: { token: 'stale-token', issuedAt: '2026-09-17T01:00:00.000Z' },
-        }),
-      });
+      resolveIssue({ ok: true });
       await Promise.resolve();
     });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'issueQrCode' })).not.toBeDisabled());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(screen.getByText('qrCodeActiveNote')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'reissueQrCode' })).not.toBeDisabled();
     expect(screen.queryByLabelText('qrLoginUrl')).not.toBeInTheDocument();
-    expect(QRCode.toString).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveReopenStatus(inactiveStatus);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('qrCodeActiveNote')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'reissueQrCode' })).toBeInTheDocument();
   });
 
-  it('ignores a revoke response from a dialog session that has already closed', async () => {
+  it('resyncs inactive status after an old revoke settles', async () => {
     let resolveRevoke!: (value: unknown) => void;
     const revokeResponse = new Promise((resolve) => {
       resolveRevoke = resolve;
@@ -191,11 +204,16 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
       ok: true,
       json: async () => ({ success: true, data: { active: true, issuedAt: '2026-09-17T02:00:00.000Z' } }),
     };
+    const inactiveStatus = {
+      ok: true,
+      json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
+    };
 
     fetchMock
       .mockResolvedValueOnce(activeStatus)
       .mockReturnValueOnce(revokeResponse)
-      .mockResolvedValueOnce(activeStatus);
+      .mockResolvedValueOnce(activeStatus)
+      .mockResolvedValueOnce(inactiveStatus);
 
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
@@ -216,8 +234,9 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
       await Promise.resolve();
     });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'reissueQrCode' })).not.toBeDisabled());
-    expect(screen.getByText('qrCodeActiveNote')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'revokeQrCode' })).not.toBeDisabled();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(screen.getByText('qrCodeNotIssued')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'issueQrCode' })).not.toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'revokeQrCode' })).not.toBeInTheDocument();
   });
 });
