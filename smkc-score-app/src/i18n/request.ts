@@ -11,7 +11,26 @@
  */
 import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
+import enTaPromotion from '../../messages/ta-promotion/en.json';
+import jaTaPromotion from '../../messages/ta-promotion/ja.json';
 import { type Locale, locales, defaultLocale, LOCALE_COOKIE } from './config';
+
+const taPromotionMessages = {
+  en: enTaPromotion,
+  ja: jaTaPromotion,
+} satisfies Record<Locale, typeof enTaPromotion>;
+
+async function loadMessages(locale: Locale) {
+  const messages = (await import(`../../messages/${locale}.json`)).default;
+
+  return {
+    ...messages,
+    ta: {
+      ...messages.ta,
+      ...taPromotionMessages[locale],
+    },
+  };
+}
 
 export default getRequestConfig(async () => {
   /**
@@ -22,9 +41,10 @@ export default getRequestConfig(async () => {
   const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value;
 
   if (cookieLocale && locales.includes(cookieLocale as Locale)) {
+    const locale = cookieLocale as Locale;
     return {
-      locale: cookieLocale,
-      messages: (await import(`../../messages/${cookieLocale}.json`)).default,
+      locale,
+      messages: await loadMessages(locale),
     };
   }
 
@@ -39,6 +59,6 @@ export default getRequestConfig(async () => {
 
   return {
     locale: browserLocale,
-    messages: (await import(`../../messages/${browserLocale}.json`)).default,
+    messages: await loadMessages(browserLocale),
   };
 });
