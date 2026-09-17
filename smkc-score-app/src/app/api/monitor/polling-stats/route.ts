@@ -49,8 +49,8 @@ export async function GET() {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    // Sample each metric once. Warnings are derived from these exact values so
-    // the response cannot report a warning that contradicts its own metrics.
+    // Sample each metric once so the values returned in this response describe
+    // one internally consistent mock snapshot.
     const totalRequests = await getPollingRequestCount(oneHourAgo, now);
     const averageResponseTime = await getAverageResponseTime(oneHourAgo, now);
     const activeConnections = await getActiveConnectionCount();
