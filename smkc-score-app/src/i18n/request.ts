@@ -13,6 +13,8 @@ import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
 import enLoadingOverlay from '../../messages/loading-overlay/en.json';
 import jaLoadingOverlay from '../../messages/loading-overlay/ja.json';
+import enLoadingSkeleton from '../../messages/loading-skeleton/en.json';
+import jaLoadingSkeleton from '../../messages/loading-skeleton/ja.json';
 import enMatchValidation from '../../messages/match-validation/en.json';
 import jaMatchValidation from '../../messages/match-validation/ja.json';
 import enTaPromotion from '../../messages/ta-promotion/en.json';
@@ -23,6 +25,11 @@ const loadingOverlayMessages = {
   en: enLoadingOverlay,
   ja: jaLoadingOverlay,
 } satisfies Record<Locale, typeof enLoadingOverlay>;
+
+const loadingSkeletonMessages = {
+  en: enLoadingSkeleton,
+  ja: jaLoadingSkeleton,
+} satisfies Record<Locale, typeof enLoadingSkeleton>;
 
 const matchValidationMessages = {
   en: enMatchValidation,
@@ -40,6 +47,7 @@ async function loadMessages(locale: Locale) {
   return {
     ...messages,
     loadingOverlay: loadingOverlayMessages[locale],
+    loadingSkeleton: loadingSkeletonMessages[locale],
     match: {
       ...messages.match,
       ...matchValidationMessages[locale],
