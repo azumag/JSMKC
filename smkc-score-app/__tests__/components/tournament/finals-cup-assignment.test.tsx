@@ -2,12 +2,38 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsCupAssignment } from '@/components/tournament/finals-cup-assignment';
+import enMessages from '../../../messages/en.json';
+import jaMessages from '../../../messages/ja.json';
+
+const finalsMessages = { en: enMessages.finals, ja: jaMessages.finals };
+let mockLocale: keyof typeof finalsMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: keyof typeof enMessages.finals) => finalsMessages[mockLocale][key],
+}));
 
 describe('FinalsCupAssignment', () => {
   const originalFetch = global.fetch;
+  beforeEach(() => {
+    mockLocale = 'en';
+  });
   afterEach(() => {
     global.fetch = originalFetch;
     jest.restoreAllMocks();
+  });
+
+  it('uses localized accessible names for cup controls', () => {
+    mockLocale = 'ja';
+    render(
+      <FinalsCupAssignment
+        match={{ id: 'm1', version: 4, cup: 'Mushroom', cupResults: [{ cup: 'Mushroom' }] }}
+        endpoint="/api/test"
+        onSaved={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('試合のカップ')).toBeInTheDocument();
+    expect(screen.getByLabelText('保存済みカップ詳細')).toBeInTheDocument();
   });
 
   it('requires a visible keep-or-clear selection when cup details exist and sends keep by default', async () => {
