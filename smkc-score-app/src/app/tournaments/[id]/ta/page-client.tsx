@@ -257,33 +257,64 @@ export default function TimeAttackPageClient({
   const phaseActionInFlight = promotingPhase !== null || resettingPhase !== null;
 
   // === Data Fetching ===
-  // Fetch tournament data and player list in parallel
+  // Fetch tournament data and player list in parallel. Concrete API
+  // errors remain user-facing; transport/client failures are logged
+  // here and normalized before usePolling can expose them to the UI.
   const fetchTournamentData = useCallback(async () => {
-    const [taResponse, playersResult] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
-      fetchAllPlayersForSetup<Player>(),
-    ]);
-
-    if (!taResponse.ok) {
-      const errorData = await taResponse.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
+    let taResponse: Response;
+    let playersResult: Player[] | null;
+    try {
+      [taResponse, playersResult] = await Promise.all([
+        fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
+        fetchAllPlayersForSetup<Player>(),
+      ]);
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to load TA qualification data:', { ...metadata, tournamentId });
+      throw new Error(tc('networkError'));
     }
 
-    const taJson = await taResponse.json();
+    if (!taResponse.ok) {
+      const errorData = await taResponse.json().catch((err) => {
+        const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+        logger.error('Failed to parse TA qualification error response:', {
+          ...metadata,
+          status: taResponse.status,
+          tournamentId,
+        });
+        return {};
+      });
+      if (typeof errorData.error === 'string' && errorData.error.trim()) {
+        throw new Error(errorData.error);
+      }
+      logger.error('TA qualification fetch returned a generic error response:', {
+        status: taResponse.status,
+        tournamentId,
+      });
+      throw new Error(tc('networkError'));
+    }
 
-    // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
-    const taData = taJson.data ?? taJson;
-    const allPlayers = resolveAllPlayers(playersResult, taData.allPlayers);
+    try {
+      const taJson = await taResponse.json();
 
-    return {
-      entries: taData.entries || [],
-      allPlayers,
-      qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
-      frozenStages: taData.frozenStages || [],
-      taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
-      taBattleRoyaleMode: taData.taBattleRoyaleMode ?? false,
-    };
-  }, [tournamentId]);
+      // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
+      const taData = taJson.data ?? taJson;
+      const allPlayers = resolveAllPlayers(playersResult, taData.allPlayers);
+
+      return {
+        entries: taData.entries || [],
+        allPlayers,
+        qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
+        frozenStages: taData.frozenStages || [],
+        taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
+        taBattleRoyaleMode: taData.taBattleRoyaleMode ?? false,
+      };
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to parse TA qualification response:', { ...metadata, tournamentId });
+      throw new Error(tc('networkError'));
+    }
+  }, [tc, tournamentId]);
 
   /*
    * Poll at the standard interval during live tournament operation.
@@ -528,11 +559,11 @@ export default function TimeAttackPageClient({
   const canResetPhase2 = canResetTaPhase({ phaseStatus, stage: 'phase2' });
   const canResetPhase3 = canResetTaPhase({ phaseStatus, stage: 'phase3' });
 
-  /* Sync polling errors to local error state for display */
+  /* Sync polling errors to local error state for display.
+   * Clearing the local copy on a successful poll also lets Retry recover
+   * instead of leaving the page stuck on a stale error card. */
   useEffect(() => {
-    if (pollError) {
-      setError(pollError);
-    }
+    setError(pollError?.message ?? null);
   }, [pollError]);
 
   /**
