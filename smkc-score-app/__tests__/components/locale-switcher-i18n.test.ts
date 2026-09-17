@@ -45,6 +45,8 @@ describe('LocaleSwitcher localization contract', () => {
     expect(componentSource).toContain("tLocaleSwitcher('switchedToEnglish')");
     expect(componentSource).toContain("tLocaleSwitcher('switchedToJapanese')");
     expect(componentSource).not.toContain("aria-label={isJapanese ? 'Switch to English' : '日本語に切り替え'}");
-    expect(componentSource).not.toContain("toast.success(newLocale === 'ja' ? '日本語に切り替えました' : 'Switched to English')");
+    expect(componentSource).not.toContain(
+      "toast.success(newLocale === 'ja' ? '日本語に切り替えました' : 'Switched to English')",
+    );
   });
 });
