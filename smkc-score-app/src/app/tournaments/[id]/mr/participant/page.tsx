@@ -7,16 +7,16 @@
  * MR-specific: fixed 4-race total score input, matching the BM participant UI.
  * Score range 0-4, total must equal 4. A 2-2 tie is valid.
  */
-"use client";
+'use client';
 
-import { use, useCallback, useState } from "react";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Flag } from "lucide-react";
-import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
-import { useParticipantScoreInput } from "@/lib/hooks/useParticipantScoreInput";
-import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
-import { getScoreReportSuccessMessage } from "@/lib/participant-report-message";
+import { use, useCallback, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Flag } from 'lucide-react';
+import { useParticipantMatches, type BaseMatch } from '@/lib/hooks/useParticipantMatches';
+import { useParticipantScoreInput } from '@/lib/hooks/useParticipantScoreInput';
+import { ParticipantPageLayout } from '@/components/tournament/participant-page-layout';
+import { getScoreReportSuccessMessage } from '@/lib/participant-report-message';
 
 /** MR Match extends BaseMatch with MR-specific fields */
 interface MRMatch extends BaseMatch {
@@ -39,7 +39,7 @@ interface MrScoreEditorProps {
   totalMessage: string;
   requiredTotalScore: number;
   scores: { score1: number; score2: number };
-  onAdjustScore: (match: MRMatch, field: "score1" | "score2", delta: number) => void;
+  onAdjustScore: (match: MRMatch, field: 'score1' | 'score2', delta: number) => void;
   onSubmit: (match: MRMatch) => void;
 }
 
@@ -69,19 +69,17 @@ function MrScoreEditor({
               size="sm"
               className="h-10 w-10 text-lg"
               aria-label={`${match.player1.nickname} -1`}
-              onClick={() => onAdjustScore(match, "score1", -1)}
+              onClick={() => onAdjustScore(match, 'score1', -1)}
             >
               -
             </Button>
-            <span className="text-3xl font-bold w-10 text-center">
-              {scores.score1}
-            </span>
+            <span className="text-3xl font-bold w-10 text-center">{scores.score1}</span>
             <Button
               variant="outline"
               size="sm"
               className="h-10 w-10 text-lg"
               aria-label={`${match.player1.nickname} +1`}
-              onClick={() => onAdjustScore(match, "score1", 1)}
+              onClick={() => onAdjustScore(match, 'score1', 1)}
             >
               +
             </Button>
@@ -96,19 +94,17 @@ function MrScoreEditor({
               size="sm"
               className="h-10 w-10 text-lg"
               aria-label={`${match.player2.nickname} -1`}
-              onClick={() => onAdjustScore(match, "score2", -1)}
+              onClick={() => onAdjustScore(match, 'score2', -1)}
             >
               -
             </Button>
-            <span className="text-3xl font-bold w-10 text-center">
-              {scores.score2}
-            </span>
+            <span className="text-3xl font-bold w-10 text-center">{scores.score2}</span>
             <Button
               variant="outline"
               size="sm"
               className="h-10 w-10 text-lg"
               aria-label={`${match.player2.nickname} +1`}
-              onClick={() => onAdjustScore(match, "score2", 1)}
+              onClick={() => onAdjustScore(match, 'score2', 1)}
             >
               +
             </Button>
@@ -116,38 +112,31 @@ function MrScoreEditor({
         </div>
       </div>
 
-      <p className={`text-sm text-center mb-3 ${
-        !totalValid && (scores.score1 > 0 || scores.score2 > 0)
-          ? 'text-yellow-600' : 'invisible'
-      }`}>
+      <p
+        className={`text-sm text-center mb-3 ${
+          !totalValid && (scores.score1 > 0 || scores.score2 > 0) ? 'text-yellow-600' : 'invisible'
+        }`}
+      >
         {totalMessage}
       </p>
 
-      <Button
-        onClick={() => onSubmit(match)}
-        disabled={submitting || !totalValid}
-        className="w-full"
-      >
+      <Button onClick={() => onSubmit(match)} disabled={submitting || !totalValid} className="w-full">
         {submitting ? submittingLabel : submitLabel}
       </Button>
     </div>
   );
 }
 
-export default function MatchRaceParticipantPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function MatchRaceParticipantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
-  const tPart = useTranslations("participant");
-  const tMatch = useTranslations("match");
-  const tCommon = useTranslations("common");
+  const tPart = useTranslations('participant');
+  const tMatch = useTranslations('match');
+  const tCommon = useTranslations('common');
 
   const ctx = useParticipantMatches<MRMatch>({
     tournamentId,
-    mode: "mr",
-    networkErrorMessage: tCommon("networkError"),
+    mode: 'mr',
+    networkErrorMessage: tCommon('networkError'),
   });
 
   const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
@@ -155,14 +144,16 @@ export default function MatchRaceParticipantPage({
   const handleScoreSubmitSuccess = useCallback(
     (data: Record<string, unknown>, match: MRMatch) => {
       setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
-      alert(getScoreReportSuccessMessage(data, {
-        correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
-        scoresReportedSuccess: tPart("scoresReportedSuccess"),
-        scoresConfirmedSuccess: tPart("scoresConfirmedSuccess"),
-        scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
-      }));
+      alert(
+        getScoreReportSuccessMessage(data, {
+          correctionSubmittedSuccess: tPart('correctionSubmittedSuccess'),
+          scoresReportedSuccess: tPart('scoresReportedSuccess'),
+          scoresConfirmedSuccess: tPart('scoresConfirmedSuccess'),
+          scoresMismatchSubmitted: tPart('scoresMismatchSubmitted'),
+        }),
+      );
     },
-    [tPart]
+    [tPart],
   );
 
   const {
@@ -181,7 +172,7 @@ export default function MatchRaceParticipantPage({
     }),
     submitReport: ctx.submitReport,
     setError: ctx.setError,
-    totalMustEqualMessage: tMatch("totalMustEqual4"),
+    totalMustEqualMessage: tMatch('totalMustEqual4'),
     onSubmitSuccess: handleScoreSubmitSuccess,
   });
 
@@ -193,8 +184,8 @@ export default function MatchRaceParticipantPage({
       submitLabel,
       scores,
       submitting: ctx.submitting === match.id,
-      submittingLabel: tMatch("submitting"),
-      totalMessage: tMatch("totalMustEqual4"),
+      submittingLabel: tMatch('submitting'),
+      totalMessage: tMatch('totalMustEqual4'),
       requiredTotalScore,
       onAdjustScore: adjustScore,
       onSubmit: handleSubmitScore,
@@ -224,8 +215,8 @@ export default function MatchRaceParticipantPage({
           <MrScoreEditor
             {...scoreEditorProps(
               match,
-              hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult"),
-              hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")
+              hasOwnReport(match) ? tPart('editYourReport') : tPart('reportMatchResult'),
+              hasOwnReport(match) ? tPart('submitCorrection') : tPart('submitScores'),
             )}
           />
         );
@@ -238,29 +229,31 @@ export default function MatchRaceParticipantPage({
           <div className="border-t pt-4">
             {(p1reported || p2reported) && (
               <>
-                <h4 className="font-medium mb-2">{tPart("previousReports")}</h4>
+                <h4 className="font-medium mb-2">{tPart('previousReports')}</h4>
                 <div className="space-y-2 text-sm">
                   {p1reported && (
                     <div className="flex justify-between p-2 bg-gray-50 rounded">
-                      <span>{tPart("playerReported", { player: match.player1.nickname })}</span>
-                      <span className="font-mono">{match.player1ReportedPoints1} - {match.player1ReportedPoints2}</span>
+                      <span>{tPart('playerReported', { player: match.player1.nickname })}</span>
+                      <span className="font-mono">
+                        {match.player1ReportedPoints1} - {match.player1ReportedPoints2}
+                      </span>
                     </div>
                   )}
                   {p2reported && (
                     <div className="flex justify-between p-2 bg-gray-50 rounded">
-                      <span>{tPart("playerReported", { player: match.player2.nickname })}</span>
-                      <span className="font-mono">{match.player2ReportedPoints1} - {match.player2ReportedPoints2}</span>
+                      <span>{tPart('playerReported', { player: match.player2.nickname })}</span>
+                      <span className="font-mono">
+                        {match.player2ReportedPoints1} - {match.player2ReportedPoints2}
+                      </span>
                     </div>
                   )}
                 </div>
               </>
             )}
-            {match.completed && (
-              editingCorrections[match.id] ? (
+            {match.completed &&
+              (editingCorrections[match.id] ? (
                 <div className="mt-4 space-y-3">
-                  <MrScoreEditor
-                    {...scoreEditorProps(match, tPart("correctScore"), tPart("submitCorrection"))}
-                  />
+                  <MrScoreEditor {...scoreEditorProps(match, tPart('correctScore'), tPart('submitCorrection'))} />
                   <Button
                     type="button"
                     variant="outline"
@@ -274,7 +267,7 @@ export default function MatchRaceParticipantPage({
                       });
                     }}
                   >
-                    {tPart("cancelCorrection")}
+                    {tPart('cancelCorrection')}
                   </Button>
                 </div>
               ) : (
@@ -290,10 +283,9 @@ export default function MatchRaceParticipantPage({
                     setEditingCorrections((prev) => ({ ...prev, [match.id]: true }));
                   }}
                 >
-                  {tPart("correctScore")}
+                  {tPart('correctScore')}
                 </Button>
-              )
-            )}
+              ))}
           </div>
         );
       }}
