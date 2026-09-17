@@ -14,6 +14,8 @@
  * - TC-2625: myMatches sorts incomplete matches before completed
  * - TC-2626: submitReport POSTs to correct endpoint, updates local match on success
  * - TC-2627: submitReport on non-ok response → sets error and returns null
+ * - TC-3615: submitReport request rejection → hides raw network detail and logs it
+ * - TC-3615B: submitReport non-JSON failure → uses safe status fallback
  * - TC-2640: fetchWithRetry throws (network error) → sets error, loading=false
  * - TC-2641: global.fetch (matches) throws (network error) → sets error, loading=false
  */
@@ -37,9 +39,10 @@ jest.mock('@/lib/fetch-with-retry', () => ({
   fetchWithRetry: jest.fn(),
 }));
 
-/* Mock logger to avoid console noise */
+/* Mock logger to avoid console noise while allowing diagnostics assertions */
+const mockLoggerError = jest.fn();
 jest.mock('@/lib/logger', () => ({
-  createLogger: jest.fn(() => ({ error: jest.fn(), warn: jest.fn(), info: jest.fn() })),
+  createLogger: jest.fn(() => ({ error: mockLoggerError, warn: jest.fn(), info: jest.fn() })),
 }));
 
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
@@ -132,9 +135,7 @@ describe('useParticipantMatches', () => {
       const { result } = makeHook();
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(mockedFetchWithRetry).toHaveBeenCalledWith(
-        `/api/tournaments/${TOURNAMENT_ID}?fields=summary`,
-      );
+      expect(mockedFetchWithRetry).toHaveBeenCalledWith(`/api/tournaments/${TOURNAMENT_ID}?fields=summary`);
       expect(global.fetch).toHaveBeenCalledWith(`/api/tournaments/${TOURNAMENT_ID}/${MODE}`);
       expect(result.current.tournament?.id).toBe(TOURNAMENT_ID);
       expect(result.current.matches).toHaveLength(1);
@@ -184,8 +185,16 @@ describe('useParticipantMatches', () => {
       mockedFetchWithRetry.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
 
       const myMatch = makeMatch({ id: 'match-mine', player1: { id: PLAYER_ID, name: 'Alice', nickname: 'a' } });
-      const otherMatch = makeMatch({ id: 'match-other', player1: { id: 'p-other', name: 'C', nickname: 'c' }, player2: { id: 'p-other2', name: 'D', nickname: 'd' } });
-      const byeMatch = makeMatch({ id: 'match-bye', player1: { id: PLAYER_ID, name: 'Alice', nickname: 'a' }, isBye: true });
+      const otherMatch = makeMatch({
+        id: 'match-other',
+        player1: { id: 'p-other', name: 'C', nickname: 'c' },
+        player2: { id: 'p-other2', name: 'D', nickname: 'd' },
+      });
+      const byeMatch = makeMatch({
+        id: 'match-bye',
+        player1: { id: PLAYER_ID, name: 'Alice', nickname: 'a' },
+        isBye: true,
+      });
 
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
@@ -241,13 +250,9 @@ describe('useParticipantMatches', () => {
         returnValue = await result.current.submitReport('match-1', { score1: 3, score2: 1 });
       });
 
-      const postCall = (global.fetch as jest.Mock).mock.calls.find(
-        (c) => c[1]?.method === 'POST',
-      );
+      const postCall = (global.fetch as jest.Mock).mock.calls.find((c) => c[1]?.method === 'POST');
       expect(postCall).toBeDefined();
-      expect(postCall![0]).toBe(
-        `/api/tournaments/${TOURNAMENT_ID}/${MODE}/match/match-1/report`,
-      );
+      expect(postCall![0]).toBe(`/api/tournaments/${TOURNAMENT_ID}/${MODE}/match/match-1/report`);
       expect(returnValue).not.toBeNull();
     });
   });
@@ -274,6 +279,62 @@ describe('useParticipantMatches', () => {
 
       expect(returnValue).toBeNull();
       expect(result.current.error).toBe('Score invalid');
+    });
+  });
+
+  describe('TC-3615: submitReport request rejection hides raw network detail', () => {
+    it('uses a stable user-facing connection error and logs the original exception', async () => {
+      mockUseSession.mockReturnValue(playerSession());
+      mockedFetchWithRetry.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+      const networkError = new Error('Failed to fetch internal-proxy.example');
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ matches: [] }) })
+        .mockRejectedValueOnce(networkError);
+
+      const { result } = makeHook();
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let returnValue: Record<string, unknown> | null | undefined;
+      await act(async () => {
+        returnValue = await result.current.submitReport('match-1', { score1: 3, score2: 1 });
+      });
+
+      expect(returnValue).toBeNull();
+      expect(result.current.error).toBe('Failed to submit report. Please check your connection.');
+      expect(result.current.error).not.toContain('internal-proxy.example');
+      expect(mockLoggerError).toHaveBeenCalledWith('Report submission error:', {
+        error: networkError,
+        tournamentId: TOURNAMENT_ID,
+        matchId: 'match-1',
+      });
+    });
+  });
+
+  describe('TC-3615B: submitReport non-JSON failure uses safe status fallback', () => {
+    it('does not expose a JSON parse failure when the API error body is not JSON', async () => {
+      mockUseSession.mockReturnValue(playerSession());
+      mockedFetchWithRetry.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ matches: [] }) })
+        .mockResolvedValueOnce({
+          ok: false,
+          json: async () => {
+            throw new SyntaxError('Unexpected token < in JSON');
+          },
+          status: 503,
+        });
+
+      const { result } = makeHook();
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let returnValue: Record<string, unknown> | null | undefined;
+      await act(async () => {
+        returnValue = await result.current.submitReport('match-1', { score1: 3, score2: 1 });
+      });
+
+      expect(returnValue).toBeNull();
+      expect(result.current.error).toBe('Report failed (503)');
+      expect(result.current.error).not.toContain('Unexpected token');
     });
   });
 
