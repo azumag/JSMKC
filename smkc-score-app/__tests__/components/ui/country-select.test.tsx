@@ -13,6 +13,34 @@ describe("CountrySelect (searchable pulldown)", () => {
     expect(trigger.querySelector("img")?.getAttribute("title")).toBe("日本");
   });
 
+  it("localizes search accessibility copy and empty state for Japanese", () => {
+    render(<CountrySelect value="" locale="ja-JP" onChange={() => {}} />);
+    fireEvent.click(screen.getByRole("combobox"));
+
+    const search = screen.getByRole("combobox", { name: "国を検索" });
+    expect(search).toHaveAttribute("placeholder", "国を検索…");
+
+    fireEvent.change(search, { target: { value: "zzzz" } });
+    expect(screen.getByText("一致する国がありません")).toBeInTheDocument();
+  });
+
+  it("keeps a caller-supplied placeholder as the search placeholder", () => {
+    render(
+      <CountrySelect
+        value=""
+        locale="ja"
+        placeholder="国名を入力"
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("combobox"));
+
+    expect(screen.getByRole("combobox", { name: "国を検索" })).toHaveAttribute(
+      "placeholder",
+      "国名を入力",
+    );
+  });
+
   it("resolves a legacy free-text name onto the trigger", () => {
     render(<CountrySelect value="Norway" locale="en" onChange={() => {}} />);
     expect(screen.getByRole("combobox")).toHaveTextContent("Norway");
