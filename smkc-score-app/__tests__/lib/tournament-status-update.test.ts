@@ -1,4 +1,8 @@
-import { canUpdateTournamentStatus, parseTournamentStatusUpdateResponse } from '@/lib/tournament-status-update';
+import {
+  canUpdateTournamentStatus,
+  isUserFacingTournamentStatusUpdateError,
+  parseTournamentStatusUpdateResponse,
+} from '@/lib/tournament-status-update';
 
 function responseWithUrl(body: unknown, status: number, url: string): Response {
   const response = new Response(typeof body === 'string' ? body : JSON.stringify(body), {
@@ -62,7 +66,7 @@ describe('tournament status updates', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/tournaments/archived-1/restore', { method: 'POST' });
   });
 
-  it('surfaces a restore error when an archived-only tournament cannot be rebuilt', async () => {
+  it('classifies a concrete restore API error as user-facing', async () => {
     jest
       .spyOn(global, 'fetch')
       .mockResolvedValue(
@@ -78,10 +82,13 @@ describe('tournament status updates', () => {
       'https://example.test/api/tournaments/archived-1',
     );
 
-    await expect(parseTournamentStatusUpdateResponse(response)).rejects.toThrow('Failed to restore tournament archive');
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Failed to restore tournament archive');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(true);
   });
 
-  it('surfaces the API error detail on a rejected transition', async () => {
+  it('classifies a concrete API transition error as user-facing', async () => {
     const response = new Response(
       JSON.stringify({ success: false, error: 'Cannot change tournament status from completed to active' }),
       {
@@ -90,25 +97,30 @@ describe('tournament status updates', () => {
       },
     );
 
-    await expect(parseTournamentStatusUpdateResponse(response)).rejects.toThrow(
-      'Cannot change tournament status from completed to active',
-    );
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Cannot change tournament status from completed to active');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(true);
   });
 
-  it('falls back to the HTTP status when the error response is not JSON', async () => {
+  it('classifies non-JSON HTTP fallback details as generic', async () => {
     const response = new Response('upstream failure', { status: 502 });
 
-    await expect(parseTournamentStatusUpdateResponse(response)).rejects.toThrow('HTTP 502');
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('HTTP 502');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(false);
   });
 
-  it('rejects malformed success responses instead of leaving stale UI state', async () => {
+  it('classifies malformed success responses as generic', async () => {
     const response = new Response(JSON.stringify({ success: true, data: null }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
 
-    await expect(parseTournamentStatusUpdateResponse(response)).rejects.toThrow(
-      'Invalid tournament status update response',
-    );
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Invalid tournament status update response');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(false);
   });
 });
