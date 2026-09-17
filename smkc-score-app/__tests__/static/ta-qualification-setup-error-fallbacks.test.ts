@@ -7,12 +7,19 @@ function readAppFile(...parts: string[]) {
 
 describe('TA qualification setup error fallback contract', () => {
   const source = readAppFile('src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
+  const componentStart = source.indexOf('export default function TimeAttackPageClient');
   const start = source.indexOf('const handleSaveSetup = async () => {');
   const end = source.indexOf('// Check if qualification entries exist in each phase', start);
   const block = source.slice(start, end);
 
+  it('keeps SetupSaveError at module scope so React Compiler can optimize the component', () => {
+    const classStart = source.indexOf('class SetupSaveError extends Error');
+    expect(classStart).toBeGreaterThan(-1);
+    expect(componentStart).toBeGreaterThan(classStart);
+    expect(block).not.toContain('class SetupSaveError extends Error');
+  });
+
   it('separates API response errors from request rejection messages', () => {
-    expect(block).toContain('class SetupSaveError extends Error');
     expect(block).toContain("payload.error || tc('networkError')");
     expect(block).toContain("const userMessage = isSetupSaveError ? err.message : tc('networkError');");
     expect(block).not.toContain("const msg = err instanceof Error ? err.message : 'Save failed'");
