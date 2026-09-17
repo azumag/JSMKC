@@ -5,11 +5,11 @@ import { FinalsCupAssignment } from '@/components/tournament/finals-cup-assignme
 import enMessages from '../../../messages/en.json';
 import jaMessages from '../../../messages/ja.json';
 
-const finalsMessages = { en: enMessages.finals, ja: jaMessages.finals };
-let mockLocale: keyof typeof finalsMessages = 'en';
+const mockFinalsMessages = { en: enMessages.finals, ja: jaMessages.finals };
+let mockLocale: keyof typeof mockFinalsMessages = 'en';
 
 jest.mock('next-intl', () => ({
-  useTranslations: () => (key: keyof typeof enMessages.finals) => finalsMessages[mockLocale][key],
+  useTranslations: () => (key: keyof typeof enMessages.finals) => mockFinalsMessages[mockLocale][key],
 }));
 
 describe('FinalsCupAssignment', () => {
