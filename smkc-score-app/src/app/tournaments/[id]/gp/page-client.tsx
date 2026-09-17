@@ -154,6 +154,7 @@ export default function GrandPrixPageClient({
   const { data: session } = useSession();
   const t = useTranslations('gp');
   const tc = useTranslations('common');
+  const tCupAssignment = useTranslations('gpCupAssignment');
   const locale = useLocale();
 
   /** Admin role check: only admins can setup groups, enter results, and reset */
@@ -935,7 +936,7 @@ export default function GrandPrixPageClient({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  /* Build player→group lookup for match filtering */
+                  /* Build player→group lookup for match filtering */}
                   const playerGroupMap = new Map<string, string>();
                   for (const q of qualifications) {
                     playerGroupMap.set(q.playerId, q.group);
@@ -1218,18 +1219,18 @@ export default function GrandPrixPageClient({
                     (details) => Array.isArray(details) && details.length > 0,
                   ) && (
                     <select
-                      aria-label="Cup detail resolution"
+                      aria-label={tCupAssignment('cupDetailsResolution')}
                       className="h-9 rounded border bg-background px-2 text-sm"
                       value={cupChangeResolution}
                       onChange={(event) => setCupChangeResolution(event.target.value as 'keep' | 'clear' | 'cancel')}
                     >
-                      <option value="keep">Keep entered details</option>
-                      <option value="clear">Clear entered details</option>
-                      <option value="cancel">Cancel cup change</option>
+                      <option value="keep">{tCupAssignment('keepCupDetails')}</option>
+                      <option value="clear">{tCupAssignment('clearCupDetails')}</option>
+                      <option value="cancel">{tCupAssignment('cancelCupChange')}</option>
                     </select>
                   )}
                   <Button type="button" size="sm" variant="outline" onClick={saveQualificationCup}>
-                    Save cup assignment
+                    {tCupAssignment('saveCupAssignment')}
                   </Button>
                 </div>
               )}
