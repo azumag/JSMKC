@@ -9,12 +9,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import QRCode from 'qrcode';
 import { QrLoginDialog } from '@/components/players/qr-login-dialog';
 
-const mockLogger = {
-  error: jest.fn(),
-  warn: jest.fn(),
-  info: jest.fn(),
-};
-
 jest.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
@@ -26,9 +20,24 @@ jest.mock('qrcode', () => ({
   },
 }));
 
-jest.mock('@/lib/client-logger', () => ({
-  createLogger: jest.fn(() => mockLogger),
-}));
+jest.mock('@/lib/client-logger', () => {
+  const logger = {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+  };
+
+  return {
+    createLogger: jest.fn(() => logger),
+    __mockLogger: logger,
+  };
+});
+
+const mockLogger = (
+  jest.requireMock('@/lib/client-logger') as {
+    __mockLogger: { error: jest.Mock; warn: jest.Mock; info: jest.Mock };
+  }
+).__mockLogger;
 
 describe('QR login image generation failure fallback (issue #3663)', () => {
   let fetchMock: jest.Mock;
