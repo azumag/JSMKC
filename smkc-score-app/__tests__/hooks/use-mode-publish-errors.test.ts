@@ -4,22 +4,27 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useModePublish } from '@/hooks/use-mode-publish';
 
-const mockLoggerError = jest.fn();
-
 jest.mock('@/lib/fetch-with-retry', () => ({
   fetchWithRetry: jest.fn(),
 }));
 
-jest.mock('@/lib/client-logger', () => ({
-  createLogger: jest.fn(() => ({
-    error: mockLoggerError,
-    warn: jest.fn(),
-    info: jest.fn(),
-  })),
-}));
+jest.mock('@/lib/client-logger', () => {
+  const error = jest.fn();
+  return {
+    __mockLoggerError: error,
+    createLogger: jest.fn(() => ({
+      error,
+      warn: jest.fn(),
+      info: jest.fn(),
+    })),
+  };
+});
 
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
+const { __mockLoggerError: mockLoggerError } = jest.requireMock('@/lib/client-logger') as {
+  __mockLoggerError: jest.Mock;
+};
 const mockedFetchWithRetry = fetchWithRetry as jest.MockedFunction<typeof fetchWithRetry>;
 const TOURNAMENT_ID = 'tournament-error-state';
 const MODE = 'bm' as const;
