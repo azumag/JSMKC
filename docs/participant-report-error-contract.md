@@ -29,6 +29,14 @@ MR の shared match page は score report 前に reporting player identity を�
 
 この変更は validation 条件そのもの、score report endpoint、payload、participant/admin authorization、submit flow を変更しない。
 
+## MR shared match の race-winner validation
+
+MR の shared match page は全レースの勝者が選択されてから score report を送信する。未選択レースがある場合の client-side validation は英語リテラルを持たず、`match.selectAllRaceWinners` を `TOTAL_MR_RACES` の `count` parameter とともに使う。
+
+このメッセージは `messages/match-validation/en.json` と `messages/match-validation/ja.json` で locale parity を保ち、`src/i18n/request.ts` が既存の `match` namespace へ merge する。既存の split catalog (`ta-promotion`) と同じ方式のため、大きい基底 catalog の重複を増やさず feature 単位の翻訳を管理できる。
+
+この変更も validation 条件、`TOTAL_MR_RACES`、report endpoint / payload、authorization、score semantics を変更しない。
+
 ## 状態保持
 
 report 失敗時は `submitReport()` が `null` を返し、呼び出し側が保持している入力値を勝手に消さない。`submitting` state は `finally` で必ず解除する。成功時のみ返却された match を local state に反映する。
@@ -47,4 +55,4 @@ report 失敗時は `submitReport()` が `null` を返し、呼び出し側が�
 - request rejection の raw detail が UI に漏れず logger に残ること
 - non-JSON error response が JSON parse error を UI に漏らさないこと
 
-加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR shared match の identity validation が `match.selectPlayer` を使い、EN/JA catalog の両方に意図した文言が存在することを固定する。
+加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR shared match の identity validation が `match.selectPlayer` を使うこと、および race-winner validation が `match.selectAllRaceWinners` に `TOTAL_MR_RACES` を渡すことを固定する。race-winner validation の EN/JA split catalog は同一キー集合であることと、`src/i18n/request.ts` が `match` namespace に merge することも同テストで確認する。
