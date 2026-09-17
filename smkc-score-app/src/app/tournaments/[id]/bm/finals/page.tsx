@@ -621,7 +621,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
             {canGenerateBracket && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button disabled={creating} aria-label="Generate finals bracket">
+                  <Button disabled={creating} aria-label={tFinals('generateBracket')}>
                     {creating ? tFinals('creating') : tFinals('generateBracket')}
                   </Button>
                 </AlertDialogTrigger>

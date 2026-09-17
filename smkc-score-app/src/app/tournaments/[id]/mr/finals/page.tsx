@@ -610,7 +610,7 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
           {canGenerateBracket && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button disabled={creating} aria-label="Generate finals bracket">
+                <Button disabled={creating} aria-label={tFinals('generateBracket')}>
                   {creating ? tFinals('creating') : tFinals('generateBracket')}
                 </Button>
               </AlertDialogTrigger>
