@@ -17,7 +17,7 @@
  * @route /tournaments/[id]/mr/match/[matchId]
  */
 'use client';
-import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { fetchSharedMatchPageData, isSharedMatchNotFoundError } from '@/lib/shared-match-page-data';
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useTranslations } from 'next-intl';
@@ -121,29 +121,15 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
    * Fetch match and tournament data concurrently.
    * Called by the polling hook for real-time updates.
    */
-  const fetchMatchData = useCallback(async () => {
-    const [matchRes, tournamentRes] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/mr/match/${matchId}`),
-      fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
-    ]);
-
-    if (!matchRes.ok) {
-      throw new Error(`Failed to fetch MR match data: ${matchRes.status}`);
-    }
-
-    if (!tournamentRes.ok) {
-      throw new Error(`Failed to fetch tournament: ${tournamentRes.status}`);
-    }
-
-    const matchJson = await matchRes.json();
-    const tournamentJson = await tournamentRes.json();
-
-    return {
-      // Unwrap createSuccessResponse wrapper: { success, data: match }
-      match: matchJson.data ?? matchJson,
-      tournament: tournamentJson.data ?? tournamentJson,
-    };
-  }, [tournamentId, matchId]);
+  const fetchMatchData = useCallback(
+    () =>
+      fetchSharedMatchPageData<MRMatch, Tournament>({
+        tournamentId,
+        matchId,
+        mode: 'MR',
+      }),
+    [tournamentId, matchId],
+  );
 
   /* Poll at the standard interval for live updates */
   const {
@@ -151,6 +137,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
     isLoading: pollLoading,
     lastUpdated,
     isPolling,
+    error: pollError,
     refetch,
   } = usePolling(fetchMatchData, {
     interval: POLLING_INTERVAL,
@@ -261,6 +248,22 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
             <div className="h-5 w-48 bg-muted animate-pulse rounded" />
           </div>
           <CardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  if (pollError && !pollData) {
+    const notFound = isSharedMatchNotFoundError(pollError);
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-3 text-center">
+          <p>{notFound ? tMatch('matchNotFound') : tCommon('networkError')}</p>
+          {!notFound && (
+            <Button type="button" variant="outline" onClick={() => void refetch()}>
+              {tCommon('tryAgain')}
+            </Button>
+          )}
         </div>
       </div>
     );
