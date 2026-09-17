@@ -14,7 +14,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -60,11 +60,19 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
   const [rawToken, setRawToken] = useState<string | null>(null);
   const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
+  /**
+   * Increments on every open/close transition. Async issue/reissue work
+   * captures the current value so a response from a previous dialog session
+   * cannot repopulate sensitive token state after the dialog was closed or
+   * quickly reopened.
+   */
+  const dialogSessionRef = useRef(0);
 
   const loginUrl = rawToken ? buildLoginUrl(rawToken) : null;
 
-  const generateQrImage = async (url: string) => {
+  const generateQrImage = async (url: string, dialogSession: number) => {
     const svg = await QRCode.toString(url, { type: 'svg', margin: 1 });
+    if (dialogSessionRef.current !== dialogSession) return;
     setQrImageUrl(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
   };
 
@@ -89,10 +97,17 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
+    dialogSessionRef.current += 1;
     setOpen(nextOpen);
+
+    // The token and the generated QR both contain a one-time bearer
+    // credential, so discard them immediately on every dialog transition.
+    // Opening starts from a clean slate; closing does not retain plaintext in
+    // hidden React state until the next open.
+    setRawToken(null);
+    setQrImageUrl(null);
+
     if (nextOpen) {
-      setRawToken(null);
-      setQrImageUrl(null);
       setError('');
       fetchStatus();
     }
@@ -100,6 +115,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
 
   const handleIssue = async (isReissue: boolean) => {
     if (isReissue && !confirm(t('confirmReissueQrCode'))) return;
+    const dialogSession = dialogSessionRef.current;
     setSubmitting(true);
     setError('');
     try {
@@ -107,9 +123,15 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       if (res.ok) {
         const json = await res.json();
         const data = json.data ?? json;
+
+        // Closing (or close + reopen) invalidates the session that initiated
+        // this request. Never re-introduce a raw bearer token into a later
+        // dialog session when a slow response finally arrives.
+        if (dialogSessionRef.current !== dialogSession) return;
+
         setRawToken(data.token);
         setStatus({ active: true, issuedAt: data.issuedAt });
-        await generateQrImage(buildLoginUrl(data.token));
+        await generateQrImage(buildLoginUrl(data.token), dialogSession);
       } else {
         setError(t('failedToIssueQrCode'));
       }
