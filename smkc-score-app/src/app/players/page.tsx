@@ -416,6 +416,28 @@ export default function PlayersPage() {
     }
   };
 
+  const selectTemporaryPassword = () => {
+    const input = document.getElementById('temporary-password') as HTMLInputElement | null;
+    if (!input) return;
+    input.focus();
+    input.select();
+  };
+
+  const handleCopyTemporaryPassword = async () => {
+    if (!navigator.clipboard?.writeText) {
+      selectTemporaryPassword();
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(temporaryPassword);
+    } catch (err) {
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to copy temporary password', metadata);
+      selectTemporaryPassword();
+    }
+  };
+
   /**
    * Opens the edit dialog pre-populated with the selected player's data.
    * Resets the error state and sets the editing player ID for the
@@ -744,16 +766,10 @@ export default function PlayersPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t('temporaryPassword')}</Label>
+              <Label htmlFor="temporary-password">{t('temporaryPassword')}</Label>
               <div className="flex gap-2">
-                <Input value={temporaryPassword} readOnly className="font-mono" />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(temporaryPassword);
-                  }}
-                >
+                <Input id="temporary-password" value={temporaryPassword} readOnly className="font-mono" />
+                <Button type="button" variant="outline" onClick={() => void handleCopyTemporaryPassword()}>
                   {tc('copy')}
                 </Button>
               </div>
