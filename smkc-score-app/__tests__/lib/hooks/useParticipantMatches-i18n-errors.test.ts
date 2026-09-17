@@ -97,6 +97,26 @@ describe('useParticipantMatches localized generic errors (issue #3638)', () => {
     expect(result.current.error).toBe('Tournament is unavailable');
   });
 
+  it('does not commit partial state when one successful response body cannot be parsed', async () => {
+    mockedFetchWithRetry.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { id: tournamentId, name: 'Tournament' } }),
+    } as Response);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON');
+      },
+    });
+
+    const { result } = renderParticipantHook();
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe(localizedNetworkError);
+    expect(result.current.tournament).toBeNull();
+    expect(result.current.matches).toEqual([]);
+  });
+
   it('uses the localized fallback for generic report non-2xx failures', async () => {
     mockedFetchWithRetry.mockResolvedValue({
       ok: true,
