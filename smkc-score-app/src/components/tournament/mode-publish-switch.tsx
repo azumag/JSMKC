@@ -27,25 +27,36 @@ export function ModePublishSwitch({
   modeLabelKey,
 }: ModePublishSwitchProps) {
   const tc = useTranslations("common");
-  const { isPublic, toggle, updating, loading } = useModePublish(
+  const { isPublic, toggle, updating, loading, error } = useModePublish(
     tournamentId,
     mode
   );
 
   const stateLabel = isPublic ? tc("publishMode") : tc("unpublishMode");
   const ariaLabel = `${tc(modeLabelKey)}: ${stateLabel}`;
+  const initialStateUnknown = error === "load";
 
   return (
-    <div className="flex items-center gap-2">
-      <Switch
-        checked={isPublic}
-        onCheckedChange={toggle}
-        disabled={updating || loading}
-        aria-label={ariaLabel}
-      />
-      <Badge variant={isPublic ? "default" : "secondary"} className="text-xs">
-        {stateLabel}
-      </Badge>
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <Switch
+          checked={isPublic}
+          onCheckedChange={toggle}
+          disabled={updating || loading || initialStateUnknown}
+          aria-label={ariaLabel}
+        />
+        <Badge
+          variant={isPublic ? "default" : "secondary"}
+          className="text-xs"
+        >
+          {stateLabel}
+        </Badge>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {tc("networkError")}
+        </p>
+      )}
     </div>
   );
 }
