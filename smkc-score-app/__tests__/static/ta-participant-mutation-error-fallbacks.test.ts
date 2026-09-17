@@ -1,10 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const source = fs.readFileSync(
-  path.join(process.cwd(), 'src/app/tournaments/[id]/ta/participant/page.tsx'),
-  'utf8',
-);
+const source = fs.readFileSync(path.join(process.cwd(), 'src/app/tournaments/[id]/ta/participant/page.tsx'), 'utf8');
 
 const handler = (startMarker: string, endMarker: string) => {
   const start = source.indexOf(startMarker);
@@ -16,7 +13,7 @@ const handler = (startMarker: string, endMarker: string) => {
 
 describe('TA participant mutation error fallback contract (issue #3606)', () => {
   it('keeps API errors but localizes own qualification request rejection', () => {
-    const body = handler('const handleSubmitTimes', "const handleSubmitPartnerTimes");
+    const body = handler('const handleSubmitTimes', 'const handleSubmitPartnerTimes');
 
     expect(body).toContain("setError(errorData.error || tCommon('networkError'));");
     expect(body).toContain("logger.error('Failed to submit TA qualification times:'");
