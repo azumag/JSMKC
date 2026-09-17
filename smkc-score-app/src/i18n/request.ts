@@ -25,6 +25,8 @@ import enRankCell from '../../messages/rank-cell/en.json';
 import jaRankCell from '../../messages/rank-cell/ja.json';
 import enTaPromotion from '../../messages/ta-promotion/en.json';
 import jaTaPromotion from '../../messages/ta-promotion/ja.json';
+import enTournamentLayout from '../../messages/tournament-layout/en.json';
+import jaTournamentLayout from '../../messages/tournament-layout/ja.json';
 import { type Locale, locales, defaultLocale, LOCALE_COOKIE } from './config';
 
 const gpCupAssignmentMessages = {
@@ -62,6 +64,11 @@ const taPromotionMessages = {
   ja: jaTaPromotion,
 } satisfies Record<Locale, typeof enTaPromotion>;
 
+const tournamentLayoutMessages = {
+  en: enTournamentLayout,
+  ja: jaTournamentLayout,
+} satisfies Record<Locale, typeof enTournamentLayout>;
+
 async function loadMessages(locale: Locale) {
   const messages = (await import(`../../messages/${locale}.json`)).default;
 
@@ -78,6 +85,7 @@ async function loadMessages(locale: Locale) {
     loadingSkeleton: loadingSkeletonMessages[locale],
     loadingSpinner: loadingSpinnerMessages[locale],
     rankCell: rankCellMessages[locale],
+    tournamentLayout: tournamentLayoutMessages[locale],
     match: {
       ...messages.match,
       ...matchValidationMessages[locale],
