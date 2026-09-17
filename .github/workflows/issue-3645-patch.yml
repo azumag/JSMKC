@@ -1,0 +1,250 @@
+name: Apply issue 3645 patch
+
+on:
+  push:
+    branches:
+      - fix/3645-ta-qualification-load-errors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: fix/3645-ta-qualification-load-errors
+          fetch-depth: 1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: smkc-score-app/package-lock.json
+
+      - name: Apply source, test, and docs changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('smkc-score-app/src/app/tournaments/[id]/ta/page-client.tsx')
+          source = page.read_text()
+
+          old_fetch = """  // === Data Fetching ===
+          // Fetch tournament data and player list in parallel
+          const fetchTournamentData = useCallback(async () => {
+            const [taResponse, playersResult] = await Promise.all([
+              fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
+              fetchAllPlayersForSetup<Player>(),
+            ]);
+
+            if (!taResponse.ok) {
+              const errorData = await taResponse.json().catch(() => ({}));
+              throw new Error(errorData.error || `Failed to fetch TA data: ${taResponse.status}`);
+            }
+
+            const taJson = await taResponse.json();
+
+            // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
+            const taData = taJson.data ?? taJson;
+            const allPlayers = resolveAllPlayers(playersResult, taData.allPlayers);
+
+            return {
+              entries: taData.entries || [],
+              allPlayers,
+              qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
+              frozenStages: taData.frozenStages || [],
+              taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
+              taBattleRoyaleMode: taData.taBattleRoyaleMode ?? false,
+            };
+          }, [tournamentId]);
+          """
+
+          new_fetch = """  // === Data Fetching ===
+          // Fetch tournament data and player list in parallel. Concrete API
+          // errors remain user-facing; transport/client failures are logged
+          // here and normalized before usePolling can expose them to the UI.
+          const fetchTournamentData = useCallback(async () => {
+            let taResponse: Response;
+            let playersResult: Player[] | null;
+            try {
+              [taResponse, playersResult] = await Promise.all([
+                fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
+                fetchAllPlayersForSetup<Player>(),
+              ]);
+            } catch (err) {
+              const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+              logger.error('Failed to load TA qualification data:', { ...metadata, tournamentId });
+              throw new Error(tc('networkError'));
+            }
+
+            if (!taResponse.ok) {
+              const errorData = await taResponse.json().catch((err) => {
+                const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+                logger.error('Failed to parse TA qualification error response:', {
+                  ...metadata,
+                  status: taResponse.status,
+                  tournamentId,
+                });
+                return {};
+              });
+              if (typeof errorData.error === 'string' && errorData.error.trim()) {
+                throw new Error(errorData.error);
+              }
+              logger.error('TA qualification fetch returned a generic error response:', {
+                status: taResponse.status,
+                tournamentId,
+              });
+              throw new Error(tc('networkError'));
+            }
+
+            try {
+              const taJson = await taResponse.json();
+
+              // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
+              const taData = taJson.data ?? taJson;
+              const allPlayers = resolveAllPlayers(playersResult, taData.allPlayers);
+
+              return {
+                entries: taData.entries || [],
+                allPlayers,
+                qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
+                frozenStages: taData.frozenStages || [],
+                taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
+                taBattleRoyaleMode: taData.taBattleRoyaleMode ?? false,
+              };
+            } catch (err) {
+              const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+              logger.error('Failed to parse TA qualification response:', { ...metadata, tournamentId });
+              throw new Error(tc('networkError'));
+            }
+          }, [tc, tournamentId]);
+          """
+
+          old_sync = """  /* Sync polling errors to local error state for display */
+          useEffect(() => {
+            if (pollError) {
+              setError(pollError);
+            }
+          }, [pollError]);
+          """
+          new_sync = """  /* Sync polling errors to local error state for display.
+           * Clearing the local copy on a successful poll also lets Retry recover
+           * instead of leaving the page stuck on a stale error card. */
+          useEffect(() => {
+            setError(pollError?.message ?? null);
+          }, [pollError]);
+          """
+
+          if source.count(old_fetch) != 1:
+              raise SystemExit(f'expected exactly one fetch block, found {source.count(old_fetch)}')
+          if source.count(old_sync) != 1:
+              raise SystemExit(f'expected exactly one poll error sync block, found {source.count(old_sync)}')
+
+          source = source.replace(old_fetch, new_fetch).replace(old_sync, new_sync)
+          page.write_text(source)
+
+          test = Path('smkc-score-app/__tests__/static/ta-qualification-fetch-error-fallbacks.test.ts')
+          test.write_text("""import fs from 'fs';
+          import path from 'path';
+
+          const source = fs.readFileSync(
+            path.join(process.cwd(), 'src/app/tournaments/[id]/ta/page-client.tsx'),
+            'utf8',
+          );
+
+          function getFetchTournamentDataBlock(): string {
+            const start = source.indexOf('const fetchTournamentData = useCallback');
+            const end = source.indexOf('/*\\n   * Poll at the standard interval', start);
+
+            expect(start).toBeGreaterThanOrEqual(0);
+            expect(end).toBeGreaterThan(start);
+            return source.slice(start, end);
+          }
+
+          describe('TA qualification fetch error fallback contract (issue #3645)', () => {
+            it('preserves concrete API errors while localizing generic load failures', () => {
+              const fetchBlock = getFetchTournamentDataBlock();
+
+              expect(fetchBlock).toContain("if (typeof errorData.error === 'string' && errorData.error.trim())");
+              expect(fetchBlock).toContain('throw new Error(errorData.error);');
+              expect(fetchBlock).toContain("throw new Error(tc('networkError'));");
+              expect(fetchBlock).toContain("logger.error('Failed to load TA qualification data:'");
+              expect(fetchBlock).toContain("logger.error('Failed to parse TA qualification error response:'");
+              expect(fetchBlock).toContain("logger.error('TA qualification fetch returned a generic error response:'");
+              expect(fetchBlock).toContain("logger.error('Failed to parse TA qualification response:'");
+              expect(fetchBlock).not.toContain('Failed to fetch TA data:');
+              expect(fetchBlock).toContain('fetchAllPlayersForSetup<Player>()');
+              expect(fetchBlock).toContain('resolveAllPlayers(playersResult, taData.allPlayers)');
+              expect(fetchBlock).toContain('}, [tc, tournamentId]);');
+            });
+
+            it('clears stale polling errors after a successful retry', () => {
+              expect(source).toContain('setError(pollError?.message ?? null);');
+              expect(source).not.toContain('setError(pollError);');
+            });
+
+            it('keeps the existing polling interval and cache contract', () => {
+              expect(source).toContain('interval: POLLING_INTERVAL,');
+              expect(source).toContain('cacheKey: `tournament/${tournamentId}/ta`,');
+              expect(source).toContain('initialData,');
+            });
+          });
+          """)
+
+          docs = Path('docs/ta-qualification-fetch-error-fallbacks.md')
+          docs.write_text("""# TA qualification load error contract
+
+          TA qualification keeps concrete server-provided API errors visible to operators, but generic client and transport failures must not expose browser/runtime `Error.message` text in the UI.
+
+          ## User-facing behavior
+
+          - A non-2xx TA response with a non-empty `error` string keeps that message.
+          - A generic non-2xx response, primary request rejection, malformed error body, or malformed success body falls back to `common.networkError`.
+          - Low-level exception details and HTTP status stay in the client logger for diagnosis.
+          - A successful retry clears the prior polling error so the page can recover without a reload.
+
+          ## Data and polling behavior
+
+          The qualification endpoint, polling interval, cache key, initial-data hydration, and response mapping are unchanged. The setup-player request remains intentionally non-fatal: `fetchAllPlayersForSetup()` returns `null` on failure and `resolveAllPlayers()` falls back to the TA payload's archived `allPlayers` value when available.
+
+          This keeps temporary `/api/players` failures from replacing otherwise usable qualification data with an error page while ensuring failures of the primary TA qualification load are localized and logged.
+          """)
+          PY
+
+      - name: Install formatter and format changed files
+        working-directory: smkc-score-app
+        env:
+          HUSKY: "0"
+        run: |
+          npm install --global --ignore-scripts --no-audit --no-fund npm@10.9.4
+          test "$(npm --version)" = "10.9.4"
+          npm ci
+          npx prettier --write \
+            'src/app/tournaments/[id]/ta/page-client.tsx' \
+            '__tests__/static/ta-qualification-fetch-error-fallbacks.test.ts' \
+            '../docs/ta-qualification-fetch-error-fallbacks.md'
+
+      - name: Run targeted regression test
+        working-directory: smkc-score-app
+        env:
+          SKIP_OPENNEXT_CLOUDFLARE_DEV: "1"
+          NODE_ENV: test
+        run: npm test -- --runInBand __tests__/static/ta-qualification-fetch-error-fallbacks.test.ts
+
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            'smkc-score-app/src/app/tournaments/[id]/ta/page-client.tsx' \
+            'smkc-score-app/__tests__/static/ta-qualification-fetch-error-fallbacks.test.ts' \
+            'docs/ta-qualification-fetch-error-fallbacks.md'
+          git commit -m 'fix: localize TA qualification load failures (#3645)'
+          git push origin HEAD:fix/3645-ta-qualification-load-errors
