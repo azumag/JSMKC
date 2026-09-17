@@ -66,9 +66,17 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
    * mutate the state of a later session.
    */
   const dialogSessionRef = useRef(0);
+  /**
+   * Separately orders status GETs inside one dialog session. A mutation that
+   * outlives its original dialog can start a post-settle status refresh; that
+   * later request must win even if an earlier reopen GET returns afterwards.
+   */
+  const statusRequestRef = useRef(0);
 
   const loginUrl = rawToken ? buildLoginUrl(rawToken) : null;
   const isCurrentDialogSession = (dialogSession: number) => dialogSessionRef.current === dialogSession;
+  const isCurrentStatusRequest = (dialogSession: number, statusRequest: number) =>
+    isCurrentDialogSession(dialogSession) && statusRequestRef.current === statusRequest;
 
   const generateQrImage = async (url: string, dialogSession: number) => {
     const svg = await QRCode.toString(url, { type: 'svg', margin: 1 });
@@ -78,15 +86,17 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
 
   const fetchStatus = async (dialogSession: number) => {
     if (!isCurrentDialogSession(dialogSession)) return;
+    const statusRequest = statusRequestRef.current + 1;
+    statusRequestRef.current = statusRequest;
     setLoading(true);
     setError('');
     try {
       const res = await fetch(`/api/players/${playerId}/qr-login-token`);
-      if (!isCurrentDialogSession(dialogSession)) return;
+      if (!isCurrentStatusRequest(dialogSession, statusRequest)) return;
 
       if (res.ok) {
         const json = await res.json();
-        if (!isCurrentDialogSession(dialogSession)) return;
+        if (!isCurrentStatusRequest(dialogSession, statusRequest)) return;
         setStatus(json.data ?? json);
       } else {
         setError(t('failedToLoadQrStatus'));
@@ -94,9 +104,9 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message } : { error: err };
       logger.error('Failed to load QR login status', metadata);
-      if (isCurrentDialogSession(dialogSession)) setError(t('failedToLoadQrStatus'));
+      if (isCurrentStatusRequest(dialogSession, statusRequest)) setError(t('failedToLoadQrStatus'));
     } finally {
-      if (isCurrentDialogSession(dialogSession)) setLoading(false);
+      if (isCurrentStatusRequest(dialogSession, statusRequest)) setLoading(false);
     }
   };
 
@@ -158,6 +168,13 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       // dialog-session-local visual. Even if the dialog was reopened, this
       // request settling is what safely releases the mutation lock.
       setSubmitting(false);
+
+      // If this mutation outlived the session that started it, the reopened
+      // session may have loaded status before the server mutation committed.
+      // Refresh after settle so the current session converges on server state.
+      if (!isCurrentDialogSession(dialogSession)) {
+        void fetchStatus(dialogSessionRef.current);
+      }
     }
   };
 
@@ -183,6 +200,9 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       if (isCurrentDialogSession(dialogSession)) setError(t('failedToRevokeQrCode'));
     } finally {
       setSubmitting(false);
+      if (!isCurrentDialogSession(dialogSession)) {
+        void fetchStatus(dialogSessionRef.current);
+      }
     }
   };
 
