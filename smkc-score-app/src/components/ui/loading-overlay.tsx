@@ -20,9 +20,10 @@
  * - aria-modal="true" traps focus within the overlay for accessibility
  * - Returns null when isOpen is false to avoid unnecessary DOM nodes
  */
-"use client";
+'use client';
 
-import { Loader2 } from "lucide-react";
+import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /**
  * Props for the LoadingOverlay component.
@@ -30,7 +31,7 @@ import { Loader2 } from "lucide-react";
  * @property isOpen - Controls visibility. When false, the component
  *   renders nothing (returns null), avoiding invisible DOM nodes.
  * @property message - Optional custom message displayed below the spinner.
- *   Defaults to "Processing..." when not provided.
+ *   Defaults to the localized processing message when not provided.
  */
 export interface LoadingOverlayProps {
   isOpen: boolean;
@@ -44,12 +45,14 @@ export interface LoadingOverlayProps {
  * card containing:
  * - An animated spinner (Loader2 from lucide-react)
  * - A primary message (customizable via props)
- * - A secondary helper message asking the user to wait
+ * - A localized secondary helper message asking the user to wait
  *
  * The overlay prevents all user interaction with underlying content
  * by covering the viewport with a semi-transparent backdrop.
  */
 export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
+  const t = useTranslations('loadingOverlay');
+
   /** Early return when not open -- no DOM node rendered at all */
   if (!isOpen) return null;
 
@@ -58,7 +61,7 @@ export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label="Loading"
+      aria-label={t('ariaLabel')}
     >
       {/* Centered card with border and shadow for visual elevation */}
       <div className="bg-card border rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
@@ -66,14 +69,10 @@ export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
           {/* Animated spinner icon */}
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           <div className="space-y-2 text-center">
-            {/* Primary message: customizable, defaults to "Processing..." */}
-            <h3 className="text-lg font-medium">
-              {message || "Processing..."}
-            </h3>
+            {/* Primary message: customizable, otherwise localized default */}
+            <h3 className="text-lg font-medium">{message || t('processing')}</h3>
             {/* Secondary helper text asking the user to wait */}
-            <p className="text-sm text-muted-foreground">
-              Please wait while we complete this operation.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('pleaseWait')}</p>
           </div>
         </div>
       </div>

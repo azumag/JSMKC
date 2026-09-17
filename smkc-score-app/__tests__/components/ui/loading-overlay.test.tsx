@@ -8,6 +8,22 @@
  */
 import { render, screen } from '@testing-library/react';
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
+import enLoadingOverlay from '../../../messages/loading-overlay/en.json';
+import jaLoadingOverlay from '../../../messages/loading-overlay/ja.json';
+
+const mockLoadingMessages = {
+  en: { loadingOverlay: enLoadingOverlay },
+  ja: { loadingOverlay: jaLoadingOverlay },
+};
+let mockLocale: keyof typeof mockLoadingMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: keyof typeof enLoadingOverlay) => mockLoadingMessages[mockLocale].loadingOverlay[key],
+}));
+
+beforeEach(() => {
+  mockLocale = 'en';
+});
 
 describe('LoadingOverlay — visibility', () => {
   it('TC-2726: renders nothing when isOpen=false', () => {
@@ -22,23 +38,44 @@ describe('LoadingOverlay — visibility', () => {
 });
 
 describe('LoadingOverlay — message', () => {
-  it('TC-2728: shows default "Processing..." when no message prop is given', () => {
+  it('TC-2728: shows the localized default processing message when no message prop is given', () => {
     render(<LoadingOverlay isOpen={true} />);
     expect(screen.getByText('Processing...')).toBeInTheDocument();
   });
 
   it('TC-2729: shows custom message when message prop is provided', () => {
+    mockLocale = 'ja';
     render(<LoadingOverlay isOpen={true} message="ブラケット生成中" />);
     expect(screen.getByText('ブラケット生成中')).toBeInTheDocument();
-    expect(screen.queryByText('Processing...')).not.toBeInTheDocument();
+    expect(screen.queryByText('処理中...')).not.toBeInTheDocument();
+  });
+
+  it('localizes default and helper copy for Japanese', () => {
+    mockLocale = 'ja';
+    render(<LoadingOverlay isOpen={true} />);
+    expect(screen.getByText('処理中...')).toBeInTheDocument();
+    expect(screen.getByText('処理が完了するまでしばらくお待ちください。')).toBeInTheDocument();
+    expect(screen.queryByText('Please wait while we complete this operation.')).not.toBeInTheDocument();
   });
 });
 
 describe('LoadingOverlay — accessibility', () => {
-  it('TC-2730: has role="dialog" and aria-modal="true" with aria-label="Loading"', () => {
+  it('TC-2730: has role="dialog" and localized aria-label', () => {
     render(<LoadingOverlay isOpen={true} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAttribute('aria-label', 'Loading');
+  });
+
+  it('uses the Japanese aria-label for Japanese locale', () => {
+    mockLocale = 'ja';
+    render(<LoadingOverlay isOpen={true} />);
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-label', '読み込み中');
+  });
+});
+
+describe('LoadingOverlay — catalog parity', () => {
+  it('keeps English and Japanese loading-overlay keys aligned', () => {
+    expect(Object.keys(jaLoadingOverlay).sort()).toEqual(Object.keys(enLoadingOverlay).sort());
   });
 });
