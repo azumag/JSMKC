@@ -85,7 +85,6 @@ export function FinalsRoundCoursesSettings({
       </label>
       <Input
         id={`round-courses-${match.id}`}
-        aria-label="Round courses"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="MC1, DP1, GV1, BC1"
