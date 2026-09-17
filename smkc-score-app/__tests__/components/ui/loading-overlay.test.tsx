@@ -18,8 +18,7 @@ const mockLoadingMessages = {
 let mockLocale: keyof typeof mockLoadingMessages = 'en';
 
 jest.mock('next-intl', () => ({
-  useTranslations: () => (key: keyof typeof enLoadingOverlay) =>
-    mockLoadingMessages[mockLocale].loadingOverlay[key],
+  useTranslations: () => (key: keyof typeof enLoadingOverlay) => mockLoadingMessages[mockLocale].loadingOverlay[key],
 }));
 
 beforeEach(() => {
