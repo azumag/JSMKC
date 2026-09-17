@@ -135,9 +135,7 @@ describe('useParticipantMatches', () => {
       const { result } = makeHook();
 
       await waitFor(() => expect(result.current.loading).toBe(false));
-      expect(mockedFetchWithRetry).toHaveBeenCalledWith(
-        `/api/tournaments/${TOURNAMENT_ID}?fields=summary`,
-      );
+      expect(mockedFetchWithRetry).toHaveBeenCalledWith(`/api/tournaments/${TOURNAMENT_ID}?fields=summary`);
       expect(global.fetch).toHaveBeenCalledWith(`/api/tournaments/${TOURNAMENT_ID}/${MODE}`);
       expect(result.current.tournament?.id).toBe(TOURNAMENT_ID);
       expect(result.current.matches).toHaveLength(1);
@@ -187,8 +185,16 @@ describe('useParticipantMatches', () => {
       mockedFetchWithRetry.mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
 
       const myMatch = makeMatch({ id: 'match-mine', player1: { id: PLAYER_ID, name: 'Alice', nickname: 'a' } });
-      const otherMatch = makeMatch({ id: 'match-other', player1: { id: 'p-other', name: 'C', nickname: 'c' }, player2: { id: 'p-other2', name: 'D', nickname: 'd' } });
-      const byeMatch = makeMatch({ id: 'match-bye', player1: { id: PLAYER_ID, name: 'Alice', nickname: 'a' }, isBye: true });
+      const otherMatch = makeMatch({
+        id: 'match-other',
+        player1: { id: 'p-other', name: 'C', nickname: 'c' },
+        player2: { id: 'p-other2', name: 'D', nickname: 'd' },
+      });
+      const byeMatch = makeMatch({
+        id: 'match-bye',
+        player1: { id: PLAYER_ID, name: 'Alice', nickname: 'a' },
+        isBye: true,
+      });
 
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
@@ -244,13 +250,9 @@ describe('useParticipantMatches', () => {
         returnValue = await result.current.submitReport('match-1', { score1: 3, score2: 1 });
       });
 
-      const postCall = (global.fetch as jest.Mock).mock.calls.find(
-        (c) => c[1]?.method === 'POST',
-      );
+      const postCall = (global.fetch as jest.Mock).mock.calls.find((c) => c[1]?.method === 'POST');
       expect(postCall).toBeDefined();
-      expect(postCall![0]).toBe(
-        `/api/tournaments/${TOURNAMENT_ID}/${MODE}/match/match-1/report`,
-      );
+      expect(postCall![0]).toBe(`/api/tournaments/${TOURNAMENT_ID}/${MODE}/match/match-1/report`);
       expect(returnValue).not.toBeNull();
     });
   });
