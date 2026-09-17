@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Admin-only button that calls POST /api/tournaments/:id/{mode}/debug-fill
@@ -10,33 +10,33 @@
  * when `debugMode` is false, so it never appears for normal tournaments.
  */
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { createLogger } from '@/lib/client-logger';
+
+const logger = createLogger({ serviceName: 'qualification-debug-fill' });
 
 interface DebugFillButtonProps {
   tournamentId: string;
-  mode: "bm" | "mr" | "gp" | "ta";
+  mode: 'bm' | 'mr' | 'gp' | 'ta';
   /** Called after a successful fill so the parent can refetch standings. */
   onFilled?: () => void;
   className?: string;
 }
 
-export function DebugFillButton({
-  tournamentId,
-  mode,
-  onFilled,
-  className,
-}: DebugFillButtonProps) {
+export function DebugFillButton({ tournamentId, mode, onFilled, className }: DebugFillButtonProps) {
+  const tCommon = useTranslations('common');
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
 
   async function handleClick() {
     if (busy) return;
     setBusy(true);
-    setStatusText("実行中…");
+    setStatusText('実行中…');
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/${mode}/debug-fill`, {
-        method: "POST",
+        method: 'POST',
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -45,12 +45,13 @@ export function DebugFillButton({
         return;
       }
       const data = json?.data ?? json;
-      const filled = typeof data?.filled === "number" ? data.filled : 0;
-      const skipped = typeof data?.skipped === "number" ? data.skipped : 0;
+      const filled = typeof data?.filled === 'number' ? data.filled : 0;
+      const skipped = typeof data?.skipped === 'number' ? data.skipped : 0;
       setStatusText(`完了: ${filled} 件入力 / ${skipped} 件スキップ`);
       onFilled?.();
     } catch (err) {
-      setStatusText(`エラー: ${err instanceof Error ? err.message : String(err)}`);
+      logger.error('Debug fill request failed:', { error: err, tournamentId, mode });
+      setStatusText(tCommon('networkError'));
     } finally {
       setBusy(false);
     }
@@ -65,11 +66,9 @@ export function DebugFillButton({
         disabled={busy}
         title={`${mode.toUpperCase()} 予選スコアを自動入力 (debug mode)`}
       >
-        {busy ? "自動入力中…" : "予選スコア自動入力"}
+        {busy ? '自動入力中…' : '予選スコア自動入力'}
       </Button>
-      {statusText && (
-        <p className="text-xs text-muted-foreground mt-1">{statusText}</p>
-      )}
+      {statusText && <p className="text-xs text-muted-foreground mt-1">{statusText}</p>}
     </div>
   );
 }
