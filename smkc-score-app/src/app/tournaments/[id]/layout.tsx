@@ -52,7 +52,7 @@ const TABS = [
   { href: 'overall-ranking', labelKey: 'overall', publicMode: 'overall' },
 ] as const;
 
-const ADMIN_TABS = [{ href: 'broadcast', label: '配信管理' }] as const;
+const ADMIN_TABS = [{ href: 'broadcast', labelKey: 'broadcastManagement' }] as const;
 
 function isMinimalPage(pathname: string): boolean {
   return pathname.includes('/participant') || pathname.includes('/match/') || pathname.includes('/overlay');
@@ -81,6 +81,7 @@ export default function TournamentLayout({
   const { data: session } = useSession();
   const t = useTranslations('tournaments');
   const tc = useTranslations('common');
+  const tLayout = useTranslations('tournamentLayout');
   const isAdmin = session?.user && session.user.role === 'admin';
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -279,7 +280,7 @@ export default function TournamentLayout({
         </header>
 
         <nav
-          aria-label="Tournament sections"
+          aria-label={tLayout('sectionsNavLabel')}
           data-tournament-tabs-hydrated={tabsHydrated ? 'true' : 'false'}
           className="overflow-x-auto -mx-5 sm:-mx-6 px-5 sm:px-6 border-b border-foreground/15"
         >
@@ -334,7 +335,7 @@ export default function TournamentLayout({
                         guardClassName,
                       )}
                     >
-                      {tab.label}
+                      {tLayout(tab.labelKey)}
                     </Link>
                   </li>
                 );
