@@ -45,6 +45,10 @@ export function CountrySelect({
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const listboxId = `${React.useId()}-country-listbox`;
   const listRef = React.useRef<HTMLUListElement>(null);
+  const isJapanese = locale.toLowerCase().startsWith("ja");
+  const searchPlaceholder = placeholder || (isJapanese ? "国を検索…" : "Search…");
+  const searchLabel = isJapanese ? "国を検索" : "Search countries";
+  const noMatchLabel = isJapanese ? "一致する国がありません" : "No match";
 
   // Drive the list scroll from the wheel explicitly. Inside a portaled Popover
   // the mouse wheel sometimes does not reach this inner scroll container (it
@@ -72,9 +76,9 @@ export function CountrySelect({
   const options = React.useMemo(
     () =>
       [...COUNTRIES]
-        .map((c) => ({ code: c.code, name: locale.startsWith("ja") ? c.ja : c.en }))
+        .map((c) => ({ code: c.code, name: isJapanese ? c.ja : c.en }))
         .sort((a, b) => a.name.localeCompare(b.name, locale)),
-    [locale],
+    [isJapanese, locale],
   );
 
   const filtered = React.useMemo(() => {
@@ -180,8 +184,8 @@ export function CountrySelect({
                 setActiveIndex(-1);
               }}
               onKeyDown={handleSearchKeyDown}
-              placeholder={placeholder || "Search…"}
-              aria-label="Search countries"
+              placeholder={searchPlaceholder}
+              aria-label={searchLabel}
               className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
@@ -226,7 +230,7 @@ export function CountrySelect({
             ))}
             {filtered.length === 0 && (
               <li className="px-3 py-2 text-sm text-muted-foreground">
-                No match
+                {noMatchLabel}
               </li>
             )}
           </ul>
