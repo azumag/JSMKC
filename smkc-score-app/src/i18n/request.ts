@@ -11,9 +11,16 @@
  */
 import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
+import enMatchValidation from '../../messages/match-validation/en.json';
+import jaMatchValidation from '../../messages/match-validation/ja.json';
 import enTaPromotion from '../../messages/ta-promotion/en.json';
 import jaTaPromotion from '../../messages/ta-promotion/ja.json';
 import { type Locale, locales, defaultLocale, LOCALE_COOKIE } from './config';
+
+const matchValidationMessages = {
+  en: enMatchValidation,
+  ja: jaMatchValidation,
+} satisfies Record<Locale, typeof enMatchValidation>;
 
 const taPromotionMessages = {
   en: enTaPromotion,
@@ -25,6 +32,10 @@ async function loadMessages(locale: Locale) {
 
   return {
     ...messages,
+    match: {
+      ...messages.match,
+      ...matchValidationMessages[locale],
+    },
     ta: {
       ...messages.ta,
       ...taPromotionMessages[locale],
