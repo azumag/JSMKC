@@ -346,7 +346,8 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || tCommon('networkError'));
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
 
       const json = await response.json();
@@ -357,7 +358,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       /** i18n: Success alert after times are submitted */
       alert(tPart('timesSubmittedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('networkError'));
+      /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
+      logger.error('Failed to submit TA qualification times:', { error: err });
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -397,7 +400,8 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || tCommon('networkError'));
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -405,7 +409,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       setPartnerEntry({ ...partnerEntry, ...data.entry });
       alert(tPart('partnerTimesSubmittedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('networkError'));
+      /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
+      logger.error('Failed to submit partner TA qualification times:', { error: err });
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -447,7 +453,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       setReportTimeInput('');
       alert(hadPrevious ? tTa('reportUpdateSuccess') : tTa('reportSuccess'));
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : tCommon('networkError'));
+      /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
+      logger.error('Failed to report TA Phase 3 time:', { error: err });
+      setReportError(tCommon('networkError'));
     } finally {
       setReporting(false);
     }
@@ -467,7 +475,8 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || tCommon('networkError'));
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
 
       const json = await response.json();
@@ -477,7 +486,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       /** i18n: Success alert after adding self to time attack */
       alert(tPart('addedToTASuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('networkError'));
+      /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
+      logger.error('Failed to add participant to TA:', { error: err });
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
