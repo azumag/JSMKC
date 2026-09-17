@@ -25,73 +25,80 @@ jobs:
           from pathlib import Path
 
           path = Path('smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts')
-          source = path.read_text()
+          lines = path.read_text().splitlines()
 
-          variable_anchor = """  const qualificationFallbackTest = readRepoFile(
-            'smkc-score-app',
-            '__tests__',
-            'components',
-            'ui',
-            'loading-skeleton.test.tsx',
-          );
-          """
-          variable_replacement = variable_anchor + """  const loadingSkeletonContractTest = readRepoFile(
-            'smkc-score-app',
-            '__tests__',
-            'static',
-            'loading-skeleton-contract.test.ts',
-          );
-          """
+          def unique_index(fragment: str) -> int:
+              matches = [index for index, line in enumerate(lines) if fragment in line]
+              if len(matches) != 1:
+                  raise SystemExit(f'{fragment!r}: expected exactly one matching line, found {len(matches)}')
+              return matches[0]
 
-          tc2095_old = """    expect(loadingSkeleton).toContain('titleSkeletonClassName = \\\"w-48\\\"');
-              expect(qualificationFallbackTest).toContain('uses the qualification page title skeleton width by default');
-          """
-          tc2095_new = """    // The AST-backed contract owns the source-level default check; the component test owns rendered behavior.
-              expect(loadingSkeletonContractTest).toContain("titleSkeletonBinding.initializer.text).toBe('w-48')");
-              expect(qualificationFallbackTest).toContain("getByTestId('title-skeleton')).toHaveClass('w-48')");
-          """
+          # Bind the existing AST-backed contract test without relying on production formatting.
+          start = unique_index('const qualificationFallbackTest = readRepoFile(')
+          end = next((index for index in range(start + 1, len(lines)) if lines[index].strip() == ');'), None)
+          if end is None:
+              raise SystemExit('qualificationFallbackTest: closing ); not found')
+          contract_binding = [
+              "  const loadingSkeletonContractTest = readRepoFile(",
+              "    'smkc-score-app',",
+              "    '__tests__',",
+              "    'static',",
+              "    'loading-skeleton-contract.test.ts',",
+              '  );',
+          ]
+          lines[end + 1:end + 1] = contract_binding
 
-          tc2401_structure_old = """    // Skeleton props spread must come before role/aria-label so callers cannot override them
-              expect(loadingSkeleton).toContain('{...props}');
-              expect(loadingSkeleton).toMatch(/\\{\\.\\.\\.props\\}[\\s\\S]{0,20}role=\\\"status\\\"/);
-              expect(loadingSkeleton).toMatch(/\\{\\.\\.\\.props\\}[\\s\\S]{0,50}aria-label=\\\"Loading content\\\"/);
-          """
-          tc2401_structure_new = """    // The AST-backed contract verifies ownership/order without coupling this docs guard to quote style or locale text.
-              expect(loadingSkeletonContractTest).toContain('expect(roleIndex).toBeGreaterThan(spreadIndex)');
-              expect(loadingSkeletonContractTest).toContain('expect(ariaLabelIndex).toBeGreaterThan(spreadIndex)');
-              expect(loadingSkeletonContractTest).toContain("expression.arguments[0].text === 'ariaLabel'");
-          """
-
-          tc2401_runtime_old = """    expect(qualificationFallbackTest).toContain('TC-2401');
-              expect(qualificationFallbackTest).toContain(
-                'always renders with role=\\\"status\\\" even when caller passes a different role',
-              );
-              expect(qualificationFallbackTest).toContain(
-                'always renders with aria-label even when caller passes a different aria-label',
-              );
-              expect(qualificationFallbackTest).toContain("getByTestId('title-skeleton')");
-          """
-          tc2401_runtime_new = """    expect(qualificationFallbackTest).toContain('TC-2401');
-              expect(qualificationFallbackTest).toContain("getByRole('status')");
-              expect(qualificationFallbackTest).toContain("queryByRole('img')");
-              expect(qualificationFallbackTest).toContain("queryByLabelText('custom label')");
-              expect(qualificationFallbackTest).toContain("name: 'コンテンツを読み込み中'");
-          """
-
-          replacements = [
-              ('semantic contract source binding', variable_anchor, variable_replacement),
-              ('TC-2095 source/test-title coupling', tc2095_old, tc2095_new),
-              ('TC-2401 source-literal coupling', tc2401_structure_old, tc2401_structure_new),
-              ('TC-2401 test-title coupling', tc2401_runtime_old, tc2401_runtime_new),
+          # TC-2095: use semantic/static and rendered-behavior coverage, not quote style or test title text.
+          index = unique_index("titleSkeletonClassName = \\\"w-48\\\"")
+          if 'uses the qualification page title skeleton width by default' not in lines[index + 1]:
+              raise SystemExit('TC-2095 legacy test-title assertion moved unexpectedly')
+          lines[index:index + 2] = [
+              '    // The AST-backed contract owns the source-level default check; the component test owns rendered behavior.',
+              '    expect(loadingSkeletonContractTest).toContain("titleSkeletonBinding.initializer.text).toBe(\'w-48\')");',
+              '    expect(qualificationFallbackTest).toContain("getByTestId(\'title-skeleton\')).toHaveClass(\'w-48\')");',
           ]
 
-          for label, old, new in replacements:
-              count = source.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
-              source = source.replace(old, new, 1)
+          # TC-2401: delegate JSX ordering/localization to the AST contract instead of fixed English source text.
+          index = unique_index('Skeleton props spread must come before role/aria-label')
+          expected_fragments = ['{...props}', 'role=', 'aria-label=']
+          for offset, fragment in enumerate(expected_fragments, start=1):
+              if fragment not in lines[index + offset]:
+                  raise SystemExit(f'TC-2401 legacy structure assertion {fragment!r} moved unexpectedly')
+          lines[index:index + 4] = [
+              '    // The AST-backed contract verifies ownership/order without coupling this docs guard to quote style or locale text.',
+              "    expect(loadingSkeletonContractTest).toContain('expect(roleIndex).toBeGreaterThan(spreadIndex)');",
+              "    expect(loadingSkeletonContractTest).toContain('expect(ariaLabelIndex).toBeGreaterThan(spreadIndex)');",
+              '    expect(loadingSkeletonContractTest).toContain("expression.arguments[0].text === \'ariaLabel\'");',
+          ]
 
-          path.write_text(source)
+          # TC-2401 runtime coverage: assert stable behavior expressions, never human-readable test titles.
+          index = unique_index("expect(qualificationFallbackTest).toContain('TC-2401');")
+          legacy_runtime = '\n'.join(lines[index:index + 8])
+          for fragment in [
+              'always renders with role=',
+              'always renders with aria-label',
+              "getByTestId('title-skeleton')",
+          ]:
+              if fragment not in legacy_runtime:
+                  raise SystemExit(f'TC-2401 legacy runtime assertion {fragment!r} moved unexpectedly')
+          lines[index:index + 8] = [
+              "    expect(qualificationFallbackTest).toContain('TC-2401');",
+              '    expect(qualificationFallbackTest).toContain("getByRole(\'status\')");',
+              '    expect(qualificationFallbackTest).toContain("queryByRole(\'img\')");',
+              '    expect(qualificationFallbackTest).toContain("queryByLabelText(\'custom label\')");',
+              '    expect(qualificationFallbackTest).toContain("name: \'コンテンツを読み込み中\'");',
+          ]
+
+          updated = '\n'.join(lines) + '\n'
+          for forbidden in [
+              'uses the qualification page title skeleton width by default',
+              'always renders with role="status" even when caller passes a different role',
+              'always renders with aria-label even when caller passes a different aria-label',
+          ]:
+              if forbidden in updated:
+                  raise SystemExit(f'legacy title coupling still present: {forbidden}')
+
+          path.write_text(updated)
           PY
 
           git diff --check
