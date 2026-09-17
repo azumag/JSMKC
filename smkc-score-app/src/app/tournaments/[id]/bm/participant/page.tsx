@@ -37,9 +37,14 @@ export default function BattleModeParticipantPage({
   const { id: tournamentId } = use(params);
   const tPart = useTranslations("participant");
   const tMatch = useTranslations("match");
+  const tCommon = useTranslations("common");
 
   /* Shared hook for session, data fetching, polling, match filtering */
-  const ctx = useParticipantMatches<BMMatch>({ tournamentId, mode: "bm" });
+  const ctx = useParticipantMatches<BMMatch>({
+    tournamentId,
+    mode: "bm",
+    networkErrorMessage: tCommon("networkError"),
+  });
 
   const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
 
