@@ -593,7 +593,12 @@ export default function TimeAttackPageClient({
       // Refresh phase status after promotion
       await fetchPhaseStatus();
       if (data.skipped && data.skipped.length > 0) {
-        alert(`Promoted ${data.entries.length} players. Skipped: ${data.skipped.join(', ')} (incomplete times)`);
+        alert(
+          t('promotionSkippedSummary', {
+            promoted: data.entries.length,
+            skipped: data.skipped.join(', '),
+          }),
+        );
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
