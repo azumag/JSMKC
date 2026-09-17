@@ -12,7 +12,7 @@ describe('TA qualification freeze error fallback contract', () => {
   const block = source.slice(start, end);
 
   it('keeps API errors first and uses common.networkError for generic failures', () => {
-    expect(block).toContain("const errorData = await response.json().catch(() => ({}));");
+    expect(block).toContain('const errorData = await response.json().catch(() => ({}));');
     expect(block).toContain("toast.error(errorData.error || tc('networkError'));");
     expect(block).toContain("toast.error(tc('networkError'));");
     expect(block).not.toContain('Failed to update freeze state');
@@ -31,9 +31,7 @@ describe('TA qualification freeze error fallback contract', () => {
     expect(block).toContain("method: 'PUT'");
     expect(block).toContain('body: JSON.stringify({ frozenStages: newFrozen })');
     expect(block).toContain('refetch();');
-    expect(block).toContain(
-      "toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));",
-    );
+    expect(block).toContain("toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));");
   });
 
   it.each(['en', 'ja'])('defines common.networkError for %s', (locale) => {
