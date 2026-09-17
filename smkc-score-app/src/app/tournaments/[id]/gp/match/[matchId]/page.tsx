@@ -1,5 +1,5 @@
 'use client';
-import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { fetchSharedMatchPageData, isSharedMatchNotFoundError } from '@/lib/shared-match-page-data';
 
 /**
  * Grand Prix Match Detail / Share Page
@@ -135,29 +135,15 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
   const initializedCupRef = useRef<string | null>(null);
 
   /** Fetch match and tournament data in parallel */
-  const fetchMatchData = useCallback(async () => {
-    const [matchRes, tournamentRes] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/gp/match/${matchId}`),
-      fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
-    ]);
-
-    if (!matchRes.ok) {
-      throw new Error(`Failed to fetch GP match data: ${matchRes.status}`);
-    }
-
-    if (!tournamentRes.ok) {
-      throw new Error(`Failed to fetch tournament: ${tournamentRes.status}`);
-    }
-
-    const matchJson = await matchRes.json();
-    const tournamentJson = await tournamentRes.json();
-
-    return {
-      // Unwrap createSuccessResponse wrapper: { success, data: match }
-      match: matchJson.data ?? matchJson,
-      tournament: tournamentJson.data ?? tournamentJson,
-    };
-  }, [tournamentId, matchId]);
+  const fetchMatchData = useCallback(
+    () =>
+      fetchSharedMatchPageData<GPMatch, Tournament>({
+        tournamentId,
+        matchId,
+        mode: 'GP',
+      }),
+    [tournamentId, matchId],
+  );
 
   /* Poll for match updates at the standard interval */
   const {
@@ -165,6 +151,7 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
     isLoading: pollLoading,
     lastUpdated,
     isPolling,
+    error: pollError,
     refetch,
   } = usePolling(fetchMatchData, {
     interval: POLLING_INTERVAL,
@@ -359,6 +346,22 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
             <div className="h-5 w-48 bg-muted animate-pulse rounded" />
           </div>
           <CardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  if (pollError && !pollData) {
+    const notFound = isSharedMatchNotFoundError(pollError);
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-3 text-center">
+          <p>{notFound ? tMatch('matchNotFound') : tCommon('networkError')}</p>
+          {!notFound && (
+            <Button type="button" variant="outline" onClick={() => void refetch()}>
+              {tCommon('tryAgain')}
+            </Button>
+          )}
         </div>
       </div>
     );

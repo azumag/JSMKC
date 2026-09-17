@@ -12,7 +12,7 @@
  */
 
 'use client';
-import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { fetchSharedMatchPageData, isSharedMatchNotFoundError } from '@/lib/shared-match-page-data';
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useTranslations } from 'next-intl';
@@ -66,6 +66,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
 
   const tMatch = useTranslations('match');
   const tBm = useTranslations('bm');
+  const tCommon = useTranslations('common');
 
   /* Core state */
   const [match, setMatch] = useState<BMMatch | null>(null);
@@ -77,29 +78,15 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
    * Fetch match and tournament data in parallel.
    * This function is used by the polling hook for real-time updates.
    */
-  const fetchMatchData = useCallback(async () => {
-    const [matchRes, tournamentRes] = await Promise.all([
-      fetch(`/api/tournaments/${tournamentId}/bm/match/${matchId}`),
-      fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
-    ]);
-
-    if (!matchRes.ok) {
-      throw new Error(`Failed to fetch BM match data: ${matchRes.status}`);
-    }
-
-    if (!tournamentRes.ok) {
-      throw new Error(`Failed to fetch tournament: ${tournamentRes.status}`);
-    }
-
-    const matchJson = await matchRes.json();
-    const tournamentJson = await tournamentRes.json();
-
-    return {
-      // Unwrap createSuccessResponse wrapper: { success, data: match }
-      match: matchJson.data ?? matchJson,
-      tournament: tournamentJson.data ?? tournamentJson,
-    };
-  }, [tournamentId, matchId]);
+  const fetchMatchData = useCallback(
+    () =>
+      fetchSharedMatchPageData<BMMatch, Tournament>({
+        tournamentId,
+        matchId,
+        mode: 'BM',
+      }),
+    [tournamentId, matchId],
+  );
 
   /* Poll at the standard interval for real-time match updates */
   const {
@@ -107,6 +94,8 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
     isLoading: pollLoading,
     lastUpdated,
     isPolling,
+    error: pollError,
+    refetch,
   } = usePolling(fetchMatchData, {
     interval: POLLING_INTERVAL,
   });
@@ -140,6 +129,22 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   /* Error state when match or tournament data is not found */
+  if (pollError && !pollData) {
+    const notFound = isSharedMatchNotFoundError(pollError);
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="space-y-3 text-center">
+          <p>{notFound ? tMatch('matchNotFound') : tCommon('networkError')}</p>
+          {!notFound && (
+            <Button type="button" variant="outline" onClick={() => void refetch()}>
+              {tCommon('tryAgain')}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!match || !tournament) {
     return (
       <div className="min-h-screen flex items-center justify-center">
