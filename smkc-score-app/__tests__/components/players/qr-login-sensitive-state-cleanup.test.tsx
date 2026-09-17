@@ -143,7 +143,10 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
       json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
     };
 
-    fetchMock.mockResolvedValueOnce(inactiveStatus).mockReturnValueOnce(issueResponse).mockResolvedValueOnce(inactiveStatus);
+    fetchMock
+      .mockResolvedValueOnce(inactiveStatus)
+      .mockReturnValueOnce(issueResponse)
+      .mockResolvedValueOnce(inactiveStatus);
 
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
@@ -189,7 +192,10 @@ describe('QR login dialog session cleanup (issues #3655 and #3657)', () => {
       json: async () => ({ success: true, data: { active: true, issuedAt: '2026-09-17T02:00:00.000Z' } }),
     };
 
-    fetchMock.mockResolvedValueOnce(activeStatus).mockReturnValueOnce(revokeResponse).mockResolvedValueOnce(activeStatus);
+    fetchMock
+      .mockResolvedValueOnce(activeStatus)
+      .mockReturnValueOnce(revokeResponse)
+      .mockResolvedValueOnce(activeStatus);
 
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
