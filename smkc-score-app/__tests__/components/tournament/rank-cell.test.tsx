@@ -9,10 +9,21 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { RankCell } from '@/components/tournament/rank-cell';
 
+const mockLoggerError = jest.fn();
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => `common.${key}`,
+}));
+
+jest.mock('@/lib/client-logger', () => ({
+  createLogger: () => ({ error: mockLoggerError, warn: jest.fn(), info: jest.fn() }),
+}));
+
 const noop = jest.fn().mockResolvedValue(undefined);
 
 beforeEach(() => {
   noop.mockClear();
+  mockLoggerError.mockClear();
 });
 
 describe('RankCell — view mode', () => {
@@ -267,7 +278,10 @@ describe('RankCell — edge cases', () => {
     // While onSave is in-flight the editor stays open; after it resolves, the editor closes.
     let resolveOnSave!: () => void;
     const controlledSave = jest.fn().mockImplementation(
-      () => new Promise<void>(resolve => { resolveOnSave = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOnSave = resolve;
+        }),
     );
 
     render(
@@ -293,14 +307,15 @@ describe('RankCell — edge cases', () => {
     expect(controlledSave).toHaveBeenCalledWith('qual-pend', 1);
 
     // Resolve the save: setIsEditing(false) now runs and the editor closes
-    await act(async () => { resolveOnSave(); });
+    await act(async () => {
+      resolveOnSave();
+    });
     expect(screen.queryByRole('spinbutton')).toBeNull();
   });
 
-  it('TC-2660: commitSave shows inline error and keeps editor open when onSave rejects', async () => {
-    // try/catch in commitSave catches the rejection, shows an error message, and
-    // keeps the editor open so the user can see the message and retry.
-    const failingSave = jest.fn().mockRejectedValue(new Error('Network error'));
+  it('TC-2660: commitSave redacts rejected callback details and keeps editor open', async () => {
+    const rejection = new Error('Network error from internal-rank-service');
+    const failingSave = jest.fn().mockRejectedValue(rejection);
 
     render(
       <RankCell
@@ -320,17 +335,19 @@ describe('RankCell — edge cases', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
     });
 
-    // Editor stays open
     expect(screen.getByRole('spinbutton')).toBeInTheDocument();
-    // Error message is shown
-    expect(screen.getByRole('alert')).toHaveTextContent('Network error');
+    expect(screen.getByRole('alert')).toHaveTextContent('common.networkError');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('internal-rank-service');
+    expect(mockLoggerError).toHaveBeenCalledWith('Unexpected rank override save rejection:', {
+      error: rejection,
+      qualificationId: 'qual-err',
+      action: 'save',
+    });
   });
 
   it('TC-2661: error message is cleared when the editor is reopened', async () => {
     // After a failed save, reopening the editor (openEdit) clears the previous error.
-    const failingSave = jest.fn()
-      .mockRejectedValueOnce(new Error('Server error'))
-      .mockResolvedValue(undefined);
+    const failingSave = jest.fn().mockRejectedValueOnce(new Error('Server error')).mockResolvedValue(undefined);
 
     render(
       <RankCell
@@ -345,7 +362,9 @@ describe('RankCell — edge cases', () => {
     // First attempt → error
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '1' } });
-    await act(async () => { fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' });
+    });
     expect(screen.getByRole('alert')).toBeInTheDocument();
 
     // Press Escape to close editor
@@ -355,9 +374,9 @@ describe('RankCell — edge cases', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('TC-2662: commitClear shows inline error and keeps editor open when onSave rejects', async () => {
-    // commitClear has the same try/catch pattern as commitSave.
-    const failingSave = jest.fn().mockRejectedValue(new Error('Clear failed'));
+  it('TC-2662: commitClear redacts rejected callback details and keeps editor open', async () => {
+    const rejection = new Error('Clear failed at internal-rank-service');
+    const failingSave = jest.fn().mockRejectedValue(rejection);
 
     render(
       <RankCell
@@ -374,9 +393,13 @@ describe('RankCell — edge cases', () => {
       fireEvent.click(screen.getByRole('button', { name: /✕/ }));
     });
 
-    // Editor stays open
     expect(screen.getByRole('spinbutton')).toBeInTheDocument();
-    // Error message is shown
-    expect(screen.getByRole('alert')).toHaveTextContent('Clear failed');
+    expect(screen.getByRole('alert')).toHaveTextContent('common.networkError');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('internal-rank-service');
+    expect(mockLoggerError).toHaveBeenCalledWith('Unexpected rank override save rejection:', {
+      error: rejection,
+      qualificationId: 'qual-clear-err',
+      action: 'clear',
+    });
   });
 });
