@@ -1,0 +1,55 @@
+import fs from 'fs';
+import path from 'path';
+
+function readAppFile(...parts: string[]) {
+  return fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+}
+
+describe('TA qualification setup error fallback contract', () => {
+  const source = readAppFile('src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
+  const start = source.indexOf('const handleSaveSetup = async () => {');
+  const end = source.indexOf('// Check if qualification entries exist in each phase', start);
+  const block = source.slice(start, end);
+
+  it('separates API response errors from request rejection messages', () => {
+    expect(block).toContain('class SetupSaveError extends Error');
+    expect(block).toContain("payload.error || tc('networkError')");
+    expect(block).toContain("const userMessage = isSetupSaveError ? err.message : tc('networkError');");
+    expect(block).not.toContain("const msg = err instanceof Error ? err.message : 'Save failed'");
+    expect(block).not.toContain('Failed to add players');
+    expect(block).not.toContain('Failed to refetch TA entries');
+    expect(block).not.toContain('Failed to update TA handicaps');
+  });
+
+  it('logs low-level details with response status and failed operation', () => {
+    expect(block).toContain("logger.error('Failed to save TA qualification setup:', {");
+    expect(block).toContain('message: err.message');
+    expect(block).toContain('stack: err.stack');
+    expect(block).toContain('status: isSetupSaveError ? err.status : undefined');
+    expect(block).toContain("operation: isSetupSaveError ? err.operation : 'request'");
+  });
+
+  it('preserves save ordering, payload actions, 404 delete tolerance, and success path', () => {
+    const removeIndex = block.indexOf("method: 'DELETE'");
+    const addIndex = block.indexOf("method: 'POST'");
+    const refetchIndex = block.indexOf('stage=qualification');
+    const handicapIndex = block.indexOf("action: 'bulk_update_handicaps'");
+    const seedingIndex = block.indexOf("action: 'update_seeding'");
+    const partnerIndex = block.indexOf("action: 'set_partner'");
+    expect(removeIndex).toBeGreaterThan(-1);
+    expect(addIndex).toBeGreaterThan(removeIndex);
+    expect(refetchIndex).toBeGreaterThan(addIndex);
+    expect(handicapIndex).toBeGreaterThan(refetchIndex);
+    expect(seedingIndex).toBeGreaterThan(handicapIndex);
+    expect(partnerIndex).toBeGreaterThan(seedingIndex);
+    expect(block).toContain('res.status !== 404');
+    expect(block).toContain('setIsSetupDialogOpen(false);');
+    expect(block).toContain('refetch();');
+    expect(block).toContain("toast.success(t('pairsSaved'));");
+  });
+
+  it.each(['en', 'ja'])('defines common.networkError for %s', (locale) => {
+    const messages = readAppFile('messages', `${locale}.json`);
+    expect(messages).toMatch(/"networkError"\s*:\s*"[^"]+"/);
+  });
+});
