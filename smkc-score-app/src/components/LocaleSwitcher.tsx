@@ -61,9 +61,7 @@ export function LocaleSwitcher() {
         throw new Error(`Failed to switch locale: ${response.status}`);
       }
 
-      toast.success(
-        newLocale === 'ja' ? tLocaleSwitcher('switchedToJapanese') : tLocaleSwitcher('switchedToEnglish'),
-      );
+      toast.success(newLocale === 'ja' ? tLocaleSwitcher('switchedToJapanese') : tLocaleSwitcher('switchedToEnglish'));
 
       // Refresh the page to apply the new locale
       router.refresh();
