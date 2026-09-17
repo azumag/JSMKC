@@ -344,9 +344,15 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
         body: JSON.stringify({ entryId: myEntry.id, times: validTimes }),
       });
 
+      /**
+       * i18n: API-specific errors are shown verbatim (already user-facing strings from
+       * the server). A non-2xx without an `error` field falls back to the localized
+       * generic message rather than an untranslated status code.
+       */
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || tCommon('networkError'));
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
 
       const json = await response.json();
@@ -357,7 +363,14 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       /** i18n: Success alert after times are submitted */
       alert(tPart('timesSubmittedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('networkError'));
+      /**
+       * A caught exception here means the request itself failed (e.g. fetch()
+       * rejected due to a network error), not an API-reported error. The raw
+       * browser error message is not localized and must not reach the UI —
+       * only the client logger records it, matching the sudden-death fix (#3605).
+       */
+      logger.error('Failed to submit TA times:', { error: err, tournamentId, entryId: myEntry.id });
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -396,8 +409,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
         body: JSON.stringify({ entryId: partnerEntry.id, times: validTimes }),
       });
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || tCommon('networkError'));
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
       const json = await response.json();
       const data = json.data ?? json;
@@ -405,7 +419,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       setPartnerEntry({ ...partnerEntry, ...data.entry });
       alert(tPart('partnerTimesSubmittedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('networkError'));
+      /** Request-level failure (e.g. fetch() rejection): keep raw detail out of the UI. */
+      logger.error('Failed to submit partner TA times:', { error: err, tournamentId, entryId: partnerEntry.id });
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
@@ -447,7 +463,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       setReportTimeInput('');
       alert(hadPrevious ? tTa('reportUpdateSuccess') : tTa('reportSuccess'));
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : tCommon('networkError'));
+      /**
+       * Phase 3 error codes above are handled inline before this point; reaching
+       * here means the request itself failed (fetch() rejection or malformed
+       * response body). The raw error is not localized, so only log it.
+       */
+      logger.error('Failed to submit TA phase3 report:', { error: err, tournamentId, roundNumber: round.roundNumber });
+      setReportError(tCommon('networkError'));
     } finally {
       setReporting(false);
     }
@@ -466,8 +488,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || tCommon('networkError'));
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || tCommon('networkError'));
+        return;
       }
 
       const json = await response.json();
@@ -477,7 +500,9 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       /** i18n: Success alert after adding self to time attack */
       alert(tPart('addedToTASuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : tCommon('networkError'));
+      /** Request-level failure (e.g. fetch() rejection): keep raw detail out of the UI. */
+      logger.error('Failed to add player to TA:', { error: err, tournamentId, playerId });
+      setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
     }
