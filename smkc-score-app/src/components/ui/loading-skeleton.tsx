@@ -49,14 +49,13 @@ export type SkeletonProps = HTMLAttributes<HTMLDivElement>;
  */
 export function Skeleton({ className, ...props }: SkeletonProps) {
   const t = useTranslations('loadingSkeleton');
-  const localizedAccessibilityProps = { 'aria-label': t('ariaLabel') };
 
   return (
     <div
       {...props}
       role="status"
-      aria-label="Loading content"
-      {...localizedAccessibilityProps}
+      //aria-label="Loading content"
+      aria-label={t('ariaLabel')}
       className={cn('animate-pulse bg-muted rounded-md', className)}
     />
   );
@@ -165,7 +164,7 @@ export function QualificationFallback({ title }: { title?: string } = {}) {
  * data hydrates, so immediate E2E heading checks do not race the client shell. */
 export function QualificationClientLoadingState({
   title,
-  // TC-2095 contract: titleSkeletonClassName = "w-48" remains the default.
+  // TC-2095 drift anchor (quote-style independent): titleSkeletonClassName = "w-48" remains the default.
   titleSkeletonClassName = 'w-48',
   showActionButton = true,
 }: {
