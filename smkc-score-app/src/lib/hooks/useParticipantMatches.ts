@@ -13,15 +13,15 @@
  * - Form state management
  * - Client-side validation
  */
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
-import { usePolling } from "@/lib/hooks/usePolling";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
-import { createLogger } from "@/lib/logger";
-import { POLLING_INTERVAL } from "@/lib/constants";
-import { getParticipantScoreEntryAccessState } from "@/lib/participant-score-entry-access";
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
+import { usePolling } from '@/lib/hooks/usePolling';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { createLogger } from '@/lib/logger';
+import { POLLING_INTERVAL } from '@/lib/constants';
+import { getParticipantScoreEntryAccessState } from '@/lib/participant-score-entry-access';
 
 /** Shared player type across all participant pages */
 export interface ParticipantPlayer {
@@ -54,7 +54,7 @@ export interface BaseMatch {
   isBye?: boolean;
 }
 
-export type ParticipantMode = "bm" | "mr" | "gp";
+export type ParticipantMode = 'bm' | 'mr' | 'gp';
 
 interface UseParticipantMatchesOptions {
   tournamentId: string;
@@ -63,7 +63,7 @@ interface UseParticipantMatchesOptions {
 
 export interface UseParticipantMatchesResult<TMatch extends BaseMatch> {
   /* Session */
-  session: ReturnType<typeof useSession>["data"];
+  session: ReturnType<typeof useSession>['data'];
   sessionStatus: string;
   playerId: string | undefined;
   hasAccess: boolean;
@@ -92,10 +92,10 @@ export interface UseParticipantMatchesResult<TMatch extends BaseMatch> {
  * - Score report submission to /api/tournaments/[id]/<mode>/match/[matchId]/report
  */
 export function useParticipantMatches<TMatch extends BaseMatch>(
-  options: UseParticipantMatchesOptions
+  options: UseParticipantMatchesOptions,
 ): UseParticipantMatchesResult<TMatch> {
   const { tournamentId, mode } = options;
-  const logger = createLogger(`tournaments-${mode}-participant`);
+  const logger = useMemo(() => createLogger(`tournaments-${mode}-participant`), [mode]);
 
   /* Session & auth */
   const { data: session, status: sessionStatus } = useSession();
@@ -105,8 +105,8 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     userType: session?.user?.userType,
     role: session?.user?.role,
   });
-  const hasAccess = accessState === "player";
-  const isAdminBlocked = accessState === "admin-blocked";
+  const hasAccess = accessState === 'player';
+  const isAdminBlocked = accessState === 'admin-blocked';
 
   /* Core state */
   const [tournament, setTournament] = useState<ParticipantTournament | null>(null);
@@ -119,7 +119,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
 
   /* Initial data fetch on mount */
   useEffect(() => {
-    if (sessionStatus === "loading") return;
+    if (sessionStatus === 'loading') return;
     if (!hasAccess) {
       setLoading(false);
       return;
@@ -148,15 +148,15 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           }
         }
       } catch (err) {
-        logger.error("Data fetch error:", { error: err, tournamentId });
-        setError("Failed to load tournament data. Please check your connection.");
+        logger.error('Data fetch error:', { error: err, tournamentId });
+        setError('Failed to load tournament data. Please check your connection.');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [tournamentId, sessionStatus, hasAccess, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tournamentId, sessionStatus, hasAccess, mode, logger]);
 
   /* Polling for real-time match updates */
   const fetchMatchesPoll = useCallback(async () => {
@@ -168,36 +168,33 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     return json.data ?? json;
   }, [tournamentId, hasAccess, mode]);
 
-  const { data: pollingData, error: pollingError } = usePolling(
-    fetchMatchesPoll,
-    {
-      interval: POLLING_INTERVAL,
-      enabled: hasAccess && !loading,
-      /* Cache key enables instant content display when returning to this tab */
-      cacheKey: `participant/${tournamentId}/${mode}`,
-    }
-  );
+  const { data: pollingData, error: pollingError } = usePolling(fetchMatchesPoll, {
+    interval: POLLING_INTERVAL,
+    enabled: hasAccess && !loading,
+    /* Cache key enables instant content display when returning to this tab */
+    cacheKey: `participant/${tournamentId}/${mode}`,
+  });
 
   useEffect(() => {
-    if (pollingData && typeof pollingData === "object" && "matches" in pollingData) {
+    if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
       setMatches(pollingData.matches as TMatch[]);
       /* Update qualification lock state from polling data */
-      if ("qualificationConfirmed" in pollingData) {
+      if ('qualificationConfirmed' in pollingData) {
         setQualificationConfirmed(pollingData.qualificationConfirmed as boolean);
       }
     }
     if (pollingError) {
-      logger.error("Polling error:", { error: pollingError, tournamentId });
+      logger.error('Polling error:', { error: pollingError, tournamentId });
     }
-  }, [pollingData, pollingError, tournamentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pollingData, pollingError, tournamentId, logger]);
 
   /* Filter matches for the current player — pending first, then completed */
   useEffect(() => {
     if (playerId && matches.length > 0) {
       const playerMatches = matches.filter(
         (match) =>
-          !match.isBye && /* BYE matches are auto-completed; don't show */
-          (match.player1.id === playerId || match.player2.id === playerId)
+          !match.isBye /* BYE matches are auto-completed; don't show */ &&
+          (match.player1.id === playerId || match.player2.id === playerId),
       );
       /* Sort: pending (incomplete) matches first, then completed */
       playerMatches.sort((a, b) => {
@@ -219,14 +216,11 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     async (matchId: string, body: Record<string, unknown>): Promise<Record<string, unknown> | null> => {
       setSubmitting(matchId);
       try {
-        const response = await fetch(
-          `/api/tournaments/${tournamentId}/${mode}/match/${matchId}/report`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          }
-        );
+        const response = await fetch(`/api/tournaments/${tournamentId}/${mode}/match/${matchId}/report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
 
         const json = await response.json().catch(() => ({}));
         /* Unwrap createSuccessResponse wrapper */
@@ -234,29 +228,27 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
 
         if (!response.ok) {
           const apiError =
-            (typeof data.error === "string" && data.error.trim() ? data.error : null) ??
-            (typeof json.error === "string" && json.error.trim() ? json.error : null);
+            (typeof data.error === 'string' && data.error.trim() ? data.error : null) ??
+            (typeof json.error === 'string' && json.error.trim() ? json.error : null);
           setError(apiError || `Report failed (${response.status})`);
           return null;
         }
 
         /* Update match in local state with the returned data */
         if (data.match) {
-          setMatches((prev) =>
-            prev.map((m) => (m.id === matchId ? { ...m, ...data.match } : m))
-          );
+          setMatches((prev) => prev.map((m) => (m.id === matchId ? { ...m, ...data.match } : m)));
         }
 
         return data;
       } catch (err) {
-        logger.error("Report submission error:", { error: err, tournamentId, matchId });
-        setError("Failed to submit report. Please check your connection.");
+        logger.error('Report submission error:', { error: err, tournamentId, matchId });
+        setError('Failed to submit report. Please check your connection.');
         return null;
       } finally {
         setSubmitting(null);
       }
     },
-    [tournamentId, mode]
+    [tournamentId, mode, logger],
   );
 
   return {
