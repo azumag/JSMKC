@@ -23,8 +23,7 @@ jest.mock('next-intl', () => {
   };
 
   return {
-    useTranslations: (namespace: string) => (key: string) =>
-      translations[namespace]?.[key] ?? `${namespace}.${key}`,
+    useTranslations: (namespace: string) => (key: string) => translations[namespace]?.[key] ?? `${namespace}.${key}`,
   };
 });
 
