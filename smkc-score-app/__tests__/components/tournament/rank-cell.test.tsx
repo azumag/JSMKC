@@ -28,30 +28,14 @@ beforeEach(() => {
 
 describe('RankCell — view mode', () => {
   it('TC-2643: non-admin sees auto rank when no override is set', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={null}
-        autoRank={3}
-        isAdmin={false}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={3} isAdmin={false} onSave={noop} />);
 
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('TC-2644: non-admin sees amber override badge when rankOverride is set', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={2}
-        autoRank={5}
-        isAdmin={false}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={2} autoRank={5} isAdmin={false} onSave={noop} />);
 
     // Override value is shown, not auto rank
     expect(screen.getByText('2')).toBeInTheDocument();
@@ -60,30 +44,14 @@ describe('RankCell — view mode', () => {
   });
 
   it('TC-2645: admin sees auto rank and edit button', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={null}
-        autoRank={4}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={4} isAdmin={true} onSave={noop} />);
 
     expect(screen.getByText('4')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit rank' })).toBeInTheDocument();
   });
 
   it('TC-2646: admin sees override badge and edit button when override exists', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={1}
-        autoRank={3}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={1} autoRank={3} isAdmin={true} onSave={noop} />);
 
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.queryByText('3')).toBeNull();
@@ -93,15 +61,7 @@ describe('RankCell — view mode', () => {
 
 describe('RankCell — edit mode', () => {
   it('TC-2647: clicking edit opens input with empty string when no override exists', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={null}
-        autoRank={4}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={4} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
 
@@ -113,15 +73,7 @@ describe('RankCell — edit mode', () => {
   });
 
   it('TC-2648: clicking edit opens input prefilled with current override value', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={7}
-        autoRank={3}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={7} autoRank={3} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
 
@@ -132,15 +84,7 @@ describe('RankCell — edit mode', () => {
   });
 
   it('TC-2649: pressing Enter calls onSave with parsed number and closes editor', async () => {
-    render(
-      <RankCell
-        qualificationId="qual-42"
-        rankOverride={null}
-        autoRank={2}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-42" rankOverride={null} autoRank={2} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -157,15 +101,7 @@ describe('RankCell — edit mode', () => {
   });
 
   it('TC-2650: clicking ✓ button calls onSave and closes editor', async () => {
-    render(
-      <RankCell
-        qualificationId="qual-7"
-        rankOverride={null}
-        autoRank={1}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-7" rankOverride={null} autoRank={1} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -180,15 +116,7 @@ describe('RankCell — edit mode', () => {
   });
 
   it('TC-2651: pressing Escape cancels edit without calling onSave', () => {
-    render(
-      <RankCell
-        qualificationId="qual-1"
-        rankOverride={null}
-        autoRank={6}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={6} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -201,15 +129,7 @@ describe('RankCell — edit mode', () => {
   });
 
   it('TC-2652: clicking ✕ button clears the override (calls onSave with null)', async () => {
-    render(
-      <RankCell
-        qualificationId="qual-99"
-        rankOverride={3}
-        autoRank={5}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-99" rankOverride={3} autoRank={5} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     expect(screen.getByRole('button', { name: /✕/ })).toBeInTheDocument();
@@ -226,15 +146,7 @@ describe('RankCell — edit mode', () => {
 describe('RankCell — edge cases', () => {
   it('TC-2657: empty string input + Enter calls onSave with null (parseInt("") === NaN)', async () => {
     // The implementation converts empty input via parseInt("") = NaN → treats as null (clear)
-    render(
-      <RankCell
-        qualificationId="qual-empty"
-        rankOverride={null}
-        autoRank={2}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-empty" rankOverride={null} autoRank={2} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -250,15 +162,7 @@ describe('RankCell — edge cases', () => {
 
   it('TC-2658: input "0" + Enter calls onSave with 0 (rank 0 passes isNaN check)', async () => {
     // parseInt("0") = 0, isNaN(0) = false → saved as 0. Callers should guard against rank 0 if needed.
-    render(
-      <RankCell
-        qualificationId="qual-zero"
-        rankOverride={null}
-        autoRank={3}
-        isAdmin={true}
-        onSave={noop}
-      />,
-    );
+    render(<RankCell qualificationId="qual-zero" rankOverride={null} autoRank={3} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -285,13 +189,7 @@ describe('RankCell — edge cases', () => {
     );
 
     render(
-      <RankCell
-        qualificationId="qual-pend"
-        rankOverride={null}
-        autoRank={3}
-        isAdmin={true}
-        onSave={controlledSave}
-      />,
+      <RankCell qualificationId="qual-pend" rankOverride={null} autoRank={3} isAdmin={true} onSave={controlledSave} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
@@ -317,15 +215,7 @@ describe('RankCell — edge cases', () => {
     const rejection = new Error('Network error from internal-rank-service');
     const failingSave = jest.fn().mockRejectedValue(rejection);
 
-    render(
-      <RankCell
-        qualificationId="qual-err"
-        rankOverride={null}
-        autoRank={3}
-        isAdmin={true}
-        onSave={failingSave}
-      />,
-    );
+    render(<RankCell qualificationId="qual-err" rankOverride={null} autoRank={3} isAdmin={true} onSave={failingSave} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton');
@@ -349,15 +239,7 @@ describe('RankCell — edge cases', () => {
     // After a failed save, reopening the editor (openEdit) clears the previous error.
     const failingSave = jest.fn().mockRejectedValueOnce(new Error('Server error')).mockResolvedValue(undefined);
 
-    render(
-      <RankCell
-        qualificationId="qual-retry"
-        rankOverride={null}
-        autoRank={4}
-        isAdmin={true}
-        onSave={failingSave}
-      />,
-    );
+    render(<RankCell qualificationId="qual-retry" rankOverride={null} autoRank={4} isAdmin={true} onSave={failingSave} />);
 
     // First attempt → error
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
@@ -378,15 +260,7 @@ describe('RankCell — edge cases', () => {
     const rejection = new Error('Clear failed at internal-rank-service');
     const failingSave = jest.fn().mockRejectedValue(rejection);
 
-    render(
-      <RankCell
-        qualificationId="qual-clear-err"
-        rankOverride={5}
-        autoRank={3}
-        isAdmin={true}
-        onSave={failingSave}
-      />,
-    );
+    render(<RankCell qualificationId="qual-clear-err" rankOverride={5} autoRank={3} isAdmin={true} onSave={failingSave} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     await act(async () => {
