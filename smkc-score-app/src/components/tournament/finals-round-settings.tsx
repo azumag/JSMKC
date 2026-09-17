@@ -84,7 +84,7 @@ export function FinalsRoundSettings({
       <span className="text-muted-foreground">{t('roundFormat')}</span>
       <span>FT</span>
       <Input
-        aria-label="Round target wins"
+        aria-label={t('roundFormat')}
         className="h-8 w-16 text-center"
         type="number"
         min="1"
