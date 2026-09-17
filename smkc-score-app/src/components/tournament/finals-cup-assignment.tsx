@@ -69,7 +69,7 @@ export function FinalsCupAssignment({
       <div className="space-y-1">
         <Label>{t('matchCup')}</Label>
         <Select value={cup} onValueChange={setCup}>
-          <SelectTrigger aria-label="Match cup" className="w-36">
+          <SelectTrigger aria-label={t('matchCup')} className="w-36">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -85,7 +85,7 @@ export function FinalsCupAssignment({
         <div className="space-y-1">
           <Label>{t('cupDetailsResolution')}</Label>
           <Select value={resolution} onValueChange={(value) => setResolution(value as 'keep' | 'clear' | 'cancel')}>
-            <SelectTrigger aria-label="Cup details resolution" className="w-48">
+            <SelectTrigger aria-label={t('cupDetailsResolution')} className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
