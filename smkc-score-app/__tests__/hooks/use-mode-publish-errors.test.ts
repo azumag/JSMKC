@@ -4,7 +4,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useModePublish } from '@/hooks/use-mode-publish';
 
-const loggerErrorMock = jest.fn();
+const mockLoggerError = jest.fn();
 
 jest.mock('@/lib/fetch-with-retry', () => ({
   fetchWithRetry: jest.fn(),
@@ -12,7 +12,7 @@ jest.mock('@/lib/fetch-with-retry', () => ({
 
 jest.mock('@/lib/client-logger', () => ({
   createLogger: jest.fn(() => ({
-    error: loggerErrorMock,
+    error: mockLoggerError,
     warn: jest.fn(),
     info: jest.fn(),
   })),
@@ -49,7 +49,7 @@ describe('useModePublish error state', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBe('load');
-    expect(loggerErrorMock).toHaveBeenCalledWith(
+    expect(mockLoggerError).toHaveBeenCalledWith(
       'Failed to load publicModes',
       expect.objectContaining({ message: 'socket reset' }),
     );
@@ -102,7 +102,7 @@ describe('useModePublish error state', () => {
     });
 
     expect(result.current.error).toBe('update');
-    expect(loggerErrorMock).toHaveBeenCalledWith(
+    expect(mockLoggerError).toHaveBeenCalledWith(
       'Failed to update mode visibility:',
       expect.objectContaining({ message: 'Failed to fetch' }),
     );
