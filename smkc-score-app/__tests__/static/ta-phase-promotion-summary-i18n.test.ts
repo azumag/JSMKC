@@ -12,12 +12,8 @@ describe('TA phase promotion skipped-player summary i18n contract', () => {
   const ja = JSON.parse(readAppFile('messages', 'ta-promotion', 'ja.json')) as Record<string, string>;
 
   it('defines equivalent English and Japanese skipped-player summaries', () => {
-    expect(en.promotionSkippedSummary).toBe(
-      'Promoted {promoted} players. Skipped: {skipped} (incomplete times)',
-    );
-    expect(ja.promotionSkippedSummary).toBe(
-      '{promoted}名を昇格しました。スキップ: {skipped}（予選タイム未完了）',
-    );
+    expect(en.promotionSkippedSummary).toBe('Promoted {promoted} players. Skipped: {skipped} (incomplete times)');
+    expect(ja.promotionSkippedSummary).toBe('{promoted}名を昇格しました。スキップ: {skipped}（予選タイム未完了）');
   });
 
   it('merges the feature messages into the ta next-intl namespace', () => {
