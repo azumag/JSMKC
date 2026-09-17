@@ -228,12 +228,16 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           }
         );
 
-        const json = await response.json();
+        const json = await response.json().catch(() => ({}));
         /* Unwrap createSuccessResponse wrapper */
         const data = json.data ?? json;
 
         if (!response.ok) {
-          throw new Error(data.error || json.error || `Report failed (${response.status})`);
+          const apiError =
+            (typeof data.error === "string" && data.error.trim() ? data.error : null) ??
+            (typeof json.error === "string" && json.error.trim() ? json.error : null);
+          setError(apiError || `Report failed (${response.status})`);
+          return null;
         }
 
         /* Update match in local state with the returned data */
@@ -245,8 +249,8 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
 
         return data;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Failed to submit report";
-        setError(msg);
+        logger.error("Report submission error:", { error: err, tournamentId, matchId });
+        setError("Failed to submit report. Please check your connection.");
         return null;
       } finally {
         setSubmitting(null);
