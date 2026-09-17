@@ -9,13 +9,7 @@ describe('RankCell save result contract', () => {
     const onSave = jest.fn().mockResolvedValue(false);
 
     render(
-      <RankCell
-        qualificationId="qual-failed-save"
-        rankOverride={null}
-        autoRank={3}
-        isAdmin={true}
-        onSave={onSave}
-      />,
+      <RankCell qualificationId="qual-failed-save" rankOverride={null} autoRank={3} isAdmin={true} onSave={onSave} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
@@ -34,13 +28,7 @@ describe('RankCell save result contract', () => {
     const onSave = jest.fn().mockResolvedValue(false);
 
     render(
-      <RankCell
-        qualificationId="qual-failed-clear"
-        rankOverride={4}
-        autoRank={2}
-        isAdmin={true}
-        onSave={onSave}
-      />,
+      <RankCell qualificationId="qual-failed-clear" rankOverride={4} autoRank={2} isAdmin={true} onSave={onSave} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
@@ -57,13 +45,7 @@ describe('RankCell save result contract', () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
 
     render(
-      <RankCell
-        qualificationId="qual-void-save"
-        rankOverride={null}
-        autoRank={1}
-        isAdmin={true}
-        onSave={onSave}
-      />,
+      <RankCell qualificationId="qual-void-save" rankOverride={null} autoRank={1} isAdmin={true} onSave={onSave} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
