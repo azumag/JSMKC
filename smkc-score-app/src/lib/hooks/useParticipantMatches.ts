@@ -59,6 +59,8 @@ export type ParticipantMode = 'bm' | 'mr' | 'gp';
 interface UseParticipantMatchesOptions {
   tournamentId: string;
   mode: ParticipantMode;
+  /** Localized generic network error supplied by the participant page. */
+  networkErrorMessage?: string;
 }
 
 export interface UseParticipantMatchesResult<TMatch extends BaseMatch> {
@@ -94,7 +96,7 @@ export interface UseParticipantMatchesResult<TMatch extends BaseMatch> {
 export function useParticipantMatches<TMatch extends BaseMatch>(
   options: UseParticipantMatchesOptions,
 ): UseParticipantMatchesResult<TMatch> {
-  const { tournamentId, mode } = options;
+  const { tournamentId, mode, networkErrorMessage } = options;
   const logger = useMemo(() => createLogger(`tournaments-${mode}-participant`), [mode]);
 
   /* Session & auth */
@@ -132,31 +134,42 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           fetch(`/api/tournaments/${tournamentId}/${mode}`),
         ]);
 
-        if (tournamentResponse.ok) {
-          const tJson = await tournamentResponse.json();
-          /* Unwrap createSuccessResponse wrapper */
-          setTournament(tJson.data ?? tJson);
+        if (!tournamentResponse.ok || !matchesResponse.ok) {
+          const source = !tournamentResponse.ok ? 'tournament' : 'matches';
+          const failedResponse = !tournamentResponse.ok ? tournamentResponse : matchesResponse;
+          const errorData = await failedResponse.json().catch(() => ({}));
+          const apiError = typeof errorData.error === 'string' && errorData.error.trim() ? errorData.error : null;
+          logger.error('Participant data fetch returned non-2xx:', {
+            tournamentId,
+            mode,
+            source,
+            status: failedResponse.status,
+            error: apiError,
+          });
+          setError(apiError || networkErrorMessage || 'Failed to load tournament data. Please check your connection.');
+          return;
         }
-        if (matchesResponse.ok) {
-          const json = await matchesResponse.json();
-          /* Unwrap createSuccessResponse wrapper (#274) */
-          const data = json.data ?? json;
-          setMatches(data.matches || []);
-          /* Track qualification lock state for disabling score entry */
-          if (data.qualificationConfirmed !== undefined) {
-            setQualificationConfirmed(data.qualificationConfirmed);
-          }
+
+        const [tJson, json] = await Promise.all([tournamentResponse.json(), matchesResponse.json()]);
+        /* Unwrap createSuccessResponse wrappers only after both bodies parse successfully. */
+        const tournamentData = tJson.data ?? tJson;
+        const data = json.data ?? json;
+        setTournament(tournamentData);
+        setMatches(data.matches || []);
+        /* Track qualification lock state for disabling score entry */
+        if (data.qualificationConfirmed !== undefined) {
+          setQualificationConfirmed(data.qualificationConfirmed);
         }
       } catch (err) {
         logger.error('Data fetch error:', { error: err, tournamentId });
-        setError('Failed to load tournament data. Please check your connection.');
+        setError(networkErrorMessage || 'Failed to load tournament data. Please check your connection.');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [tournamentId, sessionStatus, hasAccess, mode, logger]);
+  }, [tournamentId, sessionStatus, hasAccess, mode, logger, networkErrorMessage]);
 
   /* Polling for real-time match updates */
   const fetchMatchesPoll = useCallback(async () => {
@@ -230,7 +243,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           const apiError =
             (typeof data.error === 'string' && data.error.trim() ? data.error : null) ??
             (typeof json.error === 'string' && json.error.trim() ? json.error : null);
-          setError(apiError || `Report failed (${response.status})`);
+          setError(apiError || networkErrorMessage || `Report failed (${response.status})`);
           return null;
         }
 
@@ -242,13 +255,13 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
         return data;
       } catch (err) {
         logger.error('Report submission error:', { error: err, tournamentId, matchId });
-        setError('Failed to submit report. Please check your connection.');
+        setError(networkErrorMessage || 'Failed to submit report. Please check your connection.');
         return null;
       } finally {
         setSubmitting(null);
       }
     },
-    [tournamentId, mode, logger],
+    [tournamentId, mode, logger, networkErrorMessage],
   );
 
   return {
