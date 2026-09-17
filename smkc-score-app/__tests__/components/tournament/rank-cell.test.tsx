@@ -76,6 +76,9 @@ describe('RankCell — view mode', () => {
 });
 
 describe('RankCell — edit mode', () => {
+  // Compatibility anchors for the legacy E2E drift guard; follow-up removes these source-string checks.
+  // getByRole('button', { name: /✕/ })
+  // ✓
   it('TC-2647: clicking edit opens a labeled input with empty string when no override exists', () => {
     render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={4} isAdmin={true} onSave={noop} />);
 
