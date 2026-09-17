@@ -115,7 +115,6 @@ export default async function RootLayout({
                           href="/"
                           prefetch={false}
                           className="font-display text-xl sm:text-2xl tracking-[0.18em] text-foreground whitespace-nowrap"
-                          aria-label="SMKC home"
                         >
                           SMKC
                         </Link>
