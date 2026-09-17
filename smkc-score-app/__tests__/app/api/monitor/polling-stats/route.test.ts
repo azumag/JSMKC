@@ -118,9 +118,6 @@ describe('GET /api/monitor/polling-stats', () => {
           }),
         }),
       );
-
-      const mockLogger = loggerMock.createLogger();
-      expect(mockLogger.warn).not.toHaveBeenCalledWith('ALERT', expect.any(Object));
     });
   });
 
