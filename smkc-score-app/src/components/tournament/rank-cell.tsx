@@ -13,11 +13,11 @@
  * Used by BM, MR, and GP qualification pages to avoid duplicating ~50 lines of JSX.
  */
 
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface RankCellProps {
   /** Qualification record ID (used in the PATCH request body) */
@@ -28,8 +28,8 @@ interface RankCellProps {
   autoRank: number;
   /** Whether the current user is an admin (controls edit controls visibility) */
   isAdmin: boolean;
-  /** Called when the admin saves a new rank or clears the override */
-  onSave: (qualificationId: string, rankOverride: number | null) => Promise<void>;
+  /** Called when the admin saves a new rank or clears the override. False keeps the editor open for retry. */
+  onSave: (qualificationId: string, rankOverride: number | null) => Promise<boolean | void>;
 }
 
 /**
@@ -39,12 +39,12 @@ interface RankCellProps {
  */
 export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onSave }: RankCellProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   // Inline error message shown when onSave rejects; null means no error.
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const openEdit = () => {
-    setInputValue(rankOverride?.toString() ?? "");
+    setInputValue(rankOverride?.toString() ?? '');
     setSaveError(null);
     setIsEditing(true);
   };
@@ -55,21 +55,21 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       const v = parseInt(inputValue);
       // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
       // minimum rank constraints.
-      await onSave(qualificationId, isNaN(v) ? null : v);
-      setIsEditing(false);
+      const saved = await onSave(qualificationId, isNaN(v) ? null : v);
+      if (saved !== false) setIsEditing(false);
     } catch (err) {
       // Keep the editor open so the user can retry after seeing the error.
-      setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
+      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
     }
   };
 
   const commitClear = async () => {
     setSaveError(null);
     try {
-      await onSave(qualificationId, null);
-      setIsEditing(false);
+      const saved = await onSave(qualificationId, null);
+      if (saved !== false) setIsEditing(false);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
+      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
     }
   };
 
@@ -85,33 +85,25 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             onChange={(e) => setInputValue(e.target.value)}
             className="w-14 h-7 text-center text-sm p-1"
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitSave();
-              if (e.key === "Escape") setIsEditing(false);
+              if (e.key === 'Enter') commitSave();
+              if (e.key === 'Escape') setIsEditing(false);
             }}
             autoFocus
           />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-1 text-xs"
-            onClick={commitSave}
-          >
+          <Button size="sm" variant="ghost" className="h-7 px-1 text-xs" onClick={commitSave}>
             ✓
           </Button>
           {rankOverride != null && (
             /* Clear button: removes override and restores automatic rank */
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-1 text-xs text-destructive"
-              onClick={commitClear}
-            >
+            <Button size="sm" variant="ghost" className="h-7 px-1 text-xs text-destructive" onClick={commitClear}>
               ✕
             </Button>
           )}
         </div>
         {saveError && (
-          <p className="text-xs text-destructive" role="alert">{saveError}</p>
+          <p className="text-xs text-destructive" role="alert">
+            {saveError}
+          </p>
         )}
       </div>
     );

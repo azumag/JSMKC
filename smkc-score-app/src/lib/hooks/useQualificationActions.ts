@@ -41,9 +41,11 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
   /**
    * Save rank override for a qualification entry.
    * Passes null to clear a previously set override and restore automatic ranking.
+   * Returns false when the mutation fails so RankCell can preserve the editor
+   * and the administrator's input for a retry.
    */
   const handleRankOverrideSave = useCallback(
-    async (qualificationId: string, rankOverride: number | null) => {
+    async (qualificationId: string, rankOverride: number | null): Promise<boolean> => {
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
           method: 'PATCH',
@@ -52,13 +54,15 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         });
         if (response.ok) {
           refetch();
-        } else {
-          const err = await response.json().catch(() => ({}));
-          alert(err.error || tc('networkError'));
+          return true;
         }
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || tc('networkError'));
+        return false;
       } catch (err) {
         logger.error('Failed to update rank:', { error: err, tournamentId });
         alert(tc('networkError'));
+        return false;
       }
     },
     [tournamentId, mode, refetch, logger, tc],
@@ -99,9 +103,10 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    * Save (or, with null, clear) a single cross-group rank override.
    * Mirrors handleRankOverrideSave so the combined-standings RankCell badge
    * gets the same edit/undo affordance the in-group rank column already has.
+   * Returns false on failure so the inline editor remains available to retry.
    */
   const handleCombinedRankOverrideSave = useCallback(
-    async (qualificationId: string, combinedRankOverride: number | null) => {
+    async (qualificationId: string, combinedRankOverride: number | null): Promise<boolean> => {
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
           method: 'PATCH',
@@ -110,13 +115,15 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         });
         if (response.ok) {
           refetch();
-        } else {
-          const err = await response.json().catch(() => ({}));
-          alert(err.error || tc('networkError'));
+          return true;
         }
+        const err = await response.json().catch(() => ({}));
+        alert(err.error || tc('networkError'));
+        return false;
       } catch (err) {
         logger.error('Failed to update combined rank:', { error: err, tournamentId });
         alert(tc('networkError'));
+        return false;
       }
     },
     [tournamentId, mode, refetch, logger, tc],
