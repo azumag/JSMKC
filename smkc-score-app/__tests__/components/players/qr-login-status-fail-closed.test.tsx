@@ -27,12 +27,10 @@ describe('QR login status fail-closed behavior (issue #3661)', () => {
   });
 
   it('disables token mutation after an initial status failure and enables it after retry succeeds', async () => {
-    fetchMock
-      .mockResolvedValueOnce({ ok: false })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
-      });
+    fetchMock.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, data: { active: false, issuedAt: null } }),
+    });
 
     render(<QrLoginDialog playerId="player-1" playerNickname="TestPlayer" />);
 
