@@ -59,10 +59,14 @@ const mockSummaryData = {
   taBattleRoyaleMode: true,
 };
 
-const mockLoggerError = jest.fn();
-jest.mock('@/lib/client-logger', () => ({
-  createLogger: () => ({ error: mockLoggerError, info: jest.fn(), warn: jest.fn() }),
-}));
+jest.mock('@/lib/client-logger', () => {
+  const logger = { error: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  return { createLogger: () => logger, __mockLogger: logger };
+});
+
+const mockLoggerError = (
+  jest.requireMock('@/lib/client-logger') as { __mockLogger: { error: jest.Mock } }
+).__mockLogger.error;
 
 const player = (id: string, nickname: string) => ({ id, name: nickname, nickname });
 
