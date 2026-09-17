@@ -12,12 +12,16 @@ import {
 
 const logger = createLogger({ serviceName: "use-mode-publish" });
 
+export type ModePublishError = "load" | "update";
+
 export interface UseModePublishResult {
   isPublic: boolean;
   toggle: () => Promise<void>;
   updating: boolean;
   /** True until the initial publicModes fetch resolves. */
   loading: boolean;
+  /** Distinguishes an unknown initial state from a retryable update failure. */
+  error: ModePublishError | null;
 }
 
 /**
@@ -34,9 +38,12 @@ export function useModePublish(
   const [publicModes, setPublicModes] = useState<readonly string[]>([]);
   const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<ModePublishError | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
         const response = await fetchWithRetry(
@@ -46,6 +53,7 @@ export function useModePublish(
           logger.error("Failed to fetch tournament for publish state", {
             status: response.status,
           });
+          if (!cancelled) setError("load");
           return;
         }
         const json = await response.json();
@@ -56,6 +64,7 @@ export function useModePublish(
               ? (tournament.publicModes as string[])
               : []
           );
+          setError(null);
         }
       } catch (err) {
         const metadata =
@@ -63,6 +72,7 @@ export function useModePublish(
             ? { message: err.message, stack: err.stack }
             : { error: err };
         logger.error("Failed to load publicModes", metadata);
+        if (!cancelled) setError("load");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -75,8 +85,11 @@ export function useModePublish(
   const isPublic = publicModes.includes(mode);
 
   const toggle = useCallback(async () => {
-    if (updating) return;
+    // A failed initial load means publicModes is unknown. Refuse to build a PUT
+    // payload from the default empty state, which could overwrite other modes.
+    if (updating || error === "load") return;
     setUpdating(true);
+    setError(null);
     try {
       const next = isPublic
         ? removePublicMode(publicModes, mode)
@@ -88,15 +101,20 @@ export function useModePublish(
       });
       if (response.ok) {
         setPublicModes(next);
+        setError(null);
         // Notify the tournament layout to refresh its publicModes so tab badges update without a page reload (issue #621)
-        window.dispatchEvent(new CustomEvent('publicModesChanged', { detail: { tournamentId } }));
+        window.dispatchEvent(
+          new CustomEvent("publicModesChanged", { detail: { tournamentId } })
+        );
       } else {
+        setError("update");
         logger.error("Failed to update mode visibility", {
           status: response.status,
           mode,
         });
       }
     } catch (err) {
+      setError("update");
       const metadata =
         err instanceof Error
           ? { message: err.message, stack: err.stack }
@@ -105,7 +123,7 @@ export function useModePublish(
     } finally {
       setUpdating(false);
     }
-  }, [isPublic, mode, publicModes, tournamentId, updating]);
+  }, [error, isPublic, mode, publicModes, tournamentId, updating]);
 
-  return { isPublic, toggle, updating, loading };
+  return { isPublic, toggle, updating, loading, error };
 }
