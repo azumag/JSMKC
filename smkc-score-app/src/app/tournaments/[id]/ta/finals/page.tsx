@@ -699,7 +699,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       setPendingSubmitResults(results);
       setSubmitPreviewOpen(true);
     } catch (previewError) {
-      setSaveError(previewError instanceof Error ? previewError.message : tTaFinals('previewError'));
+      logger.error('Failed to build TA phase3 submission preview:', {
+        error: previewError,
+        tournamentId,
+        phase: 'phase3',
+      });
+      setSaveError(tTaFinals('previewError'));
     }
   };
 
