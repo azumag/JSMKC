@@ -13,8 +13,8 @@
  * The current implementation uses mock data generators that demonstrate the
  * expected response structure. The response explicitly reports this through
  * `dataSource: 'mock'` so callers cannot mistake generated values for telemetry.
- * In production, the generators can be replaced with actual analytics or
- * monitoring queries without changing the warning contract.
+ * Mock values never emit operational warnings; warning thresholds are retained
+ * for the future real-telemetry implementation.
  *
  * Access: Authenticated users only (any role)
  *
@@ -30,6 +30,8 @@ type WarningMetrics = {
   errorRate: number;
   activeConnections: number;
 };
+
+type MetricsDataSource = 'mock' | 'telemetry';
 
 export async function GET() {
   // Logger created inside function for proper test mocking support
@@ -47,17 +49,18 @@ export async function GET() {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-    // Sample each metric once. Warnings are derived from these exact values so
-    // the response cannot report a warning that contradicts its own metrics.
+    // Sample each metric once so the values returned in this response describe
+    // one internally consistent mock snapshot.
     const totalRequests = await getPollingRequestCount(oneHourAgo, now);
     const averageResponseTime = await getAverageResponseTime(oneHourAgo, now);
     const activeConnections = await getActiveConnectionCount();
     const errorRate = await getErrorRate(oneHourAgo, now);
+    const dataSource: MetricsDataSource = 'mock';
 
     const stats = {
       // Machine-readable provenance prevents generated values from being
       // mistaken for production telemetry by API consumers.
-      dataSource: 'mock' as const,
+      dataSource,
 
       // Total API requests received in the time period
       totalRequests,
@@ -78,13 +81,14 @@ export async function GET() {
         duration: '1 hour',
       },
 
-      // Warnings are calculated from the same sample returned above.
-      warnings: generateWarnings({ totalRequests, errorRate, activeConnections }),
+      // Never turn generated mock values into operational warnings. The
+      // threshold logic remains ready for the future real telemetry source.
+      warnings: generateWarnings({ totalRequests, errorRate, activeConnections }, dataSource),
     };
 
-    // Alert threshold check: keep the production-facing threshold contract in
-    // place for when the mock request-count source is replaced with telemetry.
-    if (stats.totalRequests > 30000) {
+    // Alert threshold check: only real telemetry may trigger an operational
+    // alert. Mock request counts must never create false alarms.
+    if (shouldSendAlert(dataSource, stats.totalRequests)) {
       await sendAlert('Polling requests approaching platform limits');
     }
 
@@ -143,11 +147,15 @@ async function getErrorRate(_startDate: Date, _endDate: Date): Promise<number> {
 }
 
 /**
- * Generates warning messages from the exact metrics returned to the caller.
- * Keeping this function pure makes warning/metric consistency explicit and
- * preserves the thresholds for a future real monitoring backend.
+ * Generates warning messages from one metric snapshot.
+ *
+ * Operational warnings are intentionally disabled while the data source is
+ * mock. Once this route is backed by real telemetry, passing `telemetry`
+ * activates the existing thresholds without changing the response contract.
  */
-function generateWarnings(metrics: WarningMetrics): string[] {
+function generateWarnings(metrics: WarningMetrics, dataSource: MetricsDataSource): string[] {
+  if (dataSource === 'mock') return [];
+
   const warnings: string[] = [];
 
   if (metrics.totalRequests > 1000) {
@@ -163,6 +171,11 @@ function generateWarnings(metrics: WarningMetrics): string[] {
   }
 
   return warnings;
+}
+
+/** Only real telemetry may trigger an operational alert. */
+function shouldSendAlert(dataSource: MetricsDataSource, totalRequests: number): boolean {
+  return dataSource === 'telemetry' && totalRequests > 30000;
 }
 
 /**
