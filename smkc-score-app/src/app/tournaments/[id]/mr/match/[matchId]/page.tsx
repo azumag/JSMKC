@@ -194,7 +194,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
     /* Validate all 4 race winners are selected */
     const allWinnersSelected = rounds.every((r) => r.winner !== null);
     if (!allWinnersSelected) {
-      setError(`Please select the winner for all ${TOTAL_MR_RACES} races`);
+      setError(tMatch('completeAllRaceFields'));
       return;
     }
 
