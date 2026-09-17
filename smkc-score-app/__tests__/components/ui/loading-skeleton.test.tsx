@@ -78,7 +78,7 @@ describe('Skeleton accessibility contract (TC-2401)', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
-  it('always renders with localized aria-label even when caller passes a different aria-label', () => {
+  it('always renders with aria-label even when caller passes a different aria-label', () => {
     render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
 
     expect(screen.getByRole('status', { name: 'Loading content' })).toBeInTheDocument();
