@@ -50,6 +50,7 @@ export function FinalsScoreOverride({
   const [saving, setSaving] = useState(false);
   const parsedScore1 = parseSignedInteger(score1);
   const parsedScore2 = parseSignedInteger(score2);
+  const correctedResultLabel = t('correctedResultSignedTotals');
   if (!enabled) {
     return (
       <div className="flex items-center gap-2 text-sm">
@@ -99,11 +100,11 @@ export function FinalsScoreOverride({
           checked={enabled}
           onCheckedChange={(value) => setEnabled(value === true)}
         />
-        <Label htmlFor={`finals-override-${match.id}`}>{t('correctedResultSignedTotals')}</Label>
+        <Label htmlFor={`finals-override-${match.id}`}>{correctedResultLabel}</Label>
       </div>
       <div className="flex items-center gap-2">
         <Input
-          aria-label="Corrected score for player 1"
+          aria-label={`${correctedResultLabel}: ${match.player1.nickname}`}
           type="text"
           inputMode="numeric"
           value={score1}
@@ -111,7 +112,7 @@ export function FinalsScoreOverride({
         />
         <span>-</span>
         <Input
-          aria-label="Corrected score for player 2"
+          aria-label={`${correctedResultLabel}: ${match.player2.nickname}`}
           type="text"
           inputMode="numeric"
           value={score2}
