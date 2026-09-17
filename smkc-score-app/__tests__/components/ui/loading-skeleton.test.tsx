@@ -61,7 +61,8 @@ describe('QualificationClientLoadingState', () => {
     expect(screen.queryByTestId('qualification-action-skeleton')).not.toBeInTheDocument();
   });
 
-  it('uses the qualification page title skeleton width by default', () => {
+  // TC-2095 drift anchor: uses the qualification page title skeleton width by default
+  it('defaults the qualification title skeleton to w-48', () => {
     render(<QualificationClientLoadingState title="マッチレース" />);
 
     expect(screen.getByTestId('title-skeleton')).toHaveClass('w-48');
@@ -69,7 +70,8 @@ describe('QualificationClientLoadingState', () => {
 });
 
 describe('Skeleton accessibility contract (TC-2401)', () => {
-  it('always renders with role="status" even when caller passes a different role', () => {
+  // TC-2401 drift anchor: always renders with role="status" even when caller passes a different role
+  it('keeps the status role authoritative over caller props', () => {
     // role must come after {...props} spread to prevent callers from accidentally
     // overriding the accessibility role (issue #2343)
     render(<Skeleton role="img" className="h-4 w-3/4" />);
@@ -78,10 +80,18 @@ describe('Skeleton accessibility contract (TC-2401)', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
-  it('always renders with aria-label even when caller passes a different aria-label', () => {
+  // TC-2401 drift anchor: always renders with aria-label even when caller passes a different aria-label
+  it('keeps the localized aria-label authoritative over caller props', () => {
     render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
 
     expect(screen.getByRole('status', { name: 'Loading content' })).toBeInTheDocument();
+  });
+
+  it('keeps the Japanese aria-label authoritative over caller props', () => {
+    mockLocale = 'ja';
+    render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
+
+    expect(screen.getByRole('status', { name: 'コンテンツを読み込み中' })).toBeInTheDocument();
   });
 
   it('uses the Japanese status label for Japanese locale', () => {
