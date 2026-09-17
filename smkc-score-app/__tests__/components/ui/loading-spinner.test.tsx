@@ -7,7 +7,24 @@
  * attributes and three configurable size variants.
  */
 import { render, screen } from '@testing-library/react';
+
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import enLoadingSpinner from '../../../messages/loading-spinner/en.json';
+import jaLoadingSpinner from '../../../messages/loading-spinner/ja.json';
+
+const mockLoadingSpinnerMessages = {
+  en: enLoadingSpinner,
+  ja: jaLoadingSpinner,
+};
+let mockLocale: keyof typeof mockLoadingSpinnerMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: keyof typeof enLoadingSpinner) => mockLoadingSpinnerMessages[mockLocale][key],
+}));
+
+beforeEach(() => {
+  mockLocale = 'en';
+});
 
 describe('LoadingSpinner — accessibility', () => {
   it('TC-2719: has role="status" for screen reader announcement', () => {
@@ -20,9 +37,19 @@ describe('LoadingSpinner — accessibility', () => {
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
   });
 
-  it('TC-2721: has aria-label="Loading" as descriptive text', () => {
+  it('TC-2721: uses the English loading label by default', () => {
     render(<LoadingSpinner />);
-    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading');
+    const spinner = screen.getByRole('status', { name: 'Loading' });
+
+    expect(spinner).toHaveAttribute('aria-label', 'Loading');
+  });
+
+  it('uses the Japanese loading label for Japanese locale', () => {
+    mockLocale = 'ja';
+    render(<LoadingSpinner />);
+    const spinner = screen.getByRole('status', { name: '読み込み中' });
+
+    expect(spinner).toHaveAttribute('aria-label', '読み込み中');
   });
 });
 
@@ -48,5 +75,11 @@ describe('LoadingSpinner — size variants', () => {
   it('TC-2725: additional className is forwarded to the wrapper div', () => {
     render(<LoadingSpinner className="my-custom-class" />);
     expect(screen.getByRole('status')).toHaveClass('my-custom-class');
+  });
+});
+
+describe('LoadingSpinner translation catalog', () => {
+  it('keeps English and Japanese loading-spinner keys aligned', () => {
+    expect(Object.keys(jaLoadingSpinner).sort()).toEqual(Object.keys(enLoadingSpinner).sort());
   });
 });
