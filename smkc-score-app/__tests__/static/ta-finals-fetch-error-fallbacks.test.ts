@@ -5,10 +5,7 @@ const eliminationSource = fs.readFileSync(
   path.join(process.cwd(), 'src/components/tournament/ta-elimination-phase.tsx'),
   'utf8',
 );
-const phase3Source = fs.readFileSync(
-  path.join(process.cwd(), 'src/app/tournaments/[id]/ta/finals/page.tsx'),
-  'utf8',
-);
+const phase3Source = fs.readFileSync(path.join(process.cwd(), 'src/app/tournaments/[id]/ta/finals/page.tsx'), 'utf8');
 
 function getFetchDataBlock(source: string): string {
   const start = source.indexOf('const fetchData = useCallback');
