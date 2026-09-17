@@ -366,6 +366,23 @@ export default function TimeAttackPageClient({
    */
   const handleSaveSetup = async () => {
     if (saving) return;
+
+    class SetupSaveError extends Error {
+      constructor(
+        message: string,
+        readonly status: number,
+        readonly operation: string,
+      ) {
+        super(message);
+        this.name = 'SetupSaveError';
+      }
+    }
+
+    const responseError = async (response: Response, operation: string) => {
+      const payload = await response.json().catch(() => ({}));
+      return new SetupSaveError(payload.error || tc('networkError'), response.status, operation);
+    };
+
     setSaving(true);
     setSaveError(null);
     try {
@@ -378,8 +395,7 @@ export default function TimeAttackPageClient({
         if (setupByPlayerId.has(e.playerId)) continue;
         const res = await fetch(`/api/tournaments/${tournamentId}/ta?entryId=${e.id}`, { method: 'DELETE' });
         if (!res.ok && res.status !== 404) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Failed to remove ${e.player.nickname}`);
+          throw await responseError(res, 'remove_player');
         }
       }
 
@@ -397,15 +413,16 @@ export default function TimeAttackPageClient({
           }),
         });
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'Failed to add players');
+          throw await responseError(res, 'add_players');
         }
       }
 
       /* 3. Re-fetch so we have entry ids for anything just added, then
        * reconcile seeding + partner per entry. */
       const refreshed = await fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`);
-      if (!refreshed.ok) throw new Error('Failed to refetch TA entries');
+      if (!refreshed.ok) {
+        throw await responseError(refreshed, 'refetch_entries');
+      }
       const refreshedJson = await refreshed.json();
       const refreshedEntries: TTEntry[] = (refreshedJson.data ?? refreshedJson).entries ?? [];
       const refreshedByPlayerId = new Map(refreshedEntries.map((e) => [e.playerId, e]));
@@ -426,8 +443,7 @@ export default function TimeAttackPageClient({
             body: JSON.stringify({ action: 'bulk_update_handicaps', updates: handicapUpdates }),
           });
           if (!handicapResponse.ok) {
-            const errorPayload = await handicapResponse.json().catch(() => ({}));
-            throw new Error(errorPayload.error || 'Failed to update TA handicaps');
+            throw await responseError(handicapResponse, 'update_handicaps');
           }
         }
       }
@@ -450,8 +466,7 @@ export default function TimeAttackPageClient({
             }),
           });
           if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `Failed to update seeding for ${entry.player.nickname}`);
+            throw await responseError(res, 'update_seeding');
           }
         }
 
@@ -467,8 +482,7 @@ export default function TimeAttackPageClient({
             }),
           });
           if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `Failed to update partner for ${entry.player.nickname}`);
+            throw await responseError(res, 'update_partner');
           }
         }
       }
@@ -477,10 +491,17 @@ export default function TimeAttackPageClient({
       refetch();
       toast.success(t('pairsSaved'));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Save failed';
-      setSaveError(msg);
-      toast.error(msg);
-      logger.error('Failed to save setup:', { error: err, tournamentId });
+      const isSetupSaveError = err instanceof SetupSaveError;
+      const userMessage = isSetupSaveError ? err.message : tc('networkError');
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to save TA qualification setup:', {
+        ...metadata,
+        status: isSetupSaveError ? err.status : undefined,
+        operation: isSetupSaveError ? err.operation : 'request',
+        tournamentId,
+      });
+      setSaveError(userMessage);
+      toast.error(userMessage);
     } finally {
       setSaving(false);
     }
