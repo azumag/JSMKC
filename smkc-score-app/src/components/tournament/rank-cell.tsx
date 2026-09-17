@@ -28,8 +28,8 @@ interface RankCellProps {
   autoRank: number;
   /** Whether the current user is an admin (controls edit controls visibility) */
   isAdmin: boolean;
-  /** Called when the admin saves a new rank or clears the override */
-  onSave: (qualificationId: string, rankOverride: number | null) => Promise<void>;
+  /** Called when the admin saves a new rank or clears the override. False keeps the editor open for retry. */
+  onSave: (qualificationId: string, rankOverride: number | null) => Promise<boolean | void>;
 }
 
 /**
@@ -55,8 +55,8 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       const v = parseInt(inputValue);
       // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
       // minimum rank constraints.
-      await onSave(qualificationId, isNaN(v) ? null : v);
-      setIsEditing(false);
+      const saved = await onSave(qualificationId, isNaN(v) ? null : v);
+      if (saved !== false) setIsEditing(false);
     } catch (err) {
       // Keep the editor open so the user can retry after seeing the error.
       setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
@@ -66,8 +66,8 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
   const commitClear = async () => {
     setSaveError(null);
     try {
-      await onSave(qualificationId, null);
-      setIsEditing(false);
+      const saved = await onSave(qualificationId, null);
+      if (saved !== false) setIsEditing(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "保存に失敗しました");
     }
