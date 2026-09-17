@@ -187,7 +187,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
    */
   const handleSubmit = async () => {
     if (selectedPlayer === null) {
-      setError('Please select which player you are');
+      setError(tMatch('selectPlayer'));
       return;
     }
 

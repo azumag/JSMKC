@@ -23,6 +23,12 @@ BM / MR / GP の participant page は `smkc-score-app/src/lib/hooks/useParticipa
 
 ブラウザ・通信層由来の raw `Error.message` は UI に表示しない。元の例外は client logger に記録し、診断可能性を維持する。
 
+## MR shared match の identity validation
+
+MR の shared match page は score report 前に reporting player identity を選択する必要がある。未選択時の client-side validation は英語リテラルを持たず、既存の `match.selectPlayer` を使う。これにより英語では `Please select which player you are`、日本語では `自分がどちらのプレイヤーか選択してください` が現在の locale に従って表示される。
+
+この変更は validation 条件そのもの、score report endpoint、payload、participant/admin authorization、submit flow を変更しない。
+
 ## 状態保持
 
 report 失敗時は `submitReport()` が `null` を返し、呼び出し側が保持している入力値を勝手に消さない。`submitting` state は `finally` で必ず解除する。成功時のみ返却された match を local state に反映する。
@@ -40,3 +46,5 @@ report 失敗時は `submitReport()` が `null` を返し、呼び出し側が�
 - generic non-2xx と request rejection が supplied localized fallback を使うこと
 - request rejection の raw detail が UI に漏れず logger に残ること
 - non-JSON error response が JSON parse error を UI に漏らさないこと
+
+加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR shared match の identity validation が `match.selectPlayer` を使い、EN/JA catalog の両方に意図した文言が存在することを固定する。
