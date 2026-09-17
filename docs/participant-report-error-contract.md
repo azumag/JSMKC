@@ -25,10 +25,10 @@ BM / MR / GP の participant page は `smkc-score-app/src/lib/hooks/useParticipa
 
 ## MR shared match の client-side validation
 
-MR の shared match page は score report 前に reporting player identity と全 race の winner を入力する必要がある。これらの validation は英語リテラルを持たず、既存の `match` namespace を利用する。
+MR の shared match page は score report 前に reporting player identity と全 race の winner を入力する必要がある。これらの validation は英語リテラルを持たず、既存の翻訳を利用する。
 
 - identity 未選択: `match.selectPlayer`
-- race winner 未入力: `match.completeAllRaceFields`
+- race winner 未入力: `participant.completeAllRaceFields`
 
 これにより現在の locale に従って EN/JA の validation message が表示される。validation 条件そのもの、`TOTAL_MR_RACES`、score report endpoint、payload、participant/admin authorization、score semantics、submit flow は変更しない。
 
@@ -50,4 +50,4 @@ report 失敗時は `submitReport()` が `null` を返し、呼び出し側が�
 - request rejection の raw detail が UI に漏れず logger に残ること
 - non-JSON error response が JSON parse error を UI に漏らさないこと
 
-加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR shared match の identity / incomplete-race validation が既存の `match` 翻訳キーを使い、EN/JA catalog の両方に意図した文言が存在することを固定する。
+加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR shared match の identity / incomplete-race validation が既存の `match.selectPlayer` / `participant.completeAllRaceFields` を使い、EN/JA catalog の両方に意図した文言が存在することを固定する。
