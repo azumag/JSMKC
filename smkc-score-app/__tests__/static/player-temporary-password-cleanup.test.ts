@@ -12,17 +12,15 @@ describe('player temporary password cleanup (issue #3653)', () => {
   });
 
   it('routes overlay and Escape dismissals through the cleanup handler', () => {
-    expect(pageSource).toContain(
-      '<Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogOpenChange}>',
-    );
+    expect(pageSource).toContain('<Dialog open={isPasswordDialogOpen} onOpenChange={handlePasswordDialogOpenChange}>');
   });
 
   it('routes the explicit saved acknowledgement through the same cleanup handler', () => {
     expect(pageSource).toContain(
-      '<Button onClick={() => handlePasswordDialogOpenChange(false)}>{t(\'savedIt\')}</Button>',
+      "<Button onClick={() => handlePasswordDialogOpenChange(false)}>{t('savedIt')}</Button>",
     );
     expect(pageSource).not.toContain(
-      '<Button onClick={() => setIsPasswordDialogOpen(false)}>{t(\'savedIt\')}</Button>',
+      "<Button onClick={() => setIsPasswordDialogOpen(false)}>{t('savedIt')}</Button>",
     );
   });
 });
