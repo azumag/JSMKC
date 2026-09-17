@@ -158,9 +158,11 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
 
   /**
    * Handle TV number assignment for a match.
-   * Fires the PATCH in the background without waiting; the caller should apply
-   * optimistic UI updates before calling this. No refetch is triggered so the
-   * dropdown feels instant — the next polling cycle will confirm the value.
+   * Fires the PATCH in the background without waiting; the caller applies the
+   * optimistic UI update before calling this. Successful writes stay silent and
+   * avoid an extra fetch. Failures refetch immediately so the optimistic value
+   * is replaced by the authoritative server state instead of lingering until
+   * the next polling cycle.
    */
   const handleTvAssign = useCallback(
     (matchId: string, tvNumber: number | null) => {
@@ -173,14 +175,16 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             toast.error(err.error || tc('networkError'));
+            refetch();
           }
         })
         .catch((err) => {
           logger.error('Failed to assign TV:', { error: err, tournamentId, matchId });
           toast.error(tc('networkError'));
+          refetch();
         });
     },
-    [tournamentId, mode, logger, tc],
+    [tournamentId, mode, logger, tc, refetch],
   );
 
   /**
