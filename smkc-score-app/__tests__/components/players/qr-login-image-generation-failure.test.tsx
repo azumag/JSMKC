@@ -64,12 +64,12 @@ describe('QR login image generation failure fallback (issue #3663)', () => {
 
     fireEvent.click(issueButton);
 
-    const loginUrlInput = await screen.findByLabelText('qrLoginUrl');
-    expect(loginUrlInput).toHaveValue(expect.stringContaining('token=issued-token'));
+    const loginUrlInput = (await screen.findByLabelText('qrLoginUrl')) as HTMLInputElement;
+    expect(loginUrlInput.value).toContain('token=issued-token');
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'printQrCode' })).not.toBeInTheDocument();
     expect(screen.queryByText('failedToIssueQrCode')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'reissueQrCode' })).not.toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'reissueQrCode' })).not.toBeDisabled());
     expect(screen.getByRole('button', { name: 'revokeQrCode' })).toBeInTheDocument();
     expect(mockLogger.error).toHaveBeenCalledWith(
       'Failed to generate QR login image',
