@@ -16,8 +16,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { createLogger } from '@/lib/client-logger';
+
+const logger = createLogger({ serviceName: 'qualification-rank-cell' });
 
 interface RankCellProps {
   /** Qualification record ID (used in the PATCH request body) */
@@ -32,6 +36,15 @@ interface RankCellProps {
   onSave: (qualificationId: string, rankOverride: number | null) => Promise<boolean | void>;
 }
 
+function RankCellSaveError() {
+  const tCommon = useTranslations('common');
+  return (
+    <p className="text-xs text-destructive" role="alert">
+      {tCommon('networkError')}
+    </p>
+  );
+}
+
 /**
  * Standalone rank cell that manages its own edit state.
  * The edit state (input value + open/closed) is local because only one row is
@@ -40,17 +53,17 @@ interface RankCellProps {
 export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onSave }: RankCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  // Inline error message shown when onSave rejects; null means no error.
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Unexpected rejected callbacks show a safe localized error; API failures normally return false instead.
+  const [saveError, setSaveError] = useState(false);
 
   const openEdit = () => {
     setInputValue(rankOverride?.toString() ?? '');
-    setSaveError(null);
+    setSaveError(false);
     setIsEditing(true);
   };
 
   const commitSave = async () => {
-    setSaveError(null);
+    setSaveError(false);
     try {
       const v = parseInt(inputValue);
       // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
@@ -58,18 +71,28 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       const saved = await onSave(qualificationId, isNaN(v) ? null : v);
       if (saved !== false) setIsEditing(false);
     } catch (err) {
-      // Keep the editor open so the user can retry after seeing the error.
-      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
+      // Keep the editor open so the user can retry after seeing a safe error.
+      logger.error('Unexpected rank override save rejection:', {
+        error: err,
+        qualificationId,
+        action: 'save',
+      });
+      setSaveError(true);
     }
   };
 
   const commitClear = async () => {
-    setSaveError(null);
+    setSaveError(false);
     try {
       const saved = await onSave(qualificationId, null);
       if (saved !== false) setIsEditing(false);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
+      logger.error('Unexpected rank override save rejection:', {
+        error: err,
+        qualificationId,
+        action: 'clear',
+      });
+      setSaveError(true);
     }
   };
 
@@ -100,11 +123,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             </Button>
           )}
         </div>
-        {saveError && (
-          <p className="text-xs text-destructive" role="alert">
-            {saveError}
-          </p>
-        )}
+        {saveError && <RankCellSaveError />}
       </div>
     );
   }
