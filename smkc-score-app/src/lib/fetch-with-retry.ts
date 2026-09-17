@@ -20,21 +20,32 @@ type ResponseSnapshot = {
 
 const inFlightApiGets = new Map<string, Promise<ResponseSnapshot>>();
 
-function isBrowserApiGet(input: RequestInfo | URL, init?: RequestInit): boolean {
-  if (typeof window === 'undefined') return false;
+function isRequestInput(input: RequestInfo | URL): input is Request {
+  return typeof Request !== 'undefined' && input instanceof Request;
+}
 
-  const method =
-    init?.method ??
-    (typeof Request !== 'undefined' && input instanceof Request ? input.method : undefined) ??
-    'GET';
+function hasRequestSpecificInit(init?: RequestInit): boolean {
+  if (!init) return false;
+  return Object.keys(init).some((key) => key !== 'method');
+}
+
+/**
+ * Only plain browser GETs are safe to coalesce by URL.
+ *
+ * Request objects and RequestInit options such as signal, headers, cache, or
+ * credentials carry caller-specific semantics. Sharing an in-flight request in
+ * those cases can make one caller inherit another caller's cancellation or
+ * request metadata, so they deliberately bypass the URL-only dedupe path.
+ */
+function isDedupeSafeBrowserApiGet(input: RequestInfo | URL, init?: RequestInit): boolean {
+  if (typeof window === 'undefined') return false;
+  if (isRequestInput(input)) return false;
+  if (hasRequestSpecificInit(init)) return false;
+
+  const method = init?.method ?? 'GET';
   if (method.toUpperCase() !== 'GET') return false;
 
-  const url =
-    typeof input === 'string'
-      ? new URL(input, window.location.href)
-      : input instanceof URL
-        ? input
-        : new URL(input.url, window.location.href);
+  const url = typeof input === 'string' ? new URL(input, window.location.href) : input;
 
   return url.origin === window.location.origin && url.pathname.startsWith('/api/');
 }
@@ -69,11 +80,8 @@ async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
  * Fetch with automatic retry on 500+ status codes.
  * Returns the last response (successful or final failure).
  */
-export async function fetchWithRetry(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  if (isBrowserApiGet(input, init)) {
+export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (isDedupeSafeBrowserApiGet(input, init)) {
     const key = dedupeKey(input);
     let request = inFlightApiGets.get(key);
 
@@ -93,10 +101,7 @@ export async function fetchWithRetry(
   return fetchWithRetryRaw(input, init);
 }
 
-async function fetchWithRetryRaw(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
+async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   let lastResponse: Response | undefined;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
