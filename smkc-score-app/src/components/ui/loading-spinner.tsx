@@ -12,17 +12,19 @@
  * - role="status" announces the loading state to screen readers
  * - aria-live="polite" ensures the loading announcement doesn't
  *   interrupt current screen reader output
- * - aria-label="Loading" provides descriptive text for the visual spinner
+ * - aria-label provides localized descriptive text for the visual spinner
  *
  * Used throughout the JSMKC app for:
  * - Inline data loading indicators
  * - Button loading states
  * - Refresh/polling indicators
  */
-"use client";
+'use client';
 
-import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+
+import { cn } from '@/lib/utils';
 
 /**
  * Props for the LoadingSpinner component.
@@ -34,7 +36,7 @@ import { cn } from "@/lib/utils";
  * @property className - Additional CSS classes for the wrapper container
  */
 export interface LoadingSpinnerProps {
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
@@ -45,25 +47,24 @@ export interface LoadingSpinnerProps {
  * The muted-foreground color ensures the spinner doesn't compete visually
  * with primary content.
  */
-export function LoadingSpinner({ size = "md", className }: LoadingSpinnerProps) {
+export function LoadingSpinner({ size = 'md', className }: LoadingSpinnerProps) {
+  const t = useTranslations('loadingSpinner');
+
   /** Maps size prop to Tailwind dimension classes */
   const sizeClasses = {
-    sm: "h-4 w-4",
-    md: "h-6 w-6",
-    lg: "h-8 w-8",
+    sm: 'h-4 w-4',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8',
   };
 
   return (
     <div
-      className={cn(
-        "flex items-center justify-center",
-        className
-      )}
+      className={cn('flex items-center justify-center', className)}
       role="status"
       aria-live="polite"
-      aria-label="Loading"
+      aria-label={t('ariaLabel')}
     >
-      <Loader2 className={cn("animate-spin text-muted-foreground", sizeClasses[size])} />
+      <Loader2 className={cn('animate-spin text-muted-foreground', sizeClasses[size])} />
     </div>
   );
 }
