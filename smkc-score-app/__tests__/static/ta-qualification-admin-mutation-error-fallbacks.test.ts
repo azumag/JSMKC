@@ -13,16 +13,12 @@ function extractBlock(source: string, startMarker: string, endMarker: string) {
 
 describe('TA qualification admin mutation error fallback contract', () => {
   const source = readAppFile('src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
-  const promoteBlock = extractBlock(
-    source,
-    'const handlePromoteToPhase = async',
-    'const handleResetPhase = async',
-  );
+  const promoteBlock = extractBlock(source, 'const handlePromoteToPhase = async', 'const handleResetPhase = async');
   const resetBlock = extractBlock(source, 'const handleResetPhase = async', 'const handleToggleFreeze = async');
   const saveTimesBlock = extractBlock(source, 'const handleSaveTimes = async', '// === Helper Functions ===');
 
   it('uses API errors first and common.networkError for promote failures', () => {
-    expect(promoteBlock).toContain("const json = await response.json().catch(() => ({}));");
+    expect(promoteBlock).toContain('const json = await response.json().catch(() => ({}));');
     expect(promoteBlock).toContain("alert(json.error || tc('networkError'));");
     expect(promoteBlock).toContain("alert(tc('networkError'));");
     expect(promoteBlock).not.toContain('Failed to promote players');
@@ -35,7 +31,7 @@ describe('TA qualification admin mutation error fallback contract', () => {
   });
 
   it('uses API errors first and common.networkError for reset failures', () => {
-    expect(resetBlock).toContain("const json = await response.json().catch(() => ({}));");
+    expect(resetBlock).toContain('const json = await response.json().catch(() => ({}));');
     expect(resetBlock).toContain("alert(json.error || tc('networkError'));");
     expect(resetBlock).toContain("alert(tc('networkError'));");
     expect(resetBlock).not.toContain('const errorMessage = err instanceof Error ? err.message');
@@ -48,7 +44,9 @@ describe('TA qualification admin mutation error fallback contract', () => {
     expect(saveTimesBlock).toContain("setSaveError(errorData.error || tc('networkError'));");
     expect(saveTimesBlock).toContain("setSaveError(tc('networkError'));");
     expect(saveTimesBlock).not.toContain("throw new Error(errorData.error || 'Failed to save times')");
-    expect(saveTimesBlock).not.toContain("const errorMessage = err instanceof Error ? err.message : 'Failed to save times'");
+    expect(saveTimesBlock).not.toContain(
+      "const errorMessage = err instanceof Error ? err.message : 'Failed to save times'",
+    );
     expect(saveTimesBlock).toContain("logger.error('Failed to save TA qualification times:', {");
     expect(saveTimesBlock).toContain('status: response.status');
     expect(saveTimesBlock).toContain('message: err.message');
