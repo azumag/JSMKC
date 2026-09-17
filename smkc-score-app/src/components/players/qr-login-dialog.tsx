@@ -88,6 +88,10 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     if (!isCurrentDialogSession(dialogSession)) return;
     const statusRequest = statusRequestRef.current + 1;
     statusRequestRef.current = statusRequest;
+    // A status request makes the server state unknown until this request (or a
+    // newer one) succeeds. Clearing it here prevents stale active/inactive
+    // state from enabling token mutations if the refresh later fails.
+    setStatus(null);
     setLoading(true);
     setError('');
     try {
@@ -121,6 +125,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
     // `submitting` here: POST/DELETE mutations must stay serialized across a
     // close/reopen until the in-flight server mutation actually settles.
     setLoading(false);
+    setStatus(null);
 
     // The token and the generated QR both contain a one-time bearer
     // credential, so discard them immediately on every dialog transition.
@@ -285,7 +290,22 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
           <DialogDescription>{t('qrLoginDescription')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          {error && <div className="text-red-500 text-sm">{error}</div>}
+          {error && (
+            <div className="space-y-2 text-red-500 text-sm">
+              <div>{error}</div>
+              {!status && !loading && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-foreground"
+                  onClick={() => void fetchStatus(dialogSessionRef.current)}
+                >
+                  {tc('tryAgain')}
+                </Button>
+              )}
+            </div>
+          )}
 
           {loading ? (
             <div className="text-sm text-muted-foreground">{tc('loading')}</div>
@@ -311,12 +331,16 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
             </div>
           ) : status?.active ? (
             <p className="text-sm text-muted-foreground">{t('qrCodeActiveNote')}</p>
-          ) : (
+          ) : status ? (
             <p className="text-sm text-muted-foreground">{t('qrCodeNotIssued')}</p>
-          )}
+          ) : null}
         </div>
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button type="button" disabled={submitting || loading} onClick={() => handleIssue(!!status?.active)}>
+          <Button
+            type="button"
+            disabled={submitting || loading || !status}
+            onClick={() => handleIssue(!!status?.active)}
+          >
             {submitting ? tc('saving') : status?.active ? t('reissueQrCode') : t('issueQrCode')}
           </Button>
           {status?.active && (
