@@ -9,8 +9,20 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { RankCell } from '@/components/tournament/rank-cell';
 
+const TRANSLATIONS: Record<string, Record<string, string>> = {
+  common: {
+    networkError: 'common.networkError',
+  },
+  rankCell: {
+    rankInput: 'Rank override',
+    editRank: 'Edit rank',
+    saveRank: 'Save rank',
+    clearRankOverride: 'Clear rank override',
+  },
+};
+
 jest.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => `common.${key}`,
+  useTranslations: (namespace: string) => (key: string) => TRANSLATIONS[namespace]?.[key] ?? `${namespace}.${key}`,
 }));
 
 jest.mock('@/lib/client-logger', () => {
@@ -63,16 +75,17 @@ describe('RankCell — view mode', () => {
 });
 
 describe('RankCell — edit mode', () => {
-  it('TC-2647: clicking edit opens input with empty string when no override exists', () => {
+  it('TC-2647: clicking edit opens a labeled input with empty string when no override exists', () => {
     render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={4} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
 
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     expect(input).toBeInTheDocument();
     expect((input as HTMLInputElement).value).toBe('');
+    expect(screen.getByRole('button', { name: 'Save rank' })).toBeInTheDocument();
     // Clear button must not appear when rankOverride is null
-    expect(screen.queryByRole('button', { name: /✕/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear rank override' })).toBeNull();
   });
 
   it('TC-2648: clicking edit opens input prefilled with current override value', () => {
@@ -80,17 +93,17 @@ describe('RankCell — edit mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
 
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     expect((input as HTMLInputElement).value).toBe('7');
     // Clear button must appear when rankOverride is set
-    expect(screen.getByRole('button', { name: /✕/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear rank override' })).toBeInTheDocument();
   });
 
   it('TC-2649: pressing Enter calls onSave with parsed number and closes editor', async () => {
     render(<RankCell qualificationId="qual-42" rankOverride={null} autoRank={2} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '5' } });
 
     await act(async () => {
@@ -99,50 +112,50 @@ describe('RankCell — edit mode', () => {
 
     expect(noop).toHaveBeenCalledWith('qual-42', 5);
     // After saving, edit mode closes and view mode is shown
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Edit rank' })).toBeInTheDocument();
   });
 
-  it('TC-2650: clicking ✓ button calls onSave and closes editor', async () => {
+  it('TC-2650: clicking the labeled save button calls onSave and closes editor', async () => {
     render(<RankCell qualificationId="qual-7" rankOverride={null} autoRank={1} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '3' } });
 
     await act(async () => {
-      fireEvent.click(screen.getByText('✓'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save rank' }));
     });
 
     expect(noop).toHaveBeenCalledWith('qual-7', 3);
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 
   it('TC-2651: pressing Escape cancels edit without calling onSave', () => {
     render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={6} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '9' } });
     fireEvent.keyDown(input, { key: 'Escape' });
 
     expect(noop).not.toHaveBeenCalled();
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Edit rank' })).toBeInTheDocument();
   });
 
-  it('TC-2652: clicking ✕ button clears the override (calls onSave with null)', async () => {
+  it('TC-2652: clicking the labeled clear button clears the override (calls onSave with null)', async () => {
     render(<RankCell qualificationId="qual-99" rankOverride={3} autoRank={5} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    expect(screen.getByRole('button', { name: /✕/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear rank override' })).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /✕/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Clear rank override' }));
     });
 
     expect(noop).toHaveBeenCalledWith('qual-99', null);
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 });
 
@@ -152,7 +165,7 @@ describe('RankCell — edge cases', () => {
     render(<RankCell qualificationId="qual-empty" rankOverride={null} autoRank={2} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     // Leave input empty (default value is already "")
 
     await act(async () => {
@@ -160,7 +173,7 @@ describe('RankCell — edge cases', () => {
     });
 
     expect(noop).toHaveBeenCalledWith('qual-empty', null);
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 
   it('TC-2658: input "0" + Enter calls onSave with 0 (rank 0 passes isNaN check)', async () => {
@@ -168,7 +181,7 @@ describe('RankCell — edge cases', () => {
     render(<RankCell qualificationId="qual-zero" rankOverride={null} autoRank={3} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '0' } });
 
     await act(async () => {
@@ -177,7 +190,7 @@ describe('RankCell — edge cases', () => {
 
     expect(noop).toHaveBeenCalledWith('qual-zero', 0);
     // Editor closes after save, same as other numeric values
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 
   it('TC-2659: commitSave closes editor on success and keeps it open while in-flight', async () => {
@@ -196,7 +209,7 @@ describe('RankCell — edge cases', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '1' } });
 
     await act(async () => {
@@ -204,14 +217,14 @@ describe('RankCell — edge cases', () => {
     });
 
     // commitSave is awaiting onSave — setIsEditing(false) not yet called → editor open
-    expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeInTheDocument();
     expect(controlledSave).toHaveBeenCalledWith('qual-pend', 1);
 
     // Resolve the save: setIsEditing(false) now runs and the editor closes
     await act(async () => {
       resolveOnSave();
     });
-    expect(screen.queryByRole('spinbutton')).toBeNull();
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 
   it('TC-2660: commitSave redacts rejected callback details and keeps editor open', async () => {
@@ -223,14 +236,14 @@ describe('RankCell — edge cases', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    const input = screen.getByRole('spinbutton');
+    const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '2' } });
 
     await act(async () => {
       fireEvent.keyDown(input, { key: 'Enter' });
     });
 
-    expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('common.networkError');
     expect(screen.getByRole('alert')).not.toHaveTextContent('internal-rank-service');
     expect(mockLoggerError).toHaveBeenCalledWith('Unexpected rank override save rejection:', {
@@ -250,14 +263,14 @@ describe('RankCell — edge cases', () => {
 
     // First attempt → error
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '1' } });
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Rank override' }), { target: { value: '1' } });
     await act(async () => {
-      fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Enter' });
+      fireEvent.keyDown(screen.getByRole('spinbutton', { name: 'Rank override' }), { key: 'Enter' });
     });
     expect(screen.getByRole('alert')).toBeInTheDocument();
 
     // Press Escape to close editor
-    fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('spinbutton', { name: 'Rank override' }), { key: 'Escape' });
     // Reopen: error should be gone
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     expect(screen.queryByRole('alert')).toBeNull();
@@ -273,10 +286,10 @@ describe('RankCell — edge cases', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /✕/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Clear rank override' }));
     });
 
-    expect(screen.getByRole('spinbutton')).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('common.networkError');
     expect(screen.getByRole('alert')).not.toHaveTextContent('internal-rank-service');
     expect(mockLoggerError).toHaveBeenCalledWith('Unexpected rank override save rejection:', {
