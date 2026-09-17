@@ -86,11 +86,13 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
    * - 'match': Shared match-level strings (enter result, submit, back, etc.)
    * - 'mr': Match Race mode-specific strings (match title)
    * - 'common': Shared UI strings (race, course, winner, etc.)
+   * - 'participant': Shared participant score-entry validation strings
    * Hooks must be called at the top of the component before any state/effect hooks.
    */
   const tMatch = useTranslations('match');
   const tMr = useTranslations('mr');
   const tCommon = useTranslations('common');
+  const tParticipant = useTranslations('participant');
 
   const [match, setMatch] = useState<MRMatch | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -194,7 +196,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
     /* Validate all 4 race winners are selected */
     const allWinnersSelected = rounds.every((r) => r.winner !== null);
     if (!allWinnersSelected) {
-      setError(tMatch('completeAllRaceFields'));
+      setError(tParticipant('completeAllRaceFields'));
       return;
     }
 
