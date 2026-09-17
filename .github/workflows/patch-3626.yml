@@ -1,0 +1,145 @@
+name: Apply issue 3626 patch
+
+on:
+  push:
+    branches:
+      - fix/3626-ta-freeze-network-error
+    paths:
+      - .github/workflows/patch-3626.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+
+      - name: Apply source, test, and docs changes
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          source_path = Path('smkc-score-app/src/app/tournaments/[id]/ta/page-client.tsx')
+          source = source_path.read_text()
+          old = """  const handleToggleFreeze = async () => {
+            const isFrozen = frozenStages.includes('qualification');
+            const newFrozen = isFrozen ? frozenStages.filter((s) => s !== 'qualification') : [...frozenStages, 'qualification'];
+
+            try {
+              const response = await fetch(`/api/tournaments/${tournamentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frozenStages: newFrozen }),
+              });
+              if (!response.ok) throw new Error('Failed to update freeze state');
+              refetch();
+              toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Failed to toggle freeze');
+            }
+          };
+          """
+          new = """  const handleToggleFreeze = async () => {
+            const isFrozen = frozenStages.includes('qualification');
+            const newFrozen = isFrozen ? frozenStages.filter((s) => s !== 'qualification') : [...frozenStages, 'qualification'];
+
+            try {
+              const response = await fetch(`/api/tournaments/${tournamentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frozenStages: newFrozen }),
+              });
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                logger.error('Failed to update TA qualification freeze state:', {
+                  status: response.status,
+                  error: errorData.error,
+                  tournamentId,
+                });
+                toast.error(errorData.error || tc('networkError'));
+                return;
+              }
+              refetch();
+              toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));
+            } catch (err) {
+              const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+              logger.error('Failed to update TA qualification freeze state:', { ...metadata, tournamentId });
+              toast.error(tc('networkError'));
+            }
+          };
+          """
+          if source.count(old) != 1:
+              raise SystemExit(f'expected exactly one freeze handler block, found {source.count(old)}')
+          source_path.write_text(source.replace(old, new))
+
+          test_path = Path('smkc-score-app/__tests__/static/ta-qualification-freeze-error-fallbacks.test.ts')
+          test_path.write_text("""import fs from 'fs';
+          import path from 'path';
+
+          function readAppFile(...parts: string[]) {
+            return fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+          }
+
+          describe('TA qualification freeze error fallback contract', () => {
+            const source = readAppFile('src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
+            const start = source.indexOf('const handleToggleFreeze = async () => {');
+            const end = source.indexOf('\\n  // === Event Handlers ===', start);
+            const block = source.slice(start, end);
+
+            it('keeps API errors first and uses common.networkError for generic failures', () => {
+              expect(block).toContain("const errorData = await response.json().catch(() => ({}));");
+              expect(block).toContain("toast.error(errorData.error || tc('networkError'));");
+              expect(block).toContain("toast.error(tc('networkError'));");
+              expect(block).not.toContain('Failed to update freeze state');
+              expect(block).not.toContain('Failed to toggle freeze');
+              expect(block).not.toContain('err instanceof Error ? err.message :');
+            });
+
+            it('keeps low-level response and rejection details in the client logger', () => {
+              expect(block).toContain("logger.error('Failed to update TA qualification freeze state:', {");
+              expect(block).toContain('status: response.status');
+              expect(block).toContain('message: err.message');
+              expect(block).toContain('stack: err.stack');
+            });
+
+            it('preserves the successful PUT payload, refetch, and localized success toast', () => {
+              expect(block).toContain("method: 'PUT'");
+              expect(block).toContain('body: JSON.stringify({ frozenStages: newFrozen })');
+              expect(block).toContain('refetch();');
+              expect(block).toContain("toast.success(isFrozen ? t('unfreezeQualification') : t('freezeQualification'));");
+            });
+
+            it.each(['en', 'ja'])('defines common.networkError for %s', (locale) => {
+              const messages = readAppFile('messages', `${locale}.json`);
+              expect(messages).toMatch(/\"networkError\"\\s*:\\s*\"[^\"]+\"/);
+            });
+          });
+          """)
+
+          docs_path = Path('smkc-score-app/docs/ta-qualification-freeze-error-fallbacks.md')
+          docs_path.write_text("""# TA qualification freeze/unfreeze error fallback
+
+          TA qualification の freeze / unfreeze は tournament PUT (`/api/tournaments/:id`) で `frozenStages` を更新する。
+
+          利用者向けエラー表示は、API が具体的な `error` を返した場合はその内容を優先し、response body に具体的な error がない non-2xx と `fetch()` rejection では locale-aware な `common.networkError` を使用する。browser/network 由来の raw `Error.message` / stack や HTTP status は client logger のみに残し、toast には露出しない。
+
+          成功時の `frozenStages` payload、polling refetch、freeze/unfreeze success toast は変更しない。
+          """)
+
+          Path('.github/workflows/patch-3626.yml').unlink()
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: localize TA freeze request failures (#3626)"
+          git push origin HEAD:fix/3626-ta-freeze-network-error
