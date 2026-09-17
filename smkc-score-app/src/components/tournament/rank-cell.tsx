@@ -36,26 +36,34 @@ interface RankCellProps {
   onSave: (qualificationId: string, rankOverride: number | null) => Promise<boolean | void>;
 }
 
+function RankCellSaveError() {
+  const tCommon = useTranslations('common');
+  return (
+    <p className="text-xs text-destructive" role="alert">
+      {tCommon('networkError')}
+    </p>
+  );
+}
+
 /**
  * Standalone rank cell that manages its own edit state.
  * The edit state (input value + open/closed) is local because only one row is
  * ever in edit mode at a time and there is no need to lift this state.
  */
 export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onSave }: RankCellProps) {
-  const tCommon = useTranslations('common');
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  // Inline error message shown when onSave rejects; null means no error.
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // Unexpected rejected callbacks show a safe localized error; API failures normally return false instead.
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const openEdit = () => {
     setInputValue(rankOverride?.toString() ?? '');
-    setSaveError(null);
+    setSaveFailed(false);
     setIsEditing(true);
   };
 
   const commitSave = async () => {
-    setSaveError(null);
+    setSaveFailed(false);
     try {
       const v = parseInt(inputValue);
       // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
@@ -69,12 +77,12 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         qualificationId,
         action: 'save',
       });
-      setSaveError(tCommon('networkError'));
+      setSaveFailed(true);
     }
   };
 
   const commitClear = async () => {
-    setSaveError(null);
+    setSaveFailed(false);
     try {
       const saved = await onSave(qualificationId, null);
       if (saved !== false) setIsEditing(false);
@@ -84,7 +92,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         qualificationId,
         action: 'clear',
       });
-      setSaveError(tCommon('networkError'));
+      setSaveFailed(true);
     }
   };
 
@@ -115,11 +123,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             </Button>
           )}
         </div>
-        {saveError && (
-          <p className="text-xs text-destructive" role="alert">
-            {saveError}
-          </p>
-        )}
+        {saveFailed && <RankCellSaveError />}
       </div>
     );
   }
