@@ -209,7 +209,15 @@ describe('QrLoginDialog', () => {
       await waitFor(() => expect(screen.getByRole('button', { name: 'printQrCode' })).toBeInTheDocument());
     }
 
-    it('renders a nickname containing markup as inert text via DOM APIs, never as raw HTML', async () => {
+    function createPrintWindow() {
+      const fakeBody = { style: {}, appendChild: jest.fn() };
+      const fakeDoc = { title: '', body: fakeBody, createElement: (tag: string) => document.createElement(tag) };
+      const fakePrintWindow = { document: fakeDoc, focus: jest.fn(), print: jest.fn(), close: jest.fn() };
+      window.open = jest.fn(() => fakePrintWindow as unknown as Window);
+      return { fakeBody, fakeDoc, fakePrintWindow };
+    }
+
+    it('waits for the QR image to load before printing and keeps nickname markup inert', async () => {
       // A malicious/unsanitized nickname must not become executable markup in the print window
       // (regression test for the document.write + string interpolation XSS fix).
       const maliciousNickname = '<img src=x onerror=alert(1)>';
@@ -232,11 +240,7 @@ describe('QrLoginDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: 'issueQrCode' }));
       await waitFor(() => expect(screen.getByRole('button', { name: 'printQrCode' })).toBeInTheDocument());
 
-      const fakeBody = { style: {}, appendChild: jest.fn() };
-      const fakeDoc = { title: '', body: fakeBody, createElement: (tag: string) => document.createElement(tag) };
-      const fakePrintWindow = { document: fakeDoc, focus: jest.fn(), print: jest.fn() };
-      window.open = jest.fn(() => fakePrintWindow as unknown as Window);
-
+      const { fakeBody, fakeDoc, fakePrintWindow } = createPrintWindow();
       fireEvent.click(screen.getByRole('button', { name: 'printQrCode' }));
 
       expect(fakeDoc.title).toBe(maliciousNickname);
@@ -246,7 +250,32 @@ describe('QrLoginDialog', () => {
       expect(heading.textContent).toBe(maliciousNickname);
       expect(heading.innerHTML).not.toContain('<img');
       expect(img.alt).toBe(`${maliciousNickname} QR login`);
-      expect(fakePrintWindow.print).toHaveBeenCalled();
+      expect(fakePrintWindow.focus).not.toHaveBeenCalled();
+      expect(fakePrintWindow.print).not.toHaveBeenCalled();
+
+      fireEvent.load(img);
+
+      expect(fakePrintWindow.focus).toHaveBeenCalledTimes(1);
+      expect(fakePrintWindow.print).toHaveBeenCalledTimes(1);
+      fireEvent.load(img);
+      expect(fakePrintWindow.focus).toHaveBeenCalledTimes(1);
+      expect(fakePrintWindow.print).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not print and surfaces a localized error when the QR image fails to load', async () => {
+      await issueAndOpenPrintReady();
+      const { fakeBody, fakePrintWindow } = createPrintWindow();
+
+      fireEvent.click(screen.getByRole('button', { name: 'printQrCode' }));
+
+      const appendedNodes = fakeBody.appendChild.mock.calls.map((call) => call[0] as HTMLElement);
+      const img = appendedNodes.find((node) => node.tagName === 'IMG')! as HTMLImageElement;
+      fireEvent.error(img);
+
+      expect(fakePrintWindow.focus).not.toHaveBeenCalled();
+      expect(fakePrintWindow.print).not.toHaveBeenCalled();
+      expect(fakePrintWindow.close).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.getByText('genericError')).toBeInTheDocument());
     });
 
     it('shows an error message when the print window is blocked by a popup blocker', async () => {
