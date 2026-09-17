@@ -2,14 +2,51 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsScoreOverride } from '@/components/tournament/finals-score-override';
+import enMessages from '../../../messages/en.json';
+import jaMessages from '../../../messages/ja.json';
+
+const mockFinalsMessages = { en: enMessages.finals, ja: jaMessages.finals };
+let mockLocale: keyof typeof mockFinalsMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: keyof typeof enMessages.finals) => mockFinalsMessages[mockLocale][key],
+}));
 
 describe('FinalsScoreOverride', () => {
   const originalFetch = global.fetch;
   const originalAlert = window.alert;
 
+  beforeEach(() => {
+    mockLocale = 'en';
+  });
+
   afterEach(() => {
     global.fetch = originalFetch;
     window.alert = originalAlert;
+  });
+
+  it('uses localized, player-specific accessible names for corrected score inputs', () => {
+    mockLocale = 'ja';
+    render(
+      <FinalsScoreOverride
+        match={{
+          id: 'm1',
+          version: 4,
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1: { nickname: '一郎' },
+          player2: { nickname: '次郎' },
+        }}
+        endpoint="/api/test"
+        score1={2}
+        score2={1}
+        onSaved={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('訂正した結果を記録（管理者）'));
+    expect(screen.getByLabelText('訂正した結果（負の値を含む合計を入力可）: 一郎')).toHaveValue('2');
+    expect(screen.getByLabelText('訂正した結果（負の値を含む合計を入力可）: 次郎')).toHaveValue('1');
   });
 
   it('shows API advancement warnings inside the success response envelope', async () => {
