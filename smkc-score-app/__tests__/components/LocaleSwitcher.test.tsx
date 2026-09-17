@@ -21,17 +21,40 @@ jest.mock('@/lib/client-logger', () => ({
   createLogger: () => ({ error: jest.fn() }),
 }));
 
+const translations = {
+  en: {
+    common: {
+      networkError: 'EN network error',
+    },
+    localeSwitcher: {
+      switchToJapanese: 'Switch to Japanese',
+      switchToEnglish: 'Switch to English',
+      switchedToJapanese: 'Switched to Japanese',
+      switchedToEnglish: 'Switched to English',
+    },
+  },
+  ja: {
+    common: {
+      networkError: 'JA network error',
+    },
+    localeSwitcher: {
+      switchToJapanese: '日本語に切り替え',
+      switchToEnglish: '英語に切り替え',
+      switchedToJapanese: '日本語に切り替えました',
+      switchedToEnglish: '英語に切り替えました',
+    },
+  },
+} as const;
+
 function mockLocale(locale: 'en' | 'ja') {
   const { useLocale, useTranslations } = jest.requireMock('next-intl') as {
     useLocale: jest.Mock;
     useTranslations: jest.Mock;
   };
   useLocale.mockReturnValue(locale);
-  useTranslations.mockReturnValue((key: string) => {
-    if (key === 'networkError') {
-      return locale === 'ja' ? 'JA network error' : 'EN network error';
-    }
-    return key;
+  useTranslations.mockImplementation((namespace: 'common' | 'localeSwitcher') => (key: string) => {
+    const namespaceMessages = translations[locale][namespace] as Record<string, string>;
+    return namespaceMessages[key] ?? `${namespace}.${key}`;
   });
 }
 
@@ -43,7 +66,7 @@ function mockFetch(ok: boolean) {
 }
 
 function getToastMock() {
-  return (jest.requireMock('sonner') as { toast: { error: jest.Mock } }).toast;
+  return (jest.requireMock('sonner') as { toast: { success: jest.Mock; error: jest.Mock } }).toast;
 }
 
 describe('LocaleSwitcher', () => {
@@ -51,19 +74,19 @@ describe('LocaleSwitcher', () => {
     jest.clearAllMocks();
   });
 
-  it('TC-2989: EN ロケールのとき aria-checked=false でレンダリングされる', () => {
+  it('TC-2989: EN ロケールのとき aria-checked=false かつ英語の accessible name でレンダリングされる', () => {
     mockLocale('en');
     render(<LocaleSwitcher />);
 
-    const button = screen.getByRole('switch');
+    const button = screen.getByRole('switch', { name: 'Switch to Japanese' });
     expect(button).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('TC-2990: JA ロケールのとき aria-checked=true でレンダリングされる', () => {
+  it('TC-2990: JA ロケールのとき aria-checked=true かつ日本語の accessible name でレンダリングされる', () => {
     mockLocale('ja');
     render(<LocaleSwitcher />);
 
-    const button = screen.getByRole('switch');
+    const button = screen.getByRole('switch', { name: '英語に切り替え' });
     expect(button).toHaveAttribute('aria-checked', 'true');
   });
 
@@ -82,14 +105,26 @@ describe('LocaleSwitcher', () => {
     fetchSpy.mockRestore();
   });
 
-  it('TC-2992: API 成功後に router.refresh が呼ばれる', async () => {
+  it('TC-2992: API 成功後に current locale の成功通知を表示して router.refresh が呼ばれる', async () => {
     mockLocale('en');
     const fetchSpy = mockFetch(true);
     render(<LocaleSwitcher />);
 
     await userEvent.click(screen.getByRole('switch'));
 
+    expect(getToastMock().success).toHaveBeenCalledWith('Switched to Japanese');
     expect(mockRefresh).toHaveBeenCalledTimes(1);
+    fetchSpy.mockRestore();
+  });
+
+  it('JA 表示中の API 成功後は日本語の成功通知を表示する', async () => {
+    mockLocale('ja');
+    const fetchSpy = mockFetch(true);
+    render(<LocaleSwitcher />);
+
+    await userEvent.click(screen.getByRole('switch'));
+
+    expect(getToastMock().success).toHaveBeenCalledWith('英語に切り替えました');
     fetchSpy.mockRestore();
   });
 
