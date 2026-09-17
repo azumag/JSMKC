@@ -4,11 +4,7 @@
 
 import { render, screen } from '@testing-library/react';
 
-import {
-  QualificationClientLoadingState,
-  QualificationFallback,
-  Skeleton,
-} from '@/components/ui/loading-skeleton';
+import { QualificationClientLoadingState, QualificationFallback, Skeleton } from '@/components/ui/loading-skeleton';
 import enLoadingSkeleton from '../../../messages/loading-skeleton/en.json';
 import jaLoadingSkeleton from '../../../messages/loading-skeleton/ja.json';
 
