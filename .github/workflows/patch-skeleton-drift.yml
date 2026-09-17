@@ -49,7 +49,7 @@ jobs:
           lines[end + 1:end + 1] = contract_binding
 
           # TC-2095: use semantic/static and rendered-behavior coverage, not quote style or test title text.
-          index = unique_index("titleSkeletonClassName = \\\"w-48\\\"")
+          index = unique_index('titleSkeletonClassName = "w-48"')
           if 'uses the qualification page title skeleton width by default' not in lines[index + 1]:
               raise SystemExit('TC-2095 legacy test-title assertion moved unexpectedly')
           lines[index:index + 2] = [
