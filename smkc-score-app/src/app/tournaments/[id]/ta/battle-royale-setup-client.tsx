@@ -133,19 +133,25 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload.error || tc('networkError'));
+        logger.error('Failed to start TA battle royale', {
+          status: response.status,
+          error: payload.error,
+          tournamentId,
+        });
+        setError(payload.error || tc('networkError'));
+        setConfirmOpen(false);
+        return;
       }
       // Keep a hard navigation after the mutation so finals always boots from
       // freshly persisted server state; use an absolute same-origin URL to
       // satisfy Next.js' relative-location navigation lint rule.
       window.location.assign(new URL(`/tournaments/${tournamentId}/ta/finals`, window.location.origin).toString());
     } catch (startError) {
-      const message = startError instanceof Error ? startError.message : tc('networkError');
       logger.error('Failed to start TA battle royale', {
         error: startError,
         tournamentId,
       });
-      setError(message);
+      setError(tc('networkError'));
       setConfirmOpen(false);
     } finally {
       setSaving(false);
