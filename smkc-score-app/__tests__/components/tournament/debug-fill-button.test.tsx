@@ -136,6 +136,7 @@ describe('DebugFillButton', () => {
     fireEvent.click(screen.getByRole('button'));
 
     await waitFor(() => expect(screen.getByText('common.networkError')).toBeInTheDocument());
+    expect(screen.queryByText(/エラー:/)).toBeNull();
     expect(screen.queryByText(/internal-debug-gateway/)).toBeNull();
     expect(mockLoggerError).toHaveBeenCalledWith('Debug fill request failed:', {
       error: rejection,
