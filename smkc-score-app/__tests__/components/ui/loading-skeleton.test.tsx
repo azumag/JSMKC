@@ -9,6 +9,22 @@ import {
   QualificationFallback,
   Skeleton,
 } from '@/components/ui/loading-skeleton';
+import enLoadingSkeleton from '../../../messages/loading-skeleton/en.json';
+import jaLoadingSkeleton from '../../../messages/loading-skeleton/ja.json';
+
+const mockLoadingSkeletonMessages = {
+  en: enLoadingSkeleton,
+  ja: jaLoadingSkeleton,
+};
+let mockLocale: keyof typeof mockLoadingSkeletonMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: keyof typeof enLoadingSkeleton) => mockLoadingSkeletonMessages[mockLocale][key],
+}));
+
+beforeEach(() => {
+  mockLocale = 'en';
+});
 
 describe('QualificationFallback', () => {
   it('renders the supplied mode title as a level-one heading', () => {
@@ -66,15 +82,28 @@ describe('Skeleton accessibility contract (TC-2401)', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
   });
 
-  it('always renders with aria-label even when caller passes a different aria-label', () => {
+  it('always renders with localized aria-label even when caller passes a different aria-label', () => {
     render(<Skeleton aria-label="custom label" className="h-4 w-3/4" />);
 
     expect(screen.getByRole('status', { name: 'Loading content' })).toBeInTheDocument();
+  });
+
+  it('uses the Japanese status label for Japanese locale', () => {
+    mockLocale = 'ja';
+    render(<Skeleton className="h-4 w-3/4" />);
+
+    expect(screen.getByRole('status', { name: 'コンテンツを読み込み中' })).toBeInTheDocument();
   });
 
   it('passes through non-accessibility props from caller', () => {
     render(<Skeleton data-testid="my-skeleton" className="h-4 w-3/4" />);
 
     expect(screen.getByTestId('my-skeleton')).toBeInTheDocument();
+  });
+});
+
+describe('Skeleton translation catalog', () => {
+  it('keeps English and Japanese loading-skeleton keys aligned', () => {
+    expect(Object.keys(jaLoadingSkeleton).sort()).toEqual(Object.keys(enLoadingSkeleton).sort());
   });
 });
