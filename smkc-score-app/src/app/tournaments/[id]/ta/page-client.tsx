@@ -134,6 +134,17 @@ interface TTEntry {
   player: Player;
 }
 
+class SetupSaveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly operation: string,
+  ) {
+    super(message);
+    this.name = 'SetupSaveError';
+  }
+}
+
 export default function TimeAttackPageClient({
   tournamentId,
   initialData,
@@ -366,17 +377,6 @@ export default function TimeAttackPageClient({
    */
   const handleSaveSetup = async () => {
     if (saving) return;
-
-    class SetupSaveError extends Error {
-      constructor(
-        message: string,
-        readonly status: number,
-        readonly operation: string,
-      ) {
-        super(message);
-        this.name = 'SetupSaveError';
-      }
-    }
 
     const responseError = async (response: Response, operation: string) => {
       const payload = await response.json().catch(() => ({}));
@@ -1202,7 +1202,7 @@ export default function TimeAttackPageClient({
             <CardDescription>{t('finalsPhaseDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3 text-sm">
               <TaModeBadge mode={taBattleRoyaleMode ? 'battle_royale' : 'standard'} />
               <span className="text-sm text-muted-foreground">
                 {taBattleRoyaleMode ? t('battleRoyalePhaseSummary') : t('standardPhaseSummary')}
@@ -1481,6 +1481,11 @@ export default function TimeAttackPageClient({
                               ? (entries.find((e) => e.playerId === entry.partnerId)?.player.nickname ?? '-')
                               : '-'}
                           </TableCell>
+                          {taBattleRoyaleMode && (
+                            <TableCell>
+                              <TaHandicapBadge value={entry.taHandicapSeconds} />
+                            </TableCell>
+                          )}
                           <TableCell className="text-center">
                             {getEnteredTimesCount(entry)} / {TOTAL_COURSES}
                           </TableCell>
