@@ -39,14 +39,17 @@ describe('LoadingSpinner — accessibility', () => {
 
   it('TC-2721: uses the English loading label by default', () => {
     render(<LoadingSpinner />);
-    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    const spinner = screen.getByRole('status', { name: 'Loading' });
+
+    expect(spinner).toHaveAttribute('aria-label', 'Loading');
   });
 
   it('uses the Japanese loading label for Japanese locale', () => {
     mockLocale = 'ja';
     render(<LoadingSpinner />);
+    const spinner = screen.getByRole('status', { name: '読み込み中' });
 
-    expect(screen.getByRole('status', { name: '読み込み中' })).toBeInTheDocument();
+    expect(spinner).toHaveAttribute('aria-label', '読み込み中');
   });
 });
 
