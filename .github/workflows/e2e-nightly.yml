@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  profile-preflight:
+  profile_preflight:
     name: Check admin browser profile prerequisite
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -54,8 +54,8 @@ jobs:
 
   e2e:
     name: TA Battle Royale E2E (preview)
-    needs: profile-preflight
-    if: needs.profile-preflight.outputs.profile_available == 'true'
+    needs: profile_preflight
+    if: needs.profile_preflight.outputs.profile_available == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
