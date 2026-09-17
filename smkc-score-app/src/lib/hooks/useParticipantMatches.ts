@@ -151,13 +151,11 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           return;
         }
 
-        const tJson = await tournamentResponse.json();
-        /* Unwrap createSuccessResponse wrapper */
-        setTournament(tJson.data ?? tJson);
-
-        const json = await matchesResponse.json();
-        /* Unwrap createSuccessResponse wrapper (#274) */
+        const [tJson, json] = await Promise.all([tournamentResponse.json(), matchesResponse.json()]);
+        /* Unwrap createSuccessResponse wrappers only after both bodies parse successfully. */
+        const tournamentData = tJson.data ?? tJson;
         const data = json.data ?? json;
+        setTournament(tournamentData);
         setMatches(data.matches || []);
         /* Track qualification lock state for disabling score entry */
         if (data.qualificationConfirmed !== undefined) {
