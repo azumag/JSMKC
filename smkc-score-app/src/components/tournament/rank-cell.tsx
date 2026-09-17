@@ -16,8 +16,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { createLogger } from '@/lib/client-logger';
+
+const logger = createLogger({ serviceName: 'qualification-rank-cell' });
 
 interface RankCellProps {
   /** Qualification record ID (used in the PATCH request body) */
@@ -38,6 +42,7 @@ interface RankCellProps {
  * ever in edit mode at a time and there is no need to lift this state.
  */
 export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onSave }: RankCellProps) {
+  const tCommon = useTranslations('common');
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   // Inline error message shown when onSave rejects; null means no error.
@@ -58,8 +63,13 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       const saved = await onSave(qualificationId, isNaN(v) ? null : v);
       if (saved !== false) setIsEditing(false);
     } catch (err) {
-      // Keep the editor open so the user can retry after seeing the error.
-      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
+      // Keep the editor open so the user can retry after seeing a safe error.
+      logger.error('Unexpected rank override save rejection:', {
+        error: err,
+        qualificationId,
+        action: 'save',
+      });
+      setSaveError(tCommon('networkError'));
     }
   };
 
@@ -69,7 +79,12 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       const saved = await onSave(qualificationId, null);
       if (saved !== false) setIsEditing(false);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
+      logger.error('Unexpected rank override save rejection:', {
+        error: err,
+        qualificationId,
+        action: 'clear',
+      });
+      setSaveError(tCommon('networkError'));
     }
   };
 
