@@ -64,9 +64,8 @@ jest.mock('@/lib/client-logger', () => {
   return { createLogger: () => logger, __mockLogger: logger };
 });
 
-const mockLoggerError = (
-  jest.requireMock('@/lib/client-logger') as { __mockLogger: { error: jest.Mock } }
-).__mockLogger.error;
+const mockLoggerError = (jest.requireMock('@/lib/client-logger') as { __mockLogger: { error: jest.Mock } }).__mockLogger
+  .error;
 
 const player = (id: string, nickname: string) => ({ id, name: nickname, nickname });
 
