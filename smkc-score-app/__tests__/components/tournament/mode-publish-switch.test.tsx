@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Unit tests for the ModePublishSwitch component (TC-2663 through TC-2668).
+ * Unit tests for the ModePublishSwitch component (TC-2663 through TC-2670).
  *
  * ModePublishSwitch is the per-mode publish toggle rendered on each mode page.
  * It wraps useModePublish and shows a badge reflecting the current publish state.
@@ -12,12 +12,13 @@ import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 
 const toggleMock = jest.fn();
 
-// Default state: not published, not loading/updating
+// Default state: not published, not loading/updating, no error
 const defaultPublishState = {
   isPublic: false,
   toggle: toggleMock,
   updating: false,
   loading: false,
+  error: null,
 };
 
 jest.mock('next-intl', () => ({
@@ -129,5 +130,35 @@ describe('ModePublishSwitch', () => {
     // useTranslations mock returns the key, so: "battleMode: unpublishMode"
     const switchEl = screen.getByRole('switch');
     expect(switchEl).toHaveAttribute('aria-label', 'battleMode: unpublishMode');
+  });
+
+  it('TC-2669: initial load failure shows network error and disables switch', () => {
+    mockUseModePublish.mockReturnValue({ ...defaultPublishState, error: 'load' });
+
+    render(
+      <ModePublishSwitch
+        tournamentId="t-1"
+        mode="BM"
+        modeLabelKey="battleMode"
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.getByRole('switch')).toBeDisabled();
+  });
+
+  it('TC-2670: update failure shows network error but allows retry', () => {
+    mockUseModePublish.mockReturnValue({ ...defaultPublishState, error: 'update' });
+
+    render(
+      <ModePublishSwitch
+        tournamentId="t-1"
+        mode="BM"
+        modeLabelKey="battleMode"
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.getByRole('switch')).toBeEnabled();
   });
 });
