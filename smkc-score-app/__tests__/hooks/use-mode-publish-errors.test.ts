@@ -20,9 +20,7 @@ jest.mock('@/lib/client-logger', () => ({
 
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
-const mockedFetchWithRetry = fetchWithRetry as jest.MockedFunction<
-  typeof fetchWithRetry
->;
+const mockedFetchWithRetry = fetchWithRetry as jest.MockedFunction<typeof fetchWithRetry>;
 const TOURNAMENT_ID = 'tournament-error-state';
 const MODE = 'bm' as const;
 
