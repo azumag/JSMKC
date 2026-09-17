@@ -556,9 +556,16 @@ export default function TimeAttackPageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const json = await response.json();
+      const json = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(json.error || 'Failed to promote players');
+        logger.error('Failed to promote TA phase:', {
+          status: response.status,
+          error: json.error,
+          action,
+          tournamentId,
+        });
+        alert(json.error || tc('networkError'));
+        return;
       }
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, skipped } }
       const data = json.data ?? json;
@@ -568,8 +575,9 @@ export default function TimeAttackPageClient({
         alert(`Promoted ${data.entries.length} players. Skipped: ${data.skipped.join(', ')} (incomplete times)`);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to promote';
-      alert(errorMessage);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to promote TA phase:', { ...metadata, action, tournamentId });
+      alert(tc('networkError'));
     } finally {
       setPromotingPhase(null);
     }
@@ -592,16 +600,24 @@ export default function TimeAttackPageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reset_phase', phase: stage }),
       });
-      const json = await response.json();
+      const json = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(json.error || t('failedResetPhase'));
+        logger.error('Failed to reset TA phase:', {
+          status: response.status,
+          error: json.error,
+          stage,
+          tournamentId,
+        });
+        alert(json.error || tc('networkError'));
+        return;
       }
       // Refresh phase status so the reset stage's card and its promotion
       // button reappear immediately.
       await fetchPhaseStatus();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : t('failedResetPhase');
-      alert(errorMessage);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to reset TA phase:', { ...metadata, stage, tournamentId });
+      alert(tc('networkError'));
     } finally {
       setResettingPhase(null);
     }
@@ -719,7 +735,14 @@ export default function TimeAttackPageClient({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to save times');
+        logger.error('Failed to save TA qualification times:', {
+          status: response.status,
+          error: errorData.error,
+          tournamentId,
+          entryId: selectedEntry.id,
+        });
+        setSaveError(errorData.error || tc('networkError'));
+        return;
       }
 
       setIsTimeEntryDialogOpen(false);
@@ -727,9 +750,13 @@ export default function TimeAttackPageClient({
       setTimeInputs({});
       refetch();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save times';
-      logger.error('Failed to save times:', { error: err, tournamentId });
-      setSaveError(errorMessage);
+      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      logger.error('Failed to save TA qualification times:', {
+        ...metadata,
+        tournamentId,
+        entryId: selectedEntry.id,
+      });
+      setSaveError(tc('networkError'));
     } finally {
       setSaving(false);
     }
