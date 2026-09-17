@@ -7,16 +7,16 @@
  * BM-specific: increment/decrement (+/-) buttons for score1/score2 input.
  * Score range 0-4, total must equal 4. A 2-2 tie is valid (§4.1).
  */
-"use client";
+'use client';
 
-import { use, useCallback, useState } from "react";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Trophy } from "lucide-react";
-import { useParticipantMatches, type BaseMatch } from "@/lib/hooks/useParticipantMatches";
-import { useParticipantScoreInput } from "@/lib/hooks/useParticipantScoreInput";
-import { ParticipantPageLayout } from "@/components/tournament/participant-page-layout";
-import { getScoreReportSuccessMessage } from "@/lib/participant-report-message";
+import { use, useCallback, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Trophy } from 'lucide-react';
+import { useParticipantMatches, type BaseMatch } from '@/lib/hooks/useParticipantMatches';
+import { useParticipantScoreInput } from '@/lib/hooks/useParticipantScoreInput';
+import { ParticipantPageLayout } from '@/components/tournament/participant-page-layout';
+import { getScoreReportSuccessMessage } from '@/lib/participant-report-message';
 
 /** BM Match extends BaseMatch with BM-specific score/report fields */
 interface BMMatch extends BaseMatch {
@@ -29,21 +29,17 @@ interface BMMatch extends BaseMatch {
   player2ReportedScore2?: number;
 }
 
-export default function BattleModeParticipantPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function BattleModeParticipantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
-  const tPart = useTranslations("participant");
-  const tMatch = useTranslations("match");
-  const tCommon = useTranslations("common");
+  const tPart = useTranslations('participant');
+  const tMatch = useTranslations('match');
+  const tCommon = useTranslations('common');
 
   /* Shared hook for session, data fetching, polling, match filtering */
   const ctx = useParticipantMatches<BMMatch>({
     tournamentId,
-    mode: "bm",
-    networkErrorMessage: tCommon("networkError"),
+    mode: 'bm',
+    networkErrorMessage: tCommon('networkError'),
   });
 
   const [editingCorrections, setEditingCorrections] = useState<Record<string, boolean>>({});
@@ -51,14 +47,16 @@ export default function BattleModeParticipantPage({
   const handleScoreSubmitSuccess = useCallback(
     (data: Record<string, unknown>, match: BMMatch) => {
       setEditingCorrections((prev) => ({ ...prev, [match.id]: false }));
-      alert(getScoreReportSuccessMessage(data, {
-        correctionSubmittedSuccess: tPart("correctionSubmittedSuccess"),
-        scoresReportedSuccess: tPart("scoresReportedSuccess"),
-        scoresConfirmedSuccess: tPart("scoresConfirmedSuccess"),
-        scoresMismatchSubmitted: tPart("scoresMismatchSubmitted"),
-      }));
+      alert(
+        getScoreReportSuccessMessage(data, {
+          correctionSubmittedSuccess: tPart('correctionSubmittedSuccess'),
+          scoresReportedSuccess: tPart('scoresReportedSuccess'),
+          scoresConfirmedSuccess: tPart('scoresConfirmedSuccess'),
+          scoresMismatchSubmitted: tPart('scoresMismatchSubmitted'),
+        }),
+      );
     },
-    [tPart]
+    [tPart],
   );
 
   const {
@@ -77,7 +75,7 @@ export default function BattleModeParticipantPage({
     }),
     submitReport: ctx.submitReport,
     setError: ctx.setError,
-    totalMustEqualMessage: tMatch("totalMustEqual4"),
+    totalMustEqualMessage: tMatch('totalMustEqual4'),
     onSubmitSuccess: handleScoreSubmitSuccess,
   });
 
@@ -99,19 +97,17 @@ export default function BattleModeParticipantPage({
                 size="sm"
                 className="h-10 w-10 text-lg"
                 aria-label={`${match.player1.nickname} -1`}
-                onClick={() => adjustScore(match, "score1", -1)}
+                onClick={() => adjustScore(match, 'score1', -1)}
               >
                 -
               </Button>
-              <span className="text-3xl font-bold w-10 text-center">
-                {scores.score1}
-              </span>
+              <span className="text-3xl font-bold w-10 text-center">{scores.score1}</span>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-10 w-10 text-lg"
                 aria-label={`${match.player1.nickname} +1`}
-                onClick={() => adjustScore(match, "score1", 1)}
+                onClick={() => adjustScore(match, 'score1', 1)}
               >
                 +
               </Button>
@@ -127,19 +123,17 @@ export default function BattleModeParticipantPage({
                 size="sm"
                 className="h-10 w-10 text-lg"
                 aria-label={`${match.player2.nickname} -1`}
-                onClick={() => adjustScore(match, "score2", -1)}
+                onClick={() => adjustScore(match, 'score2', -1)}
               >
                 -
               </Button>
-              <span className="text-3xl font-bold w-10 text-center">
-                {scores.score2}
-              </span>
+              <span className="text-3xl font-bold w-10 text-center">{scores.score2}</span>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-10 w-10 text-lg"
                 aria-label={`${match.player2.nickname} +1`}
-                onClick={() => adjustScore(match, "score2", 1)}
+                onClick={() => adjustScore(match, 'score2', 1)}
               >
                 +
               </Button>
@@ -149,11 +143,12 @@ export default function BattleModeParticipantPage({
 
         {/* Validation: total rounds must equal 4.
            Always rendered to reserve vertical space and prevent layout shift. */}
-        <p className={`text-sm text-center mb-3 ${
-          !totalValid && (scores.score1 > 0 || scores.score2 > 0)
-            ? 'text-yellow-600' : 'invisible'
-        }`}>
-          {tMatch("totalMustEqual4")}
+        <p
+          className={`text-sm text-center mb-3 ${
+            !totalValid && (scores.score1 > 0 || scores.score2 > 0) ? 'text-yellow-600' : 'invisible'
+          }`}
+        >
+          {tMatch('totalMustEqual4')}
         </p>
 
         <Button
@@ -161,9 +156,7 @@ export default function BattleModeParticipantPage({
           disabled={ctx.submitting === match.id || !totalValid}
           className="w-full"
         >
-          {ctx.submitting === match.id
-            ? tMatch("submitting")
-            : submitLabel}
+          {ctx.submitting === match.id ? tMatch('submitting') : submitLabel}
         </Button>
       </div>
     );
@@ -190,8 +183,8 @@ export default function BattleModeParticipantPage({
       renderMatchForm={(match) => {
         return renderScoreEditor(
           match,
-          hasOwnReport(match) ? tPart("editYourReport") : tPart("reportMatchResult"),
-          hasOwnReport(match) ? tPart("submitCorrection") : tPart("submitScores")
+          hasOwnReport(match) ? tPart('editYourReport') : tPart('reportMatchResult'),
+          hasOwnReport(match) ? tPart('submitCorrection') : tPart('submitScores'),
         );
       }}
       renderPreviousReports={(match) => {
@@ -202,41 +195,39 @@ export default function BattleModeParticipantPage({
           <div className="border-t pt-4">
             {(p1reported || p2reported) && (
               <>
-                <h4 className="font-medium mb-2">{tPart("previousReports")}</h4>
+                <h4 className="font-medium mb-2">{tPart('previousReports')}</h4>
                 <div className="space-y-2 text-sm">
                   {p1reported && (
                     <div className="flex justify-between p-2 bg-gray-50 rounded">
                       <span>
-                        {tPart("playerReported", {
+                        {tPart('playerReported', {
                           player: match.player1.nickname,
                         })}
                       </span>
                       <span className="font-mono">
-                        {match.player1ReportedScore1} -{" "}
-                        {match.player1ReportedScore2}
+                        {match.player1ReportedScore1} - {match.player1ReportedScore2}
                       </span>
                     </div>
                   )}
                   {p2reported && (
                     <div className="flex justify-between p-2 bg-gray-50 rounded">
                       <span>
-                        {tPart("playerReported", {
+                        {tPart('playerReported', {
                           player: match.player2.nickname,
                         })}
                       </span>
                       <span className="font-mono">
-                        {match.player2ReportedScore1} -{" "}
-                        {match.player2ReportedScore2}
+                        {match.player2ReportedScore1} - {match.player2ReportedScore2}
                       </span>
                     </div>
                   )}
                 </div>
               </>
             )}
-            {match.completed && (
-              editingCorrections[match.id] ? (
+            {match.completed &&
+              (editingCorrections[match.id] ? (
                 <div className="mt-4 space-y-3">
-                  {renderScoreEditor(match, tPart("correctScore"), tPart("submitCorrection"))}
+                  {renderScoreEditor(match, tPart('correctScore'), tPart('submitCorrection'))}
                   <Button
                     type="button"
                     variant="outline"
@@ -250,7 +241,7 @@ export default function BattleModeParticipantPage({
                       });
                     }}
                   >
-                    {tPart("cancelCorrection")}
+                    {tPart('cancelCorrection')}
                   </Button>
                 </div>
               ) : (
@@ -266,10 +257,9 @@ export default function BattleModeParticipantPage({
                     setEditingCorrections((prev) => ({ ...prev, [match.id]: true }));
                   }}
                 >
-                  {tPart("correctScore")}
+                  {tPart('correctScore')}
                 </Button>
-              )
-            )}
+              ))}
           </div>
         );
       }}
