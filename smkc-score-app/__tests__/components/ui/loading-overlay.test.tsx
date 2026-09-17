@@ -6,6 +6,7 @@
  * LoadingOverlay renders a full-screen blocking overlay with a spinner
  * and message, or returns null when isOpen=false.
  */
+import type { ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
@@ -18,7 +19,7 @@ const loadingMessages = {
 };
 
 function renderLoadingOverlay(
-  props: React.ComponentProps<typeof LoadingOverlay>,
+  props: ComponentProps<typeof LoadingOverlay>,
   locale: keyof typeof loadingMessages = 'en',
 ) {
   return render(
