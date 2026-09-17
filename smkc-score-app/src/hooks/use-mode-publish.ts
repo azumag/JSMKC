@@ -13,6 +13,8 @@ export type ModePublishError = 'load' | 'update';
 export interface UseModePublishResult {
   isPublic: boolean;
   toggle: () => Promise<void>;
+  /** Retries only the initial/current publicModes read; never mutates tournament state. */
+  retryLoad: () => void;
   updating: boolean;
   /** True until the initial publicModes fetch resolves. */
   loading: boolean;
@@ -32,6 +34,7 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const [updating, setUpdating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ModePublishError | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +67,12 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
     return () => {
       cancelled = true;
     };
-  }, [tournamentId]);
+  }, [loadAttempt, tournamentId]);
+
+  const retryLoad = useCallback(() => {
+    if (loading || error !== 'load') return;
+    setLoadAttempt((attempt) => attempt + 1);
+  }, [error, loading]);
 
   const isPublic = publicModes.includes(mode);
 
@@ -102,5 +110,5 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
     }
   }, [error, isPublic, mode, publicModes, tournamentId, updating]);
 
-  return { isPublic, toggle, updating, loading, error };
+  return { isPublic, toggle, retryLoad, updating, loading, error };
 }
