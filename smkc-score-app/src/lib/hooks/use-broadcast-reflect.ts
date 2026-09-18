@@ -35,6 +35,7 @@ export function useBroadcastReflect(
   // The status reset is delayed for operator feedback, so keep the timer handle
   // to prevent stale setState work after unmount or after a newer reflect action.
   const idleResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestGenerationRef = useRef(0);
   const isMountedRef = useRef(true);
 
   const clearIdleResetTimer = useCallback(() => {
@@ -61,6 +62,8 @@ export function useBroadcastReflect(
 
   /** Push TV1→player1Name / TV2→player2Name to the broadcast overlay. */
   const handleBroadcastReflect = useCallback(async () => {
+    const requestGeneration = ++requestGenerationRef.current;
+    clearIdleResetTimer();
     const activeEntries = entries.filter((e) => !e.eliminated);
     const tv1Player = activeEntries.find((e) => tvAssignments[e.playerId] === 1);
     const tv2Player = activeEntries.find((e) => tvAssignments[e.playerId] === 2);
@@ -75,18 +78,19 @@ export function useBroadcastReflect(
           player2NoCamera: tv2Player?.player.noCamera === true,
         }),
       });
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
       setBroadcastStatus(res.ok ? "success" : "error");
       scheduleIdleReset();
     } catch {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
       setBroadcastStatus("error");
       scheduleIdleReset();
     }
-  }, [entries, scheduleIdleReset, tournamentId, tvAssignments]);
+  }, [clearIdleResetTimer, entries, scheduleIdleReset, tournamentId, tvAssignments]);
 
   /** Reset the status indicator (call when starting/cancelling/undoing rounds). */
   const resetBroadcastStatus = useCallback(() => {
+    requestGenerationRef.current += 1;
     clearIdleResetTimer();
     setBroadcastStatus("idle");
   }, [clearIdleResetTimer]);
