@@ -20,20 +20,21 @@ function sliceBetween(source: string, start: string, end: string): string {
 }
 
 describe('qualification save failure feedback', () => {
-  it('keeps BM score state on failure and reports API/network errors through alert', () => {
+  it('keeps BM score state on failure and hides API details behind common.networkError', () => {
     const block = sliceBetween(
       readPage(bmPagePath),
       'const handleScoreSubmit = async () => {',
       'const handleBroadcastMatch =',
     );
 
-    expect(block).toContain("alert(errorData.error || tc('networkError'));\n        return;");
+    expect(block).not.toContain('errorData.error');
+    expect(block).toContain("logger.error('Failed to update score:', {");
+    expect(block).toContain('status: response.status');
+    expect(block).toContain("alert(tc('networkError'));\n        return;");
     expect(block).toContain(
       "logger.error('Failed to update score:', { error: err, tournamentId });\n      alert(tc('networkError'));",
     );
-    expect(block.indexOf("alert(errorData.error || tc('networkError'))")).toBeLessThan(
-      block.indexOf('setIsScoreDialogOpen(false)'),
-    );
+    expect(block.indexOf("alert(tc('networkError'))")).toBeLessThan(block.indexOf('setIsScoreDialogOpen(false)'));
   });
 
   it('keeps MR score state on failure and reports API/network errors through toast', () => {
