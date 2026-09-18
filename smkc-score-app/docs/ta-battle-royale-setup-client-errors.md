@@ -1,16 +1,20 @@
 # TA battle royale setup client error contract
 
-`BattleRoyaleSetupClient` の generic network failure は next-intl の `common.networkError` を使用する。
+`BattleRoyaleSetupClient` のユーザー向け failure は next-intl の `common.networkError` に統一する。
 
-開始 API が具体的な `payload.error` を返す場合はその内容を優先し、non-2xx response に具体的 error がない場合は `common.networkError` に fallback する。`fetch()` rejection やその他の client-side 例外も `common.networkError` を表示し、browser/runtime 由来の raw `Error.message` はユーザー UI に表示しない。low-level detail は client logger に残す。
+開始 API の non-2xx response も `common.networkError` を表示し、response body の raw `payload.error` はユーザー UI に表示しない。`fetch()` rejection やその他の client-side 例外、player list fetch failure も同じ generic message を表示し、browser/runtime 由来の raw `Error.message` もユーザー UI に表示しない。
 
-## 保持する優先順位
+## 診断情報
 
-1. start API response の具体的な `payload.error`
-2. start API の generic non-2xx failure は `common.networkError`
-3. fetch rejection / player list fetch failure も `common.networkError`
+non-2xx start response は HTTP status と API error を logger に残し、request rejection は元の例外を logger に残す。ユーザー向け表示を fail-closed にしても、開発・運用時の診断情報は client logger で保持する。
 
-non-2xx start response は HTTP status と API error を logger に残し、request rejection は元の例外を logger に残す。ユーザー向け表示を一般化しても診断情報は失わない。
+## ユーザー向け表示
+
+1. start API の non-2xx response は `common.networkError`
+2. fetch rejection は `common.networkError`
+3. player list fetch failure も `common.networkError`
+
+raw `payload.error` と raw `Error.message` は UI に出さない。
 
 ## 非対象
 
