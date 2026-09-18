@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type Dispatch, type InputHTMLAttributes, type SetStateAction } from 'react';
+import { useMemo, useRef, useState, type Dispatch, type InputHTMLAttributes, type SetStateAction } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { PlayerName } from '@/components/ui/player-name';
@@ -62,6 +62,10 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
   const [times, setTimes] = useState<Record<string, string>>({});
   const [changingCourse, setChangingCourse] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Course changes and result submission mutate the same sudden-death round.
+  // Serialize them independently from React render state so same-render re-entry
+  // or a course-change → submit race cannot issue overlapping POST requests.
+  const mutationInFlightRef = useRef(false);
 
   /*
    * Phase 1/2 elimination and Phase 3 finals use the same sudden-death API contract.
@@ -96,7 +100,8 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
   };
 
   const handleCourseChange = async (course: string) => {
-    if (!pendingSuddenDeath) return;
+    if (!pendingSuddenDeath || mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
     setChangingCourse(true);
     setSaveError(null);
     try {
@@ -125,24 +130,26 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       setSaveError(tCommon('networkError'));
     } finally {
+      mutationInFlightRef.current = false;
       setChangingCourse(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!pendingSuddenDeath) return;
-    setSubmitting(true);
+    if (!pendingSuddenDeath || mutationInFlightRef.current) return;
     setSaveError(null);
     const results: { playerId: string; timeMs: number }[] = [];
     for (const entry of pendingSuddenDeathEntries) {
       const timeMs = timeToMs(times[entry.playerId] || '');
       if (timeMs === null) {
         setSaveError(invalidTimeMessage(entry.player.nickname));
-        setSubmitting(false);
         return;
       }
       results.push({ playerId: entry.playerId, timeMs });
     }
+
+    mutationInFlightRef.current = true;
+    setSubmitting(true);
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases`, {
         method: 'POST',
@@ -170,6 +177,7 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
       });
       setSaveError(tCommon('networkError'));
     } finally {
+      mutationInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -307,7 +315,11 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
           ))}
         </div>
         <div className="mt-6 flex justify-end">
-          <Button onClick={onSubmit} disabled={submittingSuddenDeath} data-testid="ta-sudden-death-submit">
+          <Button
+            onClick={onSubmit}
+            disabled={changingSuddenDeathCourse || submittingSuddenDeath}
+            data-testid="ta-sudden-death-submit"
+          >
             {submittingSuddenDeath ? submittingLabel : tTaSuddenDeath('submitSuddenDeath')}
           </Button>
         </div>
