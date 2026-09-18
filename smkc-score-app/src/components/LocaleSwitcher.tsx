@@ -13,7 +13,7 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
 
@@ -34,6 +34,7 @@ export function LocaleSwitcher() {
   const tLocaleSwitcher = useTranslations('localeSwitcher');
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const requestInFlightRef = useRef(false);
 
   // Guard against unexpected locale values
   const currentLocale: Locale = isValidLocale(locale) ? locale : 'en';
@@ -45,7 +46,8 @@ export function LocaleSwitcher() {
    * Shows toast notification on success or error.
    */
   const switchLocale = async () => {
-    if (isLoading) return;
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
 
     const newLocale: Locale = currentLocale === 'en' ? 'ja' : 'en';
     setIsLoading(true);
@@ -69,6 +71,7 @@ export function LocaleSwitcher() {
       logger.error('Locale switch failed:', { error });
       toast.error(tCommon('networkError'));
     } finally {
+      requestInFlightRef.current = false;
       setIsLoading(false);
     }
   };
