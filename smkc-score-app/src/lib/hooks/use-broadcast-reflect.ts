@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * useBroadcastReflect
@@ -15,7 +15,7 @@
  * in ta-elimination-phase.tsx and ta/finals/page.tsx (issue #807).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface BroadcastEntry {
   playerId: string;
@@ -23,15 +23,14 @@ interface BroadcastEntry {
   player: { nickname: string; noCamera?: boolean };
 }
 
-type BroadcastStatus = "idle" | "success" | "error";
+type BroadcastStatus = 'idle' | 'success' | 'error';
 
 export function useBroadcastReflect(
   tournamentId: string,
   tvAssignments: Record<string, number | null>,
-  entries: BroadcastEntry[]
+  entries: BroadcastEntry[],
 ) {
-  const [broadcastStatus, setBroadcastStatus] =
-    useState<BroadcastStatus>("idle");
+  const [broadcastStatus, setBroadcastStatus] = useState<BroadcastStatus>('idle');
   // The status reset is delayed for operator feedback, so keep the timer handle
   // to prevent stale setState work after unmount or after a newer reflect action.
   const idleResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,7 +47,7 @@ export function useBroadcastReflect(
     clearIdleResetTimer();
     idleResetTimerRef.current = setTimeout(() => {
       idleResetTimerRef.current = null;
-      setBroadcastStatus("idle");
+      setBroadcastStatus('idle');
     }, 3000);
   }, [clearIdleResetTimer]);
 
@@ -69,21 +68,21 @@ export function useBroadcastReflect(
     const tv2Player = activeEntries.find((e) => tvAssignments[e.playerId] === 2);
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player1Name: tv1Player?.player.nickname ?? "",
-          player2Name: tv2Player?.player.nickname ?? "",
+          player1Name: tv1Player?.player.nickname ?? '',
+          player2Name: tv2Player?.player.nickname ?? '',
           player1NoCamera: tv1Player?.player.noCamera === true,
           player2NoCamera: tv2Player?.player.noCamera === true,
         }),
       });
       if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
-      setBroadcastStatus(res.ok ? "success" : "error");
+      setBroadcastStatus(res.ok ? 'success' : 'error');
       scheduleIdleReset();
     } catch {
       if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
-      setBroadcastStatus("error");
+      setBroadcastStatus('error');
       scheduleIdleReset();
     }
   }, [clearIdleResetTimer, entries, scheduleIdleReset, tournamentId, tvAssignments]);
@@ -92,7 +91,7 @@ export function useBroadcastReflect(
   const resetBroadcastStatus = useCallback(() => {
     requestGenerationRef.current += 1;
     clearIdleResetTimer();
-    setBroadcastStatus("idle");
+    setBroadcastStatus('idle');
   }, [clearIdleResetTimer]);
 
   /**
