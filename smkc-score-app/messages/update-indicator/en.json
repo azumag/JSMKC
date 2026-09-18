@@ -1,0 +1,8 @@
+{
+  "live": "Live",
+  "paused": "Paused",
+  "lastUpdated": "Last updated: {time}",
+  "secondsAgo": "{count}s ago",
+  "minutesAgo": "{count}m ago",
+  "hoursAgo": "{count}h ago"
+}

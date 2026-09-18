@@ -13,14 +13,16 @@
  * Visual states:
  * - Live (polling active): Green badge with animated spinner icon
  * - Paused (polling inactive): Gray badge with clock icon
- * - Time since last update: Text showing "Xs ago", "Xm ago", or "Xh ago"
+ * - Time since last update: Localized relative-time text
  *
  * The time display updates every second via setInterval to provide
  * continuous feedback even when no new data arrives.
  */
-import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
+
+import { Badge } from '@/components/ui/badge';
 
 /**
  * Props for the UpdateIndicator component.
@@ -38,22 +40,20 @@ interface UpdateIndicatorProps {
 /**
  * Real-time update status indicator.
  *
- * Displays a badge showing the current polling state (Live/Paused)
- * and a relative time display showing how long ago the data was
- * last refreshed.
+ * Displays a badge showing the current polling state and a localized
+ * relative time display showing how long ago the data was last refreshed.
  *
  * The secondsAgo counter updates every 1000ms to provide a live
  * "time since last update" display. This helps tournament operators
  * know if the data is fresh and if polling is functioning correctly.
  *
- * The "Last updated" text and state labels are hidden on small screens
+ * The status text and relative time are hidden on small screens
  * (sm:inline) to conserve horizontal space in mobile layouts, while
  * the badge icon remains visible as a minimal status indicator.
  */
-export function UpdateIndicator({
-  lastUpdated,
-  isPolling,
-}: UpdateIndicatorProps) {
+export function UpdateIndicator({ lastUpdated, isPolling }: UpdateIndicatorProps) {
+  const t = useTranslations('updateIndicator');
+
   /**
    * Track seconds since last update, initialized from the lastUpdated prop.
    * Uses a factory initializer to compute the initial value synchronously
@@ -83,38 +83,36 @@ export function UpdateIndicator({
   }, [lastUpdated]);
 
   /**
-   * Formats a seconds value into a human-readable relative time string.
+   * Formats a seconds value into a localized relative time string.
    * Uses progressive units: seconds -> minutes -> hours.
-   * This simple formatter avoids external dependencies (e.g., date-fns)
-   * for this lightweight display-only use case.
    */
   const formatTimeAgo = (seconds: number): string => {
-    if (seconds < 60) return `${seconds}s ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 60) return t('secondsAgo', { count: seconds });
+    if (seconds < 3600) return t('minutesAgo', { count: Math.floor(seconds / 60) });
+    return t('hoursAgo', { count: Math.floor(seconds / 3600) });
   };
 
   return (
     <div className="flex items-center gap-2">
-      {/* Polling status badge: Live (spinning icon) or Paused (clock icon) */}
+      {/* Polling status badge: live (spinning icon) or paused (clock icon) */}
       {isPolling ? (
         <Badge variant="default" className="gap-1">
           <Loader2 className="h-3 w-3 animate-spin" />
           {/* Label text hidden on mobile to save space */}
-          <span className="hidden sm:inline">Live</span>
+          <span className="hidden sm:inline">{t('live')}</span>
         </Badge>
       ) : (
         <Badge variant="secondary" className="gap-1">
           <Clock className="h-3 w-3" />
           {/* Label text hidden on mobile to save space */}
-          <span className="hidden sm:inline">Paused</span>
+          <span className="hidden sm:inline">{t('paused')}</span>
         </Badge>
       )}
       {/* Relative time display, only shown when data has been fetched at least once.
           Hidden on mobile (sm:inline) to conserve horizontal space. */}
       {lastUpdated && (
-        <span className="text-xs text-muted-foreground hidden sm:inline">
-          Last updated: {formatTimeAgo(secondsAgo)}
+        <span className="hidden text-xs text-muted-foreground sm:inline">
+          {t('lastUpdated', { time: formatTimeAgo(secondsAgo) })}
         </span>
       )}
     </div>

@@ -31,6 +31,8 @@ import enTaPromotion from '../../messages/ta-promotion/en.json';
 import jaTaPromotion from '../../messages/ta-promotion/ja.json';
 import enTournamentLayout from '../../messages/tournament-layout/en.json';
 import jaTournamentLayout from '../../messages/tournament-layout/ja.json';
+import enUpdateIndicator from '../../messages/update-indicator/en.json';
+import jaUpdateIndicator from '../../messages/update-indicator/ja.json';
 import { type Locale, locales, defaultLocale, LOCALE_COOKIE } from './config';
 
 const broadcastMessages = {
@@ -83,6 +85,11 @@ const tournamentLayoutMessages = {
   ja: jaTournamentLayout,
 } satisfies Record<Locale, typeof enTournamentLayout>;
 
+const updateIndicatorMessages = {
+  en: enUpdateIndicator,
+  ja: jaUpdateIndicator,
+} satisfies Record<Locale, typeof enUpdateIndicator>;
+
 async function loadMessages(locale: Locale) {
   const messages = (await import(`../../messages/${locale}.json`)).default;
 
@@ -102,6 +109,7 @@ async function loadMessages(locale: Locale) {
     localeSwitcher: localeSwitcherMessages[locale],
     rankCell: rankCellMessages[locale],
     tournamentLayout: tournamentLayoutMessages[locale],
+    updateIndicator: updateIndicatorMessages[locale],
     match: {
       ...messages.match,
       ...matchValidationMessages[locale],
