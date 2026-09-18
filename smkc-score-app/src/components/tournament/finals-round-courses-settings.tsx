@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,9 +37,12 @@ export function FinalsRoundCoursesSettings({
   const activeCoursesValue = toCourses(pending[0]?.assignedCourses).join(', ');
   const [value, setValue] = useState(activeCoursesValue);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   useEffect(() => setValue(activeCoursesValue), [match.id, activeCoursesValue]);
 
   const save = async () => {
+    if (savingRef.current) return;
+
     const courses = value
       .split(',')
       .map((course) => course.trim())
@@ -48,6 +51,7 @@ export function FinalsRoundCoursesSettings({
       alert(t('invalidRoundCourses'));
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       let response: Response;
@@ -74,6 +78,7 @@ export function FinalsRoundCoursesSettings({
       }
       onSaved();
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
