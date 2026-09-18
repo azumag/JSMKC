@@ -6,15 +6,16 @@ import { render, screen } from '@testing-library/react';
 import ProfilePage from '@/app/profile/page';
 
 const mockUseSession = jest.fn();
-const profileTranslations = (key: string) => `profile.${key}`;
-const commonTranslations = (key: string) => (key === 'networkError' ? 'Network error' : `common.${key}`);
 
 jest.mock('next-auth/react', () => ({
   useSession: () => mockUseSession(),
 }));
 
 jest.mock('next-intl', () => ({
-  useTranslations: (namespace: string) => (namespace === 'common' ? commonTranslations : profileTranslations),
+  useTranslations: (namespace: string) => (key: string) => {
+    if (namespace === 'common' && key === 'networkError') return 'Network error';
+    return `${namespace}.${key}`;
+  },
 }));
 
 jest.mock('@/components/players/qr-login-dialog', () => ({
