@@ -140,7 +140,7 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
           error: payload.error,
           tournamentId,
         });
-        setError(payload.error || tc('networkError'));
+        setError(tc('networkError'));
         setConfirmOpen(false);
         return;
       }
