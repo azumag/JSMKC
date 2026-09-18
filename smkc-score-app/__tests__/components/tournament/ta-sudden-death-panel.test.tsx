@@ -129,7 +129,7 @@ describe('useTaSuddenDeath', () => {
     expect(result.current.submittingSuddenDeath).toBe(false);
   });
 
-  it('uses generic network feedback for submit API errors and does not refresh data', async () => {
+  it('reports submit API errors with generic network feedback and does not refresh data', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
     jest.spyOn(global, 'fetch').mockResolvedValue(mockJsonResponse(false, { error: 'raw submit API detail' }));
@@ -196,7 +196,7 @@ describe('useTaSuddenDeath', () => {
     expect(result.current.changingSuddenDeathCourse).toBe(false);
   });
 
-  it('uses generic network feedback for course-change API errors and does not refresh data', async () => {
+  it('reports course-change API errors with generic network feedback and does not refresh data', async () => {
     const fetchData = jest.fn();
     const setSaveError = jest.fn();
     jest.spyOn(global, 'fetch').mockResolvedValue(mockJsonResponse(false, { error: 'raw course API detail' }));
