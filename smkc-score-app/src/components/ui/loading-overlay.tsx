@@ -20,7 +20,6 @@
  * - aria-modal="true" identifies the overlay as modal to assistive technology
  * - aria-live="polite" announces the newly displayed processing state without
  *   interrupting current screen reader output
- * - aria-busy="true" exposes that the modal represents an in-progress operation
  * - Returns null when isOpen is false to avoid unnecessary DOM nodes
  */
 'use client';
@@ -65,7 +64,6 @@ export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
       role="dialog"
       aria-modal="true"
       aria-live="polite"
-      aria-busy="true"
       aria-label={t('ariaLabel')}
     >
       {/* Centered card with border and shadow for visual elevation */}
