@@ -13,45 +13,42 @@
  *   - ExportButton: Named export (the primary component).
  */
 
-import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
-import { createLogger } from "@/lib/client-logger";
-import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Button } from '@/components/ui/button';
+import { Download, Loader2 } from 'lucide-react';
+import { createLogger } from '@/lib/client-logger';
+import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 /**
  * Module-level logger for export operations.
  * Uses client-logger which suppresses output in test environments.
  */
-const logger = createLogger({ serviceName: "export-button" });
+const logger = createLogger({ serviceName: 'export-button' });
 
 class ExportRequestError extends Error {
   readonly status: number;
 
   constructor(status: number, detail?: string) {
-    const suffix = detail ? `: ${detail}` : "";
+    const suffix = detail ? `: ${detail}` : '';
     super(`HTTP ${status}${suffix}`);
-    this.name = "ExportRequestError";
+    this.name = 'ExportRequestError';
     this.status = status;
   }
 }
 
-function buildExportErrorMessage(
-  error: unknown,
-  t: ReturnType<typeof useTranslations>,
-): string {
-  const baseMessage = t("exportFailed");
+function buildExportErrorMessage(error: unknown, t: ReturnType<typeof useTranslations>): string {
+  const baseMessage = t('exportFailed');
 
   if (error instanceof ExportRequestError) {
     const statusMessage =
       error.status === 401 || error.status === 403
-        ? t("exportFailedForbidden")
-        : t("exportFailedHttpStatus", { status: error.status });
+        ? t('exportFailedForbidden')
+        : t('exportFailedHttpStatus', { status: error.status });
     return `${baseMessage}: ${statusMessage}`;
   }
 
   if (error instanceof TypeError) {
-    return `${baseMessage}: ${t("exportFailedNetwork")}`;
+    return `${baseMessage}: ${t('exportFailedNetwork')}`;
   }
 
   if (error instanceof Error && error.message) {
@@ -77,10 +74,10 @@ function buildExportErrorMessage(
 interface ExportButtonProps {
   tournamentId: string;
   tournamentName?: string;
-  format?: "csv" | "cdm";
+  format?: 'csv' | 'cdm';
   children?: React.ReactNode;
-  variant?: "default" | "outline" | "ghost" | "secondary" | "destructive";
-  size?: "default" | "sm" | "lg";
+  variant?: 'default' | 'outline' | 'ghost' | 'secondary' | 'destructive';
+  size?: 'default' | 'sm' | 'lg';
   disabled?: boolean;
 }
 
@@ -101,14 +98,14 @@ interface ExportButtonProps {
  */
 export function ExportButton({
   tournamentId,
-  tournamentName = "tournament",
-  format = "csv",
+  tournamentName = 'tournament',
+  format = 'csv',
   children,
-  variant = "outline",
-  size = "sm",
+  variant = 'outline',
+  size = 'sm',
   disabled = false,
 }: ExportButtonProps) {
-  const t = useTranslations("common");
+  const t = useTranslations('common');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -122,12 +119,12 @@ export function ExportButton({
     try {
       setIsExporting(true);
       setErrorMessage(null);
-      const query = format === "cdm" ? "?format=cdm" : "";
+      const query = format === 'cdm' ? '?format=cdm' : '';
       const exportUrl = `/api/tournaments/${tournamentId}/export${query}`;
       const response = await fetch(exportUrl);
 
       if (!response.ok) {
-        const detail = await response.text().catch(() => "");
+        const detail = await response.text().catch(() => '');
         const safeDetail = detail.trim().slice(0, 160);
         throw new ExportRequestError(response.status, safeDetail);
       }
@@ -141,19 +138,16 @@ export function ExportButton({
 
       try {
         /** Create a temporary invisible anchor element to trigger the download */
-        link = document.createElement("a");
+        link = document.createElement('a');
         link.href = url;
 
         /**
          * Attempt to extract the filename from the Content-Disposition header.
          * If absent, fall back to a sanitized tournament-name based filename.
          */
-        const contentDisposition = response.headers.get("content-disposition");
-        const extension = format === "cdm" ? "xlsm" : "csv";
-        const safeTournamentName = tournamentName.replace(
-          /[^a-zA-Z0-9]/g,
-          "_",
-        );
+        const contentDisposition = response.headers.get('content-disposition');
+        const extension = format === 'cdm' ? 'xlsm' : 'csv';
+        const safeTournamentName = tournamentName.replace(/[^a-zA-Z0-9]/g, '_');
         let filename = `${safeTournamentName}-full-export.${extension}`;
 
         if (contentDisposition) {
@@ -188,11 +182,8 @@ export function ExportButton({
       /**
        * Log export failures with structured metadata for debugging.
        */
-      const metadata =
-        error instanceof Error
-          ? { message: error.message, stack: error.stack }
-          : { error };
-      logger.error("Export failed", metadata);
+      const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
+      logger.error('Export failed', metadata);
       setErrorMessage(buildExportErrorMessage(error, t));
     } finally {
       setIsExporting(false);
@@ -200,7 +191,7 @@ export function ExportButton({
   };
 
   const isDisabled = disabled || isExporting;
-  const label = isExporting ? t("exporting") : children || t("exportAll");
+  const label = isExporting ? t('exporting') : children || t('exportAll');
 
   return (
     <div className="inline-flex flex-col items-start gap-1">
