@@ -73,6 +73,12 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
    * later request must win even if an earlier reopen GET returns afterwards.
    */
   const statusRequestRef = useRef(0);
+  /**
+   * Serializes token-changing requests independently from React's rendering
+   * state. `submitting` controls the UI, while this ref closes the same-render
+   * re-entry window before that state update has committed.
+   */
+  const mutationInFlightRef = useRef(false);
 
   const loginUrl = rawToken ? buildLoginUrl(rawToken) : null;
   const isCurrentDialogSession = (dialogSession: number) => dialogSessionRef.current === dialogSession;
@@ -147,7 +153,10 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
   };
 
   const handleIssue = async (isReissue: boolean) => {
+    if (mutationInFlightRef.current) return;
     if (isReissue && !confirm(t('confirmReissueQrCode'))) return;
+
+    mutationInFlightRef.current = true;
     const dialogSession = dialogSessionRef.current;
     setSubmitting(true);
     setError('');
@@ -178,6 +187,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       // `submitting` represents the one serialized server mutation, not a
       // dialog-session-local visual. Even if the dialog was reopened, this
       // request settling is what safely releases the mutation lock.
+      mutationInFlightRef.current = false;
       setSubmitting(false);
 
       // If this mutation outlived the session that started it, the reopened
@@ -190,7 +200,10 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
   };
 
   const handleRevoke = async () => {
+    if (mutationInFlightRef.current) return;
     if (!confirm(t('confirmRevokeQrCode'))) return;
+
+    mutationInFlightRef.current = true;
     const dialogSession = dialogSessionRef.current;
     setSubmitting(true);
     setError('');
@@ -210,6 +223,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
       logger.error('Failed to revoke QR login token', metadata);
       if (isCurrentDialogSession(dialogSession)) setError(t('failedToRevokeQrCode'));
     } finally {
+      mutationInFlightRef.current = false;
       setSubmitting(false);
       if (!isCurrentDialogSession(dialogSession)) {
         void fetchStatus(dialogSessionRef.current);
