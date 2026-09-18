@@ -35,9 +35,7 @@ const RETRY_DELAY_MS = 800;
  * POSTs a new player to /api/players, retrying up to MAX_ATTEMPTS times on
  * transient 5xx or transport-level failures.
  */
-export async function createPlayerWithRetry(
-  formData: CreatePlayerFormData,
-): Promise<CreatePlayerResult> {
+export async function createPlayerWithRetry(formData: CreatePlayerFormData): Promise<CreatePlayerResult> {
   let response: Response | null = null;
 
   /**
@@ -58,9 +56,9 @@ export async function createPlayerWithRetry(
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
-      response = await fetch("/api/players", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      response = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
     } catch {
