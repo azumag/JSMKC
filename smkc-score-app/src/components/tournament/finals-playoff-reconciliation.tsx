@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 
@@ -45,6 +45,7 @@ export function FinalsPlayoffReconciliation({
   const t = useTranslations('finals');
   const tCommon = useTranslations('common');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [blockers, setBlockers] = useState<ReconcileBlocker[]>([]);
   const [preview, setPreview] = useState<ReconcilePreview | null>(null);
   const [previewError, setPreviewError] = useState(false);
@@ -97,6 +98,8 @@ export function FinalsPlayoffReconciliation({
   if (!preview || preview.status === 'unavailable') return null;
 
   const reconcile = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     setBlockers([]);
     setApplyError(false);
@@ -121,6 +124,7 @@ export function FinalsPlayoffReconciliation({
     } catch {
       setApplyError(true);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
