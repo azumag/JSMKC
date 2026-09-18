@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * useBroadcastReflect
@@ -15,7 +15,7 @@
  * in ta-elimination-phase.tsx and ta/finals/page.tsx (issue #807).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface BroadcastEntry {
   playerId: string;
@@ -23,18 +23,18 @@ interface BroadcastEntry {
   player: { nickname: string; noCamera?: boolean };
 }
 
-type BroadcastStatus = "idle" | "success" | "error";
+type BroadcastStatus = 'idle' | 'success' | 'error';
 
 export function useBroadcastReflect(
   tournamentId: string,
   tvAssignments: Record<string, number | null>,
-  entries: BroadcastEntry[]
+  entries: BroadcastEntry[],
 ) {
-  const [broadcastStatus, setBroadcastStatus] =
-    useState<BroadcastStatus>("idle");
+  const [broadcastStatus, setBroadcastStatus] = useState<BroadcastStatus>('idle');
   // The status reset is delayed for operator feedback, so keep the timer handle
   // to prevent stale setState work after unmount or after a newer reflect action.
   const idleResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestGenerationRef = useRef(0);
   const isMountedRef = useRef(true);
 
   const clearIdleResetTimer = useCallback(() => {
@@ -47,7 +47,7 @@ export function useBroadcastReflect(
     clearIdleResetTimer();
     idleResetTimerRef.current = setTimeout(() => {
       idleResetTimerRef.current = null;
-      setBroadcastStatus("idle");
+      setBroadcastStatus('idle');
     }, 3000);
   }, [clearIdleResetTimer]);
 
@@ -61,34 +61,37 @@ export function useBroadcastReflect(
 
   /** Push TV1→player1Name / TV2→player2Name to the broadcast overlay. */
   const handleBroadcastReflect = useCallback(async () => {
+    const requestGeneration = ++requestGenerationRef.current;
+    clearIdleResetTimer();
     const activeEntries = entries.filter((e) => !e.eliminated);
     const tv1Player = activeEntries.find((e) => tvAssignments[e.playerId] === 1);
     const tv2Player = activeEntries.find((e) => tvAssignments[e.playerId] === 2);
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player1Name: tv1Player?.player.nickname ?? "",
-          player2Name: tv2Player?.player.nickname ?? "",
+          player1Name: tv1Player?.player.nickname ?? '',
+          player2Name: tv2Player?.player.nickname ?? '',
           player1NoCamera: tv1Player?.player.noCamera === true,
           player2NoCamera: tv2Player?.player.noCamera === true,
         }),
       });
-      if (!isMountedRef.current) return;
-      setBroadcastStatus(res.ok ? "success" : "error");
+      if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
+      setBroadcastStatus(res.ok ? 'success' : 'error');
       scheduleIdleReset();
     } catch {
-      if (!isMountedRef.current) return;
-      setBroadcastStatus("error");
+      if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
+      setBroadcastStatus('error');
       scheduleIdleReset();
     }
-  }, [entries, scheduleIdleReset, tournamentId, tvAssignments]);
+  }, [clearIdleResetTimer, entries, scheduleIdleReset, tournamentId, tvAssignments]);
 
   /** Reset the status indicator (call when starting/cancelling/undoing rounds). */
   const resetBroadcastStatus = useCallback(() => {
+    requestGenerationRef.current += 1;
     clearIdleResetTimer();
-    setBroadcastStatus("idle");
+    setBroadcastStatus('idle');
   }, [clearIdleResetTimer]);
 
   /**
