@@ -30,11 +30,12 @@ describe('DebugFillButton localization contract', () => {
     expect(requestSource).toContain('debugFill: debugFillMessages[locale]');
   });
 
-  it('uses the debugFill namespace instead of fixed Japanese UI strings', () => {
+  it('uses localized namespaces and a generic localized failure instead of fixed Japanese UI strings', () => {
+    expect(componentSource).toContain("const tCommon = useTranslations('common');");
     expect(componentSource).toContain("const tDebugFill = useTranslations('debugFill');");
     expect(componentSource).toContain("setStatusText(tDebugFill('running'))");
     expect(componentSource).toContain("tDebugFill('success', { filled, skipped })");
-    expect(componentSource).toContain("tDebugFill('failure', { message })");
+    expect(componentSource).toContain("setStatusText(tCommon('networkError'))");
     expect(componentSource).toContain("title={tDebugFill('title', { mode: mode.toUpperCase() })}");
     expect(componentSource).toContain('role="status"');
     expect(componentSource).not.toContain("setStatusText('実行中…')");
