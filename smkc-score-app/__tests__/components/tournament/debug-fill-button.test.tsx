@@ -5,9 +5,46 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DebugFillButton } from '@/components/tournament/debug-fill-button';
 
-jest.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => `common.${key}`,
-}));
+jest.mock('next-intl', () => {
+  const translations = {
+    en: {
+      common: { networkError: 'common.networkError' },
+      debugFill: {
+        title: '{mode} qualification scores auto-fill (debug mode)',
+        button: 'Auto-fill qualification scores',
+        busyButton: 'Auto-filling…',
+        running: 'Running…',
+        success: 'Done: {filled} filled / {skipped} skipped',
+        failure: 'Failed: {message}',
+      },
+    },
+    ja: {
+      common: { networkError: 'common.networkError' },
+      debugFill: {
+        title: '{mode} 予選スコアを自動入力 (debug mode)',
+        button: '予選スコア自動入力',
+        busyButton: '自動入力中…',
+        running: '実行中…',
+        success: '完了: {filled} 件入力 / {skipped} 件スキップ',
+        failure: '失敗: {message}',
+      },
+    },
+  } as const;
+  let locale: keyof typeof translations = 'ja';
+
+  return {
+    __setMockLocale: (nextLocale: keyof typeof translations) => {
+      locale = nextLocale;
+    },
+    useTranslations:
+      (namespace: keyof (typeof translations)['en']) =>
+      (key: string, values?: Record<string, string | number>) => {
+        const template = translations[locale][namespace][key as keyof (typeof translations)['en'][typeof namespace]];
+        if (typeof template !== 'string') return `${namespace}.${key}`;
+        return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(values?.[name] ?? `{${name}}`));
+      },
+  };
+});
 
 jest.mock('@/lib/client-logger', () => {
   const error = jest.fn();
@@ -17,10 +54,14 @@ jest.mock('@/lib/client-logger', () => {
   };
 });
 
+const setMockLocale = (
+  jest.requireMock('next-intl') as { __setMockLocale: (locale: 'en' | 'ja') => void }
+).__setMockLocale;
 const mockLoggerError = (jest.requireMock('@/lib/client-logger') as { __mockLoggerError: jest.Mock }).__mockLoggerError;
 
 describe('DebugFillButton', () => {
   beforeEach(() => {
+    setMockLocale('ja');
     mockLoggerError.mockClear();
   });
 
@@ -36,6 +77,24 @@ describe('DebugFillButton', () => {
     expect(btn).toHaveTextContent('予選スコア自動入力');
   });
 
+  it('localizes the button, title, and status text for English', async () => {
+    setMockLocale('en');
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ filled: 2, skipped: 1 }), { status: 200 }));
+
+    render(<DebugFillButton tournamentId="t-1" mode="gp" />);
+    const button = screen.getByRole('button');
+    expect(button).toHaveAttribute('title', 'GP qualification scores auto-fill (debug mode)');
+    expect(button).toHaveTextContent('Auto-fill qualification scores');
+
+    fireEvent.click(button);
+    expect(button).toHaveTextContent('Auto-filling…');
+    expect(screen.getByRole('status')).toHaveTextContent('Running…');
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Done: 2 filled / 1 skipped'));
+  });
+
   it('TC-2688: shows 実行中… while the fetch is in-flight', async () => {
     let resolve!: (r: Response) => void;
     jest.spyOn(global, 'fetch').mockImplementation(
@@ -48,12 +107,14 @@ describe('DebugFillButton', () => {
     render(<DebugFillButton tournamentId="t-1" mode="ta" />);
     fireEvent.click(screen.getByRole('button'));
 
-    expect(screen.getByText('実行中…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('実行中…');
     expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button')).toHaveAttribute('aria-busy', 'true');
 
     resolve(new Response(JSON.stringify({ filled: 5, skipped: 2 }), { status: 200 }));
     // Verify button is re-enabled after finally block completes
     await waitFor(() => expect(screen.getByRole('button')).not.toBeDisabled());
+    expect(screen.getByRole('button')).toHaveAttribute('aria-busy', 'false');
     expect(screen.queryByText('実行中…')).toBeNull();
   });
 
@@ -102,7 +163,7 @@ describe('DebugFillButton', () => {
     render(<DebugFillButton tournamentId="t-1" mode="bm" />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(screen.getByText('完了: 12 件入力 / 3 件スキップ')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('完了: 12 件入力 / 3 件スキップ'));
   });
 
   it('TC-2692: calls onFilled callback after successful API response', async () => {
@@ -125,7 +186,7 @@ describe('DebugFillButton', () => {
     render(<DebugFillButton tournamentId="t-1" mode="ta" />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(screen.getByText('失敗: Not enough players')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('失敗: Not enough players'));
   });
 
   it('TC-2694: redacts rejected request details, logs diagnostics, and re-enables button', async () => {
@@ -135,7 +196,7 @@ describe('DebugFillButton', () => {
     render(<DebugFillButton tournamentId="t-1" mode="gp" />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(screen.getByText('common.networkError')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('common.networkError'));
     expect(screen.queryByText(/エラー:/)).toBeNull();
     expect(screen.queryByText(/internal-debug-gateway/)).toBeNull();
     expect(mockLoggerError).toHaveBeenCalledWith('Debug fill request failed:', {
@@ -152,6 +213,6 @@ describe('DebugFillButton', () => {
     render(<DebugFillButton tournamentId="t-1" mode="bm" />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(screen.getByText('完了: 0 件入力 / 0 件スキップ')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('完了: 0 件入力 / 0 件スキップ'));
   });
 });
