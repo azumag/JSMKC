@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -161,6 +161,40 @@ describe('LocaleSwitcher', () => {
 
     expect(wasNotCanceled).toBe(false);
     expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('同一 render 内の連続 activation は1件だけ送信し、完了後は再試行できる', async () => {
+    mockLocale('en');
+    let resolveFirstRequest!: (response: Response) => void;
+    const firstRequest = new Promise<Response>((resolve) => {
+      resolveFirstRequest = resolve;
+    });
+    const successfulResponse = {
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({}),
+    } as unknown as Response;
+    const fetchSpy = jest.spyOn(global, 'fetch').mockReturnValueOnce(firstRequest).mockResolvedValue(successfulResponse);
+    render(<LocaleSwitcher />);
+
+    const button = screen.getByRole('switch');
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirstRequest(successfulResponse);
+      await firstRequest;
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(button).not.toBeDisabled());
+
+    await userEvent.click(button);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
     fetchSpy.mockRestore();
   });
 
