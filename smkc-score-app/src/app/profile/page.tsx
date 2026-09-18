@@ -24,44 +24,74 @@ export default function ProfilePage() {
   const { data: session, status } = useSession();
   const t = useTranslations('profile');
   const tCommon = useTranslations('common');
+  const playerId = session?.user?.playerId;
 
   const [loading, setLoading] = useState(true);
   const [player, setPlayer] = useState<Player | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchPlayer(playerId: string) {
+    let cancelled = false;
+
+    async function fetchPlayer(currentPlayerId: string) {
       try {
-        const res = await fetch(`/api/players/${playerId}`);
+        const res = await fetch(`/api/players/${currentPlayerId}`);
+        if (cancelled) return;
+
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
-          setFetchError(errorData?.error || tCommon('networkError'));
+          if (!cancelled) {
+            setFetchError(errorData?.error || tCommon('networkError'));
+          }
           return;
         }
 
         const json = await res.json();
-        setPlayer(json.data ?? json);
+        if (!cancelled) {
+          setPlayer(json.data ?? json);
+        }
       } catch {
-        setFetchError(tCommon('networkError'));
+        if (!cancelled) {
+          setFetchError(tCommon('networkError'));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
+    // A session/player transition invalidates all previously loaded profile data.
+    // The cleanup guard below also prevents an older request from restoring it.
+    setPlayer(null);
+    setFetchError(null);
+
     if (status === 'loading') {
-      return;
+      setLoading(true);
+      return () => {
+        cancelled = true;
+      };
     }
 
-    const playerId = session?.user?.playerId;
     if (playerId) {
-      fetchPlayer(playerId);
-      return;
+      setLoading(true);
+      void fetchPlayer(playerId);
+      return () => {
+        cancelled = true;
+      };
     }
 
     setLoading(false);
-  }, [session?.user?.playerId, status, tCommon]);
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId, status, tCommon]);
 
-  if (loading) {
+  // Hide a record synchronously as soon as the active session points at a
+  // different player, before the effect above has a chance to clear state.
+  const currentPlayer = player?.id === playerId ? player : null;
+
+  if (status === 'loading' || loading) {
     return (
       <div className="container max-w-2xl py-10 space-y-6">
         <div className="space-y-3">
@@ -100,15 +130,15 @@ export default function ProfilePage() {
           <CardDescription>{t('playerSessionDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
-          {player ? (
+          {currentPlayer ? (
             <div className="space-y-3">
               <div className="grid grid-cols-[120px_1fr] gap-4">
                 <div className="font-medium">{t('nicknameLabel')}</div>
-                <div>{player.nickname}</div>
+                <div>{currentPlayer.nickname}</div>
                 <div className="font-medium">{t('name')}</div>
-                <div>{player.name}</div>
+                <div>{currentPlayer.name}</div>
                 <div className="font-medium">{t('countryLabel')}</div>
-                <div>{player.country || '-'}</div>
+                <div>{currentPlayer.country || '-'}</div>
               </div>
               <p className="text-sm text-muted-foreground">{t('canSubmitScores')}</p>
             </div>
@@ -122,14 +152,14 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      {player && (
+      {currentPlayer && (
         <Card>
           <CardHeader>
             <CardTitle>{t('qrLoginCardTitle')}</CardTitle>
             <CardDescription>{t('qrLoginCardDescription')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <QrLoginDialog playerId={player.id} playerNickname={player.nickname} />
+            <QrLoginDialog playerId={currentPlayer.id} playerNickname={currentPlayer.nickname} />
           </CardContent>
         </Card>
       )}

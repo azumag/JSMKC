@@ -4,13 +4,15 @@
  * @module Test Suite: profile/page
  *
  * Covers the profile page's player-session card, QR one-scan login card,
- * and linked-player fetch error fallback contract:
+ * linked-player fetch error fallback contract, and session-transition safety:
  * - The QR login card renders only when a player record is loaded
  * - No QR card is shown for admin-only sessions (no linked player)
  * - API-specific errors are preferred over the shared generic fallback
  * - Generic HTTP and network failures use common.networkError
+ * - Session changes clear the previous linked player immediately
+ * - Stale requests cannot overwrite the current session's player record
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import ProfilePage from '@/app/profile/page';
 
@@ -100,5 +102,85 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
 
     await waitFor(() => expect(screen.getByText('networkError')).toBeInTheDocument());
+  });
+
+  it('clears the previous linked player when the session changes to an unlinked admin', async () => {
+    let sessionState: any = {
+      status: 'authenticated',
+      data: { user: { name: 'Test Player', role: 'player', playerId: 'player-1' } },
+    };
+    (useSession as jest.Mock).mockImplementation(() => sessionState);
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { id: 'player-1', name: 'Test Player', nickname: 'stale-player' } }),
+    });
+
+    const { rerender } = render(<ProfilePage />);
+    await waitFor(() => expect(screen.getByText('stale-player')).toBeInTheDocument());
+    expect(screen.getByText('qrLoginCardTitle')).toBeInTheDocument();
+
+    sessionState = {
+      status: 'authenticated',
+      data: { user: { name: 'Admin', role: 'admin' } },
+    };
+    rerender(<ProfilePage />);
+
+    await waitFor(() => expect(screen.getByText('noPlayerSession')).toBeInTheDocument());
+    expect(screen.queryByText('stale-player')).not.toBeInTheDocument();
+    expect(screen.queryByText('qrLoginCardTitle')).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an older linked-player response after playerId changes', async () => {
+    let sessionState: any = {
+      status: 'authenticated',
+      data: { user: { name: 'Player One', role: 'player', playerId: 'player-1' } },
+    };
+    (useSession as jest.Mock).mockImplementation(() => sessionState);
+
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    fetchMock
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+      );
+
+    const { rerender } = render(<ProfilePage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/players/player-1'));
+
+    sessionState = {
+      status: 'authenticated',
+      data: { user: { name: 'Player Two', role: 'player', playerId: 'player-2' } },
+    };
+    rerender(<ProfilePage />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/players/player-2'));
+
+    await act(async () => {
+      resolveSecond({
+        ok: true,
+        json: async () => ({ data: { id: 'player-2', name: 'Player Two', nickname: 'current-player' } }),
+      });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByText('current-player')).toBeInTheDocument());
+
+    await act(async () => {
+      resolveFirst({
+        ok: true,
+        json: async () => ({ data: { id: 'player-1', name: 'Player One', nickname: 'stale-player' } }),
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('current-player')).toBeInTheDocument();
+    expect(screen.queryByText('stale-player')).not.toBeInTheDocument();
+    expect(screen.getByText('qrLoginCardTitle')).toBeInTheDocument();
   });
 });
