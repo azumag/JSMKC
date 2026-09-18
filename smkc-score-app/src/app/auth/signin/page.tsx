@@ -111,7 +111,11 @@ export default function SignInPage() {
                     </button>
                   </div>
                 </div>
-                {playerError && <p className="text-sm text-red-600">{playerError}</p>}
+                {playerError && (
+                  <p role="alert" className="text-sm text-red-600">
+                    {playerError}
+                  </p>
+                )}
                 <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                   {isLoading ? t('loggingIn') : t('loginButton')}
                 </Button>

@@ -7,6 +7,7 @@
  * show/hide toggle and the legible monospace font applied while visible.
  */
 import { fireEvent, render, screen } from '@testing-library/react';
+import { signIn } from 'next-auth/react';
 import SignInPage from '@/app/auth/signin/page';
 
 jest.mock('next-auth/react', () => ({
@@ -61,5 +62,16 @@ describe('Sign-in password field: show/hide toggle', () => {
 
     const toggleButton = screen.getByRole('button', { name: 'showPassword' });
     expect(toggleButton).toHaveAttribute('type', 'button');
+  });
+
+  it('exposes an invalid-credentials response as an accessibility alert', async () => {
+    (signIn as jest.Mock).mockResolvedValueOnce({ error: 'CredentialsSignin', ok: false });
+    render(<SignInPage />);
+
+    fireEvent.change(screen.getByLabelText('nickname'), { target: { value: 'player' } });
+    fireEvent.change(screen.getByLabelText('password'), { target: { value: 'wrong-password' } });
+    fireEvent.click(screen.getByRole('button', { name: 'loginButton' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('invalidCredentials');
   });
 });
