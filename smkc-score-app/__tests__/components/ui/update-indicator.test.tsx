@@ -42,13 +42,19 @@ afterEach(() => {
 describe('UpdateIndicator — polling badge', () => {
   it('TC-2731: shows "Live" badge when isPolling=true', () => {
     render(<UpdateIndicator lastUpdated={null} isPolling={true} />);
-    expect(screen.getByText('Live')).toBeInTheDocument();
+    const label = screen.getByText('Live');
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass('sr-only', 'sm:not-sr-only');
+    expect(label).not.toHaveClass('hidden');
     expect(screen.queryByText('Paused')).not.toBeInTheDocument();
   });
 
   it('TC-2732: shows "Paused" badge when isPolling=false', () => {
     render(<UpdateIndicator lastUpdated={null} isPolling={false} />);
-    expect(screen.getByText('Paused')).toBeInTheDocument();
+    const label = screen.getByText('Paused');
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass('sr-only', 'sm:not-sr-only');
+    expect(label).not.toHaveClass('hidden');
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
 
@@ -83,6 +89,15 @@ describe('UpdateIndicator — time display', () => {
     const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000);
     render(<UpdateIndicator lastUpdated={twoHoursAgo} isPolling={false} />);
     expect(screen.getByText(/Last updated:.*2h ago/)).toBeInTheDocument();
+  });
+
+  it('keeps relative time available to assistive technology on mobile', () => {
+    const tenSecondsAgo = new Date(Date.now() - 10_000);
+    render(<UpdateIndicator lastUpdated={tenSecondsAgo} isPolling={false} />);
+
+    const relativeTime = screen.getByText('Last updated: 10s ago');
+    expect(relativeTime).toHaveClass('sr-only', 'sm:not-sr-only');
+    expect(relativeTime).not.toHaveClass('hidden');
   });
 
   it('uses Japanese relative time for Japanese locale', () => {

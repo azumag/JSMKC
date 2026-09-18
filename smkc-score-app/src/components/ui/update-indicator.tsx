@@ -55,9 +55,9 @@ function secondsSince(lastUpdated: Date | null): number {
  * every render, so fresh data resets the label immediately instead of waiting
  * for the next timer tick.
  *
- * The status text and relative time are hidden on small screens
- * (sm:inline) to conserve horizontal space in mobile layouts, while
- * the badge icon remains visible as a minimal status indicator.
+ * The status text and relative time are visually hidden on small screens
+ * (`sr-only`) to conserve horizontal space in mobile layouts while remaining
+ * available to assistive technology. They become visible again at `sm`.
  */
 export function UpdateIndicator({ lastUpdated, isPolling }: UpdateIndicatorProps) {
   const t = useTranslations('updateIndicator');
@@ -97,20 +97,20 @@ export function UpdateIndicator({ lastUpdated, isPolling }: UpdateIndicatorProps
       {isPolling ? (
         <Badge variant="default" className="gap-1">
           <Loader2 className="h-3 w-3 animate-spin" />
-          {/* Label text hidden on mobile to save space */}
-          <span className="hidden sm:inline">{t('live')}</span>
+          {/* Keep the localized label available to screen readers on mobile. */}
+          <span className="sr-only sm:not-sr-only">{t('live')}</span>
         </Badge>
       ) : (
         <Badge variant="secondary" className="gap-1">
           <Clock className="h-3 w-3" />
-          {/* Label text hidden on mobile to save space */}
-          <span className="hidden sm:inline">{t('paused')}</span>
+          {/* Keep the localized label available to screen readers on mobile. */}
+          <span className="sr-only sm:not-sr-only">{t('paused')}</span>
         </Badge>
       )}
-      {/* Relative time display, only shown when data has been fetched at least once.
-          Hidden on mobile (sm:inline) to conserve horizontal space. */}
+      {/* Relative time stays readable by assistive technology on mobile while
+          becoming visibly inline at the same breakpoint as before. */}
       {lastUpdated && (
-        <span className="hidden text-xs text-muted-foreground sm:inline">
+        <span className="sr-only text-xs text-muted-foreground sm:not-sr-only">
           {t('lastUpdated', { time: formatTimeAgo(secondsAgo) })}
         </span>
       )}
