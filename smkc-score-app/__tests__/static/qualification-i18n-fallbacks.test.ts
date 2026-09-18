@@ -17,7 +17,7 @@ describe('qualification page i18n errors', () => {
     expect(setupHook).not.toContain('Network error — please try again');
   });
 
-  it.each(['bm', 'mr', 'gp'])('%s keeps other qualification errors localized', (mode) => {
+  it.each(['bm', 'mr'])('%s keeps bracket failures localized', (mode) => {
     const source = fs.readFileSync(
       path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', mode, 'page-client.tsx'),
       'utf8',
@@ -26,6 +26,16 @@ describe('qualification page i18n errors', () => {
     const failedGenerateBracketTranslation = /tc\s*\(\s*(['"])failedGenerateBracket\1\s*\)/;
 
     expect(source).toMatch(failedGenerateBracketTranslation);
+    expect(source).not.toContain('Network error — please try again');
+  });
+
+  it('keeps GP qualification failures behind the localized network error', () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), 'src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx'),
+      'utf8',
+    );
+
+    expect(source).toMatch(/tc\s*\(\s*(['"])networkError\1\s*\)/);
     expect(source).not.toContain('Network error — please try again');
   });
 });
