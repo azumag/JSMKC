@@ -40,7 +40,7 @@ describe('ExportButton serialization', () => {
   beforeEach(() => {
     global.fetch = jest
       .fn()
-      .mockResolvedValue(new Response(new Blob(['export']), { status: 200 })) as unknown as typeof fetch;
+      .mockImplementation(async () => new Response(new Blob(['export']), { status: 200 })) as unknown as typeof fetch;
     window.URL.createObjectURL = jest.fn(() => 'blob:test-export');
     window.URL.revokeObjectURL = jest.fn();
     jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
