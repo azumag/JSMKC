@@ -39,9 +39,7 @@ describe('finals settings HTTP error redaction', () => {
     render(
       <FinalsRoundSettings
         match={{ id: 'm1', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 7 }}
-        matches={[
-          { id: 'm1', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 7 },
-        ]}
+        matches={[{ id: 'm1', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 7 }]}
         endpoint="/api/test"
         effectiveTargetWins={7}
         onSaved={onSaved}
