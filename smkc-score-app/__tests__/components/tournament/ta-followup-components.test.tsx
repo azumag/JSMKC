@@ -16,7 +16,7 @@ describe('TA follow-up components', () => {
     expect(screen.getByText('-3秒')).toBeInTheDocument();
   });
 
-  it('renders compact lives and an explicit eliminated state', () => {
+  it('renders compact lives and an explicit eliminated state as named statuses', () => {
     const { rerender } = render(
       <TaLivesIndicator
         lives={10}
@@ -26,9 +26,9 @@ describe('TA follow-up components', () => {
         ariaLabel="10 lives"
       />,
     );
-    expect(screen.getByLabelText('10 lives')).toHaveTextContent('♥ 10/10');
+    expect(screen.getByRole('status', { name: '10 lives' })).toHaveTextContent('♥ 10/10');
     rerender(<TaLivesIndicator lives={0} maxLives={10} eliminated eliminatedLabel="eliminated" />);
-    expect(screen.getByText('eliminated')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'eliminated' })).toHaveTextContent('eliminated');
   });
 
   it('renders a full standard label but reserves compact badges for battle royale', () => {
