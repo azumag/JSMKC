@@ -11,7 +11,7 @@
 'use client';
 
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, useRef, use } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
@@ -90,6 +90,7 @@ export default function TournamentLayout({
   const [fetchFailure, setFetchFailure] = useState<TournamentFetchFailure | null>(null);
   const [tabsHydrated, setTabsHydrated] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const statusUpdateInFlightRef = useRef(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -142,7 +143,8 @@ export default function TournamentLayout({
   }, [fetchTournament]);
 
   const updateStatus = async (status: string) => {
-    if (statusUpdating || !canUpdateTournamentStatus(tournament)) return;
+    if (statusUpdateInFlightRef.current || !canUpdateTournamentStatus(tournament)) return;
+    statusUpdateInFlightRef.current = true;
 
     setStatusUpdating(true);
     setStatusError(null);
@@ -159,6 +161,7 @@ export default function TournamentLayout({
       logger.error('Failed to update status:', metadata);
       setStatusError(isUserFacingTournamentStatusUpdateError(err) ? err.message : tc('networkError'));
     } finally {
+      statusUpdateInFlightRef.current = false;
       setStatusUpdating(false);
     }
   };
