@@ -96,9 +96,12 @@ export function QualificationScheduleDiagnosticsPanel({
       {summary.totalGroupCount > 0 && (
         <div
           role="group"
-          aria-label="Qualification schedule decision summary"
+          aria-labelledby="qualification-schedule-decision-summary-title"
           className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-2 lg:grid-cols-3"
         >
+          <h3 id="qualification-schedule-decision-summary-title" className="sr-only">
+            Qualification schedule decision summary
+          </h3>
           <div>Legacy circle: {summary.legacyCircleGroupCount}</div>
           <div>Legacy circle players: {summary.legacyCirclePlayerCount}</div>
           <div>Legacy circle with CDM fixture: {summary.legacyCircleCdmReadyGroupCount}</div>
@@ -124,9 +127,15 @@ export function QualificationScheduleDiagnosticsPanel({
         </div>
       )}
 
-      <div role="group" aria-label="Qualification schedule policy matrix" className="space-y-2 rounded-md border p-3">
+      <div
+        role="group"
+        aria-labelledby="qualification-schedule-policy-matrix-title"
+        className="space-y-2 rounded-md border p-3"
+      >
         <div>
-          <h3 className="font-medium">Policy matrix (7–21 players)</h3>
+          <h3 id="qualification-schedule-policy-matrix-title" className="font-medium">
+            Policy matrix (7–21 players)
+          </h3>
           <p className="text-xs text-muted-foreground">
             Current effective method and CDM fixture preview for each decision-relevant group size.
           </p>
@@ -160,11 +169,13 @@ export function QualificationScheduleDiagnosticsPanel({
       {unsupportedCdmFixtureCandidateDecisions.length > 0 && (
         <div
           role="group"
-          aria-label="Unsupported CDM fixture candidate decisions"
+          aria-labelledby="unsupported-cdm-fixture-candidate-decisions-title"
           className="space-y-2 rounded-md border p-3"
         >
           <div>
-            <h3 className="font-medium">Unsupported CDM candidate evidence</h3>
+            <h3 id="unsupported-cdm-fixture-candidate-decisions-title" className="font-medium">
+              Unsupported CDM candidate evidence
+            </h3>
             <p className="text-xs text-muted-foreground">
               Read-only comparison of the current leading-player slot convention with fair raw-fixture BREAK placements.
               These candidates are not enabled for schedule generation.
@@ -237,9 +248,15 @@ export function QualificationScheduleDiagnosticsPanel({
         </div>
       )}
 
-      <div role="group" aria-label="Circle versus CDM schedule comparison" className="space-y-2 rounded-md border p-3">
+      <div
+        role="group"
+        aria-labelledby="circle-versus-cdm-schedule-comparison-title"
+        className="space-y-2 rounded-md border p-3"
+      >
         <div>
-          <h3 className="font-medium">Circle → CDM impact (7–12 players)</h3>
+          <h3 id="circle-versus-cdm-schedule-comparison-title" className="font-medium">
+            Circle → CDM impact (7–12 players)
+          </h3>
           <p className="text-xs text-muted-foreground">
             Same-seed read-only comparison for the small-group fixtures available to the pending #3054 decision.
           </p>
