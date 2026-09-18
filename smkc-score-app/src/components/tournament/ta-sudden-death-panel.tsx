@@ -116,8 +116,13 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to change TA sudden-death course:', {
+          status: response.status,
+          tournamentId,
+          phase,
+          suddenDeathRoundId: pendingSuddenDeath.id,
+        });
+        setSaveError(tCommon('networkError'));
         return;
       }
       fetchData();
@@ -162,8 +167,13 @@ export function useTaSuddenDeath<Entry extends TASuddenDeathEntry, Round extends
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to submit TA sudden-death results:', {
+          status: response.status,
+          tournamentId,
+          phase,
+          suddenDeathRoundId: pendingSuddenDeath.id,
+        });
+        setSaveError(tCommon('networkError'));
         return;
       }
       setTimes({});
