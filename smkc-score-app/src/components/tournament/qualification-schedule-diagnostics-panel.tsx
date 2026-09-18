@@ -237,11 +237,7 @@ export function QualificationScheduleDiagnosticsPanel({
         </div>
       )}
 
-      <div
-        role="group"
-        aria-label="Circle versus CDM schedule comparison"
-        className="space-y-2 rounded-md border p-3"
-      >
+      <div role="group" aria-label="Circle versus CDM schedule comparison" className="space-y-2 rounded-md border p-3">
         <div>
           <h3 className="font-medium">Circle → CDM impact (7–12 players)</h3>
           <p className="text-xs text-muted-foreground">
