@@ -69,7 +69,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
   it('summarizes the groups and players relevant to the pending scheduling decisions', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={diagnostics} />);
 
-    const summary = screen.getByLabelText('Qualification schedule decision summary');
+    const summary = screen.getByRole('group', { name: 'Qualification schedule decision summary' });
     expect(summary).toHaveTextContent('Legacy circle: 1');
     expect(summary).toHaveTextContent('Legacy circle players: 13');
     expect(summary).toHaveTextContent('Legacy circle with CDM fixture: 0');
@@ -91,7 +91,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
   it('renders the 7..21 policy matrix independently of current group sizes', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
 
-    const matrix = screen.getByLabelText('Qualification schedule policy matrix');
+    const matrix = screen.getByRole('group', { name: 'Policy matrix (7–21 players)' });
     expect(matrix).toHaveTextContent('Policy matrix (7–21 players)');
     expect(matrix).toHaveTextContent('7 players');
     expect(matrix).toHaveTextContent('8-slot CDM · 1 BREAK');
@@ -107,7 +107,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
   it('renders the unsupported CDM candidate decision evidence in the admin UI', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
 
-    const evidence = screen.getByLabelText('Unsupported CDM fixture candidate decisions');
+    const evidence = screen.getByRole('group', { name: 'Unsupported CDM candidate evidence' });
     expect(evidence).toHaveTextContent('Unsupported CDM candidate evidence');
     expect(evidence).toHaveTextContent('13 players');
     expect(evidence).toHaveTextContent('16-slot raw fixture');
@@ -123,7 +123,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
   it('renders the same-seed circle versus CDM comparison evidence for 7..12 players', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
 
-    const comparison = screen.getByLabelText('Circle versus CDM schedule comparison');
+    const comparison = screen.getByRole('group', { name: 'Circle → CDM impact (7–12 players)' });
     expect(comparison).toHaveTextContent('Circle → CDM impact (7–12 players)');
     expect(comparison).toHaveTextContent('7 players');
     expect(comparison).toHaveTextContent('8-slot CDM');
@@ -180,7 +180,9 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Current effective CDM request cannot generate a schedule for 21 players because no matching fixture is available.',
     );
-    expect(screen.getByLabelText('Qualification schedule decision summary')).toHaveTextContent('Generation blocked: 1');
+    expect(screen.getByRole('group', { name: 'Qualification schedule decision summary' })).toHaveTextContent(
+      'Generation blocked: 1',
+    );
   });
 
   it('shows an empty state for modes without qualification groups', () => {
@@ -195,7 +197,7 @@ describe('QualificationScheduleDiagnosticsPanel', () => {
 
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={empty} />);
 
-    expect(screen.queryByLabelText('Qualification schedule decision summary')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Qualification schedule policy matrix')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Qualification schedule decision summary' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Policy matrix (7–21 players)' })).toBeInTheDocument();
   });
 });
