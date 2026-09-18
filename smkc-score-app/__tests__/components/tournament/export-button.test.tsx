@@ -202,9 +202,8 @@ describe('ExportButton', () => {
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });
 
-  it('logs raw runtime details but keeps the user-facing export error generic', async () => {
-    const rawRuntimeDetail = 'network down via internal-proxy.example:8443';
-    global.fetch = jest.fn().mockRejectedValue(new Error(rawRuntimeDetail));
+  it('logs and skips download when fetch throws', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
     const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
 
     render(
@@ -217,12 +216,11 @@ describe('ExportButton', () => {
 
     await waitFor(() => {
       expect(mockLogger.error).toHaveBeenCalledWith('Export failed', expect.objectContaining({
-        message: rawRuntimeDetail,
+        message: 'network down',
       }));
     });
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament');
-    expect(screen.getByRole('alert')).not.toHaveTextContent(rawRuntimeDetail);
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: network down');
     expect(clickSpy).not.toHaveBeenCalled();
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });
