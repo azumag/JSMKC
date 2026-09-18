@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import { createLogger } from '@/lib/client-logger';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 /**
  * Module-level logger for export operations.
@@ -118,13 +118,15 @@ export function ExportButton({
   const t = useTranslations('common');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const exportingRef = useRef(false);
 
   /**
    * Handles the export action: fetches the file, extracts the filename,
    * and triggers a browser download.
    */
   const handleExport = async () => {
-    if (disabled || isExporting) return;
+    if (disabled || exportingRef.current) return;
+    exportingRef.current = true;
 
     let responseReceived = false;
     try {
@@ -198,6 +200,7 @@ export function ExportButton({
       logger.error('Export failed', metadata);
       setErrorMessage(buildExportErrorMessage(error, t, responseReceived));
     } finally {
+      exportingRef.current = false;
       setIsExporting(false);
     }
   };
