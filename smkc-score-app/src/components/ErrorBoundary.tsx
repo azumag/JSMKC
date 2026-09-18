@@ -105,7 +105,7 @@ export function ErrorFallback({ error, resetError }: { error: Error | null; rese
   };
 
   return (
-    <Card className="mx-auto max-w-md border-destructive">
+    <Card role="alert" className="mx-auto max-w-md border-destructive">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
           <AlertCircle className="h-5 w-5" />
@@ -185,8 +185,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, { hasErro
   }
 
   /**
-   * componentDidCatch is called during the commit phase after an error
-   * has been thrown by a descendant component. This is the appropriate
+   * componentDidCatch is called during the commit phase after an error has
+   * been thrown by a descendant component. This is the appropriate
    * place for side effects like logging and analytics reporting.
    *
    * @param error - The error that was thrown.
