@@ -23,15 +23,15 @@ import { useState } from "react";
  * Module-level logger for export operations.
  * Uses client-logger which suppresses output in test environments.
  */
-const logger = createLogger({ serviceName: 'export-button' });
+const logger = createLogger({ serviceName: "export-button" });
 
 class ExportRequestError extends Error {
   readonly status: number;
 
   constructor(status: number, detail?: string) {
-    const suffix = detail ? `: ${detail}` : '';
+    const suffix = detail ? `: ${detail}` : "";
     super(`HTTP ${status}${suffix}`);
-    this.name = 'ExportRequestError';
+    this.name = "ExportRequestError";
     this.status = status;
   }
 }
@@ -43,9 +43,10 @@ function buildExportErrorMessage(
   const baseMessage = t("exportFailed");
 
   if (error instanceof ExportRequestError) {
-    const statusMessage = error.status === 401 || error.status === 403
-      ? t("exportFailedForbidden")
-      : t("exportFailedHttpStatus", { status: error.status });
+    const statusMessage =
+      error.status === 401 || error.status === 403
+        ? t("exportFailedForbidden")
+        : t("exportFailedHttpStatus", { status: error.status });
     return `${baseMessage}: ${statusMessage}`;
   }
 
@@ -105,7 +106,7 @@ export function ExportButton({
   children,
   variant = "outline",
   size = "sm",
-  disabled = false
+  disabled = false,
 }: ExportButtonProps) {
   const t = useTranslations("common");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -122,11 +123,16 @@ export function ExportButton({
       setIsExporting(true);
       setErrorMessage(null);
       const query = format === "cdm" ? "?format=cdm" : "";
-      const response = await fetch(`/api/tournaments/${tournamentId}/export${query}`);
+      const response = await fetch(
+        `/api/tournaments/${tournamentId}/export${query}`,
+      );
 
       if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        throw new ExportRequestError(response.status, detail.trim().slice(0, 160));
+        const detail = await response.text().catch(() => "");
+        throw new ExportRequestError(
+          response.status,
+          detail.trim().slice(0, 160),
+        );
       }
 
       /** Convert the response to a binary blob for download */
@@ -180,7 +186,10 @@ export function ExportButton({
       /**
        * Log export failures with structured metadata for debugging.
        */
-      const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
+      const metadata =
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : { error };
       logger.error("Export failed", metadata);
       setErrorMessage(buildExportErrorMessage(error, t));
     } finally {
