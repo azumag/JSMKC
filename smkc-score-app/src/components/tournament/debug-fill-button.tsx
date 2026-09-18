@@ -43,8 +43,7 @@ export function DebugFillButton({ tournamentId, mode, onFilled, className }: Deb
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        const message = typeof json?.error === 'string' ? json.error : `HTTP ${res.status}`;
-        setStatusText(tDebugFill('failure', { message }));
+        setStatusText(tCommon('networkError'));
         return;
       }
       const data = json?.data ?? json;
