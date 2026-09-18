@@ -316,8 +316,11 @@ export default function BattleModePageClient({
       if (response.ok) {
         refetch();
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || tc('networkError'));
+        logger.error('Failed to toggle qualification confirmed', {
+          status: response.status,
+          tournamentId,
+        });
+        alert(tc('networkError'));
       }
     } catch (err) {
       logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
@@ -353,8 +356,11 @@ export default function BattleModePageClient({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || tc('networkError'));
+        logger.error('Failed to update score:', {
+          status: response.status,
+          tournamentId,
+        });
+        alert(tc('networkError'));
         return;
       }
 
@@ -994,7 +1000,7 @@ export default function BattleModePageClient({
             {/* §5.3 Character selection priority guidance */}
             {selectedMatch &&
               (() => {
-                /* Find previous completed match between the same two players */
+                /* Find previous completed match between the same two players */}
                 const p1 = selectedMatch.player1Id;
                 const p2 = selectedMatch.player2Id;
                 const prevMatch = matches
