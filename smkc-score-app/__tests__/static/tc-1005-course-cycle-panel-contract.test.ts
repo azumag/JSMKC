@@ -37,7 +37,7 @@ describe('TC-1005 CourseCycleStatusPanel contract', () => {
 
   it('keeps the duplicated TA course-cycle markup in one component', () => {
     expect(panelSource).toContain('export function CourseCycleStatusPanel');
-    expect(panelSource).toContain('t("courseCycleLabel")');
+    expect(panelSource).toMatch(/t\(['"]courseCycleLabel['"]\)/);
     expect(panelSource).toContain('availableCoursesCount');
 
     expect(finalsPageSource).toContain('<CourseCycleStatusPanel');
