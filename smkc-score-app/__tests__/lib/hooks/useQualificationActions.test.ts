@@ -6,7 +6,7 @@
  *
  * Covers:
  * - TC-2611: handleRankOverrideSave sends PATCH and calls refetch on success
- * - TC-2612: handleRankOverrideSave shows alert on non-ok response
+ * - TC-2612: handleRankOverrideSave shows generic alert on non-ok response
  * - TC-2613: handleBulkRankOverrideSave sends PATCH for all updates and returns true
  * - TC-2614: handleBulkRankOverrideSave stops on first failure and returns false
  * - TC-2615: handleTvAssign sends PATCH with matchId and tvNumber (fire-and-forget)
@@ -72,9 +72,10 @@ describe('useQualificationActions', () => {
       expect(refetch).toHaveBeenCalledTimes(1);
     });
 
-    it('TC-2612: shows alert with error message on non-ok response', async () => {
+    it('TC-2612: shows the generic network alert on non-ok response', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
+        status: 404,
         json: async () => ({ error: 'Not found' }),
       } as unknown as Response);
       const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
@@ -85,7 +86,8 @@ describe('useQualificationActions', () => {
         await result.current.handleRankOverrideSave('qual-1', 1);
       });
 
-      expect(alertSpy).toHaveBeenCalledWith('Not found');
+      expect(alertSpy).toHaveBeenCalledWith('networkError');
+      expect(alertSpy).not.toHaveBeenCalledWith('Not found');
       expect(refetch).not.toHaveBeenCalled();
     });
   });
@@ -114,6 +116,7 @@ describe('useQualificationActions', () => {
     it('TC-2614: stops on first failure, skips remaining updates, returns false', async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true } as Response).mockResolvedValueOnce({
         ok: false,
+        status: 500,
         json: async () => ({ error: 'Server error' }),
       } as unknown as Response);
       const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
@@ -133,7 +136,8 @@ describe('useQualificationActions', () => {
 
       // Stops after 2nd call (the failing one); 3rd is not executed
       expect(global.fetch).toHaveBeenCalledTimes(2);
-      expect(alertSpy).toHaveBeenCalledWith('Server error');
+      expect(alertSpy).toHaveBeenCalledWith('networkError');
+      expect(alertSpy).not.toHaveBeenCalledWith('Server error');
       expect(refetch).not.toHaveBeenCalled();
       expect(returnValue).toBe(false);
     });
@@ -178,9 +182,10 @@ describe('useQualificationActions', () => {
       expect(refetch).toHaveBeenCalledTimes(1);
     });
 
-    it('TC-3025: shows alert with error message on non-ok response', async () => {
+    it('TC-3025: shows the generic network alert on non-ok response', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
+        status: 404,
         json: async () => ({ error: 'Not found' }),
       } as unknown as Response);
       const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
@@ -191,7 +196,8 @@ describe('useQualificationActions', () => {
         await result.current.handleCombinedRankOverrideSave('qual-1', 1);
       });
 
-      expect(alertSpy).toHaveBeenCalledWith('Not found');
+      expect(alertSpy).toHaveBeenCalledWith('networkError');
+      expect(alertSpy).not.toHaveBeenCalledWith('Not found');
       expect(refetch).not.toHaveBeenCalled();
     });
   });
