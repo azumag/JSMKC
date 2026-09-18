@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -36,8 +36,10 @@ export function FinalsCupAssignment({
   const [cup, setCup] = useState(match.cup && CUPS.includes(match.cup as (typeof CUPS)[number]) ? match.cup : CUPS[0]);
   const [resolution, setResolution] = useState<'keep' | 'clear' | 'cancel'>(hasDetails(match) ? 'keep' : 'keep');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const save = async () => {
-    if (resolution === 'cancel') return;
+    if (resolution === 'cancel' || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       let response: Response;
@@ -61,6 +63,7 @@ export function FinalsCupAssignment({
       }
       onSaved();
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
