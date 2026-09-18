@@ -18,7 +18,7 @@ export function TaLivesIndicator({
 }) {
   if (eliminated) {
     return (
-      <span className="text-muted-foreground" aria-label={eliminatedLabel}>
+      <span className="text-muted-foreground" role="status" aria-label={eliminatedLabel}>
         {eliminatedLabel}
       </span>
     );
@@ -28,6 +28,7 @@ export function TaLivesIndicator({
   const label = ariaLabel ?? (showMax ? `${normalizedLives}/${maxLives}` : `${normalizedLives}`);
   return (
     <span
+      role="status"
       className={cn(
         'inline-flex min-w-14 items-center justify-center rounded-full border px-2 py-1 font-mono text-sm tabular-nums',
         normalizedLives <= 1 && 'border-red-500 text-red-600',
