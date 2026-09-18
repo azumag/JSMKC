@@ -38,7 +38,7 @@ describe('ProfilePage accessibility', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
-      json: jest.fn().mockResolvedValue({ error: 'Profile unavailable' }),
+      json: jest.fn().mockResolvedValue({ error: 'Internal profile lookup detail' }),
     }) as jest.MockedFunction<typeof fetch>;
   });
 
@@ -46,10 +46,20 @@ describe('ProfilePage accessibility', () => {
     jest.restoreAllMocks();
   });
 
-  it('announces a player-record fetch failure as an alert', async () => {
+  it('announces an HTTP player-record fetch failure without exposing API details', async () => {
     render(<ProfilePage />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Profile unavailable');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network error');
+    expect(screen.queryByText('Internal profile lookup detail')).toBeNull();
     expect(global.fetch).toHaveBeenCalledWith('/api/players/player-1');
+  });
+
+  it('announces a transport failure with the same generic localized error', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('socket failed')) as jest.MockedFunction<typeof fetch>;
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network error');
+    expect(screen.queryByText('socket failed')).toBeNull();
   });
 });
