@@ -186,15 +186,25 @@ describe('DebugFillButton', () => {
     await waitFor(() => expect(onFilled).toHaveBeenCalledTimes(1));
   });
 
-  it('TC-2693: shows failure message with server error text on non-ok response', async () => {
-    jest
+  it('TC-2693: redacts HTTP error details, does not call onFilled, and allows retry', async () => {
+    const fetchMock = jest
       .spyOn(global, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ error: 'Not enough players' }), { status: 400 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Not enough players' }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ filled: 2, skipped: 0 }), { status: 200 }));
+    const onFilled = jest.fn();
 
-    render(<DebugFillButton tournamentId="t-1" mode="ta" />);
-    fireEvent.click(screen.getByRole('button'));
+    render(<DebugFillButton tournamentId="t-1" mode="ta" onFilled={onFilled} />);
+    const button = screen.getByRole('button');
+    fireEvent.click(button);
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('失敗: Not enough players'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('common.networkError'));
+    expect(screen.queryByText(/Not enough players/)).toBeNull();
+    expect(onFilled).not.toHaveBeenCalled();
+    expect(button).not.toBeDisabled();
+
+    fireEvent.click(button);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onFilled).toHaveBeenCalledTimes(1));
   });
 
   it('TC-2694: redacts rejected request details, logs diagnostics, and re-enables button', async () => {
