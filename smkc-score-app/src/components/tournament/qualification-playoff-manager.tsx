@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 
 interface PlayoffEntry {
   id: string;
@@ -56,10 +56,11 @@ export function QualificationPlayoffManager({
   onSave,
   onBroadcast,
 }: QualificationPlayoffManagerProps) {
-  const tc = useTranslations("common");
+  const tc = useTranslations('common');
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [draftOrder, setDraftOrder] = useState<PlayoffEntry[]>([]);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [broadcastingGroupId, setBroadcastingGroupId] = useState<string | null>(null);
 
   const activeGroup = useMemo(
@@ -79,10 +80,16 @@ export function QualificationPlayoffManager({
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
-    const ok = await onSave(draftOrder);
-    setSaving(false);
-    if (ok) closeDialog();
+    try {
+      const ok = await onSave(draftOrder);
+      if (ok) closeDialog();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   if (groups.length === 0) return null;
@@ -94,12 +101,8 @@ export function QualificationPlayoffManager({
           <Card key={group.id} className="border-yellow-300 bg-yellow-50">
             <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-yellow-900">
-                <div className="font-medium">
-                  {tc("playoffGroupTitle", { rank: group.rank })}
-                </div>
-                <div>
-                  {group.players.map((player) => player.nickname).join(" / ")}
-                </div>
+                <div className="font-medium">{tc('playoffGroupTitle', { rank: group.rank })}</div>
+                <div>{group.players.map((player) => player.nickname).join(' / ')}</div>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {isAdmin && onBroadcast && group.players.length >= 2 && (
@@ -110,7 +113,7 @@ export function QualificationPlayoffManager({
                     onClick={async () => {
                       setBroadcastingGroupId(group.id);
                       await onBroadcast(group.players[0].nickname, group.players[1].nickname, {
-                        matchLabel: tc("playoffGroupTitle", { rank: group.rank }),
+                        matchLabel: tc('playoffGroupTitle', { rank: group.rank }),
                         player1Wins: null,
                         player2Wins: null,
                         matchFt: null,
@@ -118,17 +121,15 @@ export function QualificationPlayoffManager({
                       setBroadcastingGroupId(null);
                     }}
                   >
-                    {broadcastingGroupId === group.id ? tc("saving") : tc("broadcastReflect")}
+                    {broadcastingGroupId === group.id ? tc('saving') : tc('broadcastReflect')}
                   </Button>
                 )}
                 {isAdmin ? (
                   <Button size="sm" variant="outline" onClick={() => openDialog(group)}>
-                    {tc("recordPlayoffResult")}
+                    {tc('recordPlayoffResult')}
                   </Button>
                 ) : (
-                  <div className="text-sm text-yellow-900">
-                    {tc("playoffPending")}
-                  </div>
+                  <div className="text-sm text-yellow-900">{tc('playoffPending')}</div>
                 )}
               </div>
             </CardContent>
@@ -136,15 +137,16 @@ export function QualificationPlayoffManager({
         ))}
       </div>
 
-      <Dialog open={activeGroup != null} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+      <Dialog
+        open={activeGroup != null}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {activeGroup ? tc("playoffDialogTitle", { rank: activeGroup.rank }) : ""}
-            </DialogTitle>
-            <DialogDescription>
-              {tc("playoffDialogDescription")}
-            </DialogDescription>
+            <DialogTitle>{activeGroup ? tc('playoffDialogTitle', { rank: activeGroup.rank }) : ''}</DialogTitle>
+            <DialogDescription>{tc('playoffDialogDescription')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-2">
@@ -158,7 +160,7 @@ export function QualificationPlayoffManager({
                     {index + 1}. {player.nickname}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {tc("playoffAssignedRank", { rank: player._autoRank + index })}
+                    {tc('playoffAssignedRank', { rank: player._autoRank + index })}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -169,7 +171,7 @@ export function QualificationPlayoffManager({
                     disabled={index === 0 || saving}
                     onClick={() => setDraftOrder((current) => moveEntry(current, index, index - 1))}
                   >
-                    {tc("moveUp")}
+                    {tc('moveUp')}
                   </Button>
                   <Button
                     type="button"
@@ -178,7 +180,7 @@ export function QualificationPlayoffManager({
                     disabled={index === draftOrder.length - 1 || saving}
                     onClick={() => setDraftOrder((current) => moveEntry(current, index, index + 1))}
                   >
-                    {tc("moveDown")}
+                    {tc('moveDown')}
                   </Button>
                 </div>
               </div>
@@ -187,10 +189,10 @@ export function QualificationPlayoffManager({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeDialog} disabled={saving}>
-              {tc("cancel")}
+              {tc('cancel')}
             </Button>
             <Button type="button" onClick={handleSave} disabled={saving}>
-              {saving ? tc("saving") : tc("savePlayoffResult")}
+              {saving ? tc('saving') : tc('savePlayoffResult')}
             </Button>
           </DialogFooter>
         </DialogContent>
