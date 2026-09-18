@@ -1,0 +1,8 @@
+{
+  "title": "{mode} 予選スコアを自動入力 (debug mode)",
+  "button": "予選スコア自動入力",
+  "busyButton": "自動入力中…",
+  "running": "実行中…",
+  "success": "完了: {filled} 件入力 / {skipped} 件スキップ",
+  "failure": "失敗: {message}"
+}
