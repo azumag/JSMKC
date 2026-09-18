@@ -7,7 +7,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { Eye, EyeOff } from 'lucide-react';
@@ -29,10 +29,14 @@ export default function SignInPage() {
   const [playerForm, setPlayerForm] = useState({ nickname: '', password: '' });
   const [playerError, setPlayerError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const playerLoginInFlightRef = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handlePlayerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (playerLoginInFlightRef.current) return;
+    playerLoginInFlightRef.current = true;
+
     setPlayerError('');
     setIsLoading(true);
 
@@ -53,6 +57,7 @@ export default function SignInPage() {
       logger.error('Player login error', metadata);
       setPlayerError(t('loginError'));
     } finally {
+      playerLoginInFlightRef.current = false;
       setIsLoading(false);
     }
   };

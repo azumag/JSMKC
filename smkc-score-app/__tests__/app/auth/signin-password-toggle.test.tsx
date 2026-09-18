@@ -6,7 +6,7 @@
  * characters (l/I/1, O/0) hard to distinguish once shown. This covers the
  * show/hide toggle and the legible monospace font applied while visible.
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { signIn } from 'next-auth/react';
 import SignInPage from '@/app/auth/signin/page';
 
@@ -73,5 +73,37 @@ describe('Sign-in password field: show/hide toggle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'loginButton' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('invalidCredentials');
+  });
+
+  it('serializes duplicate player submits in the same render and allows a later retry', async () => {
+    const signInMock = signIn as jest.Mock;
+    signInMock.mockReset();
+    let resolveFirstLogin!: (result: { error: string; ok: boolean }) => void;
+    const firstLogin = new Promise<{ error: string; ok: boolean }>((resolve) => {
+      resolveFirstLogin = resolve;
+    });
+    signInMock.mockReturnValueOnce(firstLogin).mockResolvedValueOnce({ error: 'CredentialsSignin', ok: false });
+    render(<SignInPage />);
+
+    fireEvent.change(screen.getByLabelText('nickname'), { target: { value: 'player' } });
+    fireEvent.change(screen.getByLabelText('password'), { target: { value: 'wrong-password' } });
+    const loginButton = screen.getByRole('button', { name: 'loginButton' });
+
+    act(() => {
+      loginButton.click();
+      loginButton.click();
+    });
+
+    expect(signInMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirstLogin({ error: 'CredentialsSignin', ok: false });
+      await firstLogin;
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(loginButton).not.toBeDisabled());
+
+    fireEvent.click(loginButton);
+    await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(2));
   });
 });
