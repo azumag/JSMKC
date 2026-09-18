@@ -113,7 +113,9 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">{t('canSubmitScores')}</p>
             </div>
           ) : fetchError ? (
-            <p className="text-sm text-destructive">{fetchError}</p>
+            <p role="alert" className="text-sm text-destructive">
+              {fetchError}
+            </p>
           ) : (
             <p className="text-sm text-muted-foreground">{t('noPlayerSession')}</p>
           )}
