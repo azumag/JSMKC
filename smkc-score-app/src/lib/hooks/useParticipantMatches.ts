@@ -247,6 +247,9 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           return null;
         }
 
+        // Only clear a previous failure after the retry actually succeeds, so
+        // the existing error remains visible while a new submission is pending.
+        setError(null);
         /* Update match in local state with the returned data */
         if (data.match) {
           setMatches((prev) => prev.map((m) => (m.id === matchId ? { ...m, ...data.match } : m)));
