@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { createLogger } from '@/lib/client-logger';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
@@ -35,6 +35,7 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ModePublishError | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const updatingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,8 +80,10 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const toggle = useCallback(async () => {
     // Until the current publicModes read completes successfully, the state is
     // unknown. Refuse to build a PUT payload from the default/stale local value,
-    // which could overwrite other modes.
-    if (loading || updating || error === 'load') return;
+    // which could overwrite other modes. The ref lock closes the same-render
+    // window before React can publish updating=true to a new callback closure.
+    if (loading || updatingRef.current || error === 'load') return;
+    updatingRef.current = true;
     setUpdating(true);
     setError(null);
     try {
@@ -107,9 +110,10 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to update mode visibility:', metadata);
     } finally {
+      updatingRef.current = false;
       setUpdating(false);
     }
-  }, [error, isPublic, loading, mode, publicModes, tournamentId, updating]);
+  }, [error, isPublic, loading, mode, publicModes, tournamentId]);
 
   return { isPublic, toggle, retryLoad, updating, loading, error };
 }
