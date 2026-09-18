@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsPlayoffReconciliation } from '@/components/tournament/finals-playoff-reconciliation';
 
 jest.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
@@ -67,6 +67,36 @@ describe('FinalsPlayoffReconciliation', () => {
         }),
       }),
     );
+  });
+
+  it('serializes same-render reconciliation applies while the first PATCH is pending', async () => {
+    let resolvePatch!: (value: Response) => void;
+    const pendingPatch = new Promise<Response>((resolve) => {
+      resolvePatch = resolve;
+    });
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => stalePreview } as Response)
+      .mockReturnValue(pendingPatch);
+    const onSaved = renderReconciliation();
+
+    const runButton = await screen.findByRole('button', { name: 'reconcileUpperSlotsRun' });
+
+    act(() => {
+      runButton.click();
+      runButton.click();
+    });
+
+    const patchCalls = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PATCH');
+    expect(patchCalls).toHaveLength(1);
+    expect(onSaved).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolvePatch({ ok: false, json: async () => ({ code: 'TEST_CONFLICT' }) } as Response);
+      await pendingPatch;
+    });
+
+    await waitFor(() => expect(runButton).toBeEnabled());
   });
 
   it('shows the server-provided impact list before allowing a protected operation', async () => {
