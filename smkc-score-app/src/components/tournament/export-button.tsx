@@ -153,10 +153,15 @@ export function ExportButton({
          */
         const contentDisposition = response.headers.get("content-disposition");
         const extension = format === "cdm" ? "xlsm" : "csv";
-        let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.${extension}`;
+        let filename = `${tournamentName.replace(
+          /[^a-zA-Z0-9]/g,
+          "_",
+        )}-full-export.${extension}`;
 
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+          const filenameMatch = contentDisposition.match(
+            /filename="?([^"]+)"?/,
+          );
           if (filenameMatch) {
             filename = filenameMatch[1];
           }
