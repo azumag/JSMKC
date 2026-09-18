@@ -6,9 +6,9 @@
  * feedback in the JSMKC tournament management interface where scores
  * and rankings need to be updated in near-real-time during live events.
  *
- * Not marked as "use client" explicitly because it uses React hooks
- * (useState, useEffect) which implicitly require client-side execution.
- * The parent component importing this must be a client component.
+ * This module declares an explicit client boundary because it owns React
+ * state/effects and next-intl's client translation hook. Callers can import
+ * the component without relying on an ancestor to establish that boundary.
  *
  * Visual states:
  * - Live (polling active): Green badge with animated spinner icon
@@ -18,6 +18,8 @@
  * The time display updates every second via setInterval to provide
  * continuous feedback even when no new data arrives.
  */
+'use client';
+
 import { Clock, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
