@@ -13,11 +13,11 @@
  *   - ExportButton: Named export (the primary component).
  */
 
-import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
-import { createLogger } from "@/lib/client-logger";
-import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Button } from '@/components/ui/button';
+import { Download, Loader2 } from 'lucide-react';
+import { createLogger } from '@/lib/client-logger';
+import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 /**
  * Module-level logger for export operations.
@@ -36,21 +36,19 @@ class ExportRequestError extends Error {
   }
 }
 
-function buildExportErrorMessage(
-  error: unknown,
-  t: ReturnType<typeof useTranslations>,
-): string {
-  const baseMessage = t("exportFailed");
+function buildExportErrorMessage(error: unknown, t: ReturnType<typeof useTranslations>): string {
+  const baseMessage = t('exportFailed');
 
   if (error instanceof ExportRequestError) {
-    const statusMessage = error.status === 401 || error.status === 403
-      ? t("exportFailedForbidden")
-      : t("exportFailedHttpStatus", { status: error.status });
+    const statusMessage =
+      error.status === 401 || error.status === 403
+        ? t('exportFailedForbidden')
+        : t('exportFailedHttpStatus', { status: error.status });
     return `${baseMessage}: ${statusMessage}`;
   }
 
   if (error instanceof TypeError) {
-    return `${baseMessage}: ${t("exportFailedNetwork")}`;
+    return `${baseMessage}: ${t('exportFailedNetwork')}`;
   }
 
   if (error instanceof Error && error.message) {
@@ -76,10 +74,10 @@ function buildExportErrorMessage(
 interface ExportButtonProps {
   tournamentId: string;
   tournamentName?: string;
-  format?: "csv" | "cdm";
+  format?: 'csv' | 'cdm';
   children?: React.ReactNode;
-  variant?: "default" | "outline" | "ghost" | "secondary" | "destructive";
-  size?: "default" | "sm" | "lg";
+  variant?: 'default' | 'outline' | 'ghost' | 'secondary' | 'destructive';
+  size?: 'default' | 'sm' | 'lg';
   disabled?: boolean;
 }
 
@@ -100,14 +98,14 @@ interface ExportButtonProps {
  */
 export function ExportButton({
   tournamentId,
-  tournamentName = "tournament",
-  format = "csv",
+  tournamentName = 'tournament',
+  format = 'csv',
   children,
-  variant = "outline",
-  size = "sm",
-  disabled = false
+  variant = 'outline',
+  size = 'sm',
+  disabled = false,
 }: ExportButtonProps) {
-  const t = useTranslations("common");
+  const t = useTranslations('common');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -121,12 +119,14 @@ export function ExportButton({
     try {
       setIsExporting(true);
       setErrorMessage(null);
-      const query = format === "cdm" ? "?format=cdm" : "";
-      const response = await fetch(`/api/tournaments/${tournamentId}/export${query}`);
+      const query = format === 'cdm' ? '?format=cdm' : '';
+      const exportUrl = `/api/tournaments/${tournamentId}/export${query}`;
+      const response = await fetch(exportUrl);
 
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
-        throw new ExportRequestError(response.status, detail.trim().slice(0, 160));
+        const safeDetail = detail.trim().slice(0, 160);
+        throw new ExportRequestError(response.status, safeDetail);
       }
 
       /** Convert the response to a binary blob for download */
@@ -134,44 +134,56 @@ export function ExportButton({
 
       /** Create a temporary object URL pointing to the in-memory blob */
       const url = window.URL.createObjectURL(blob);
+      let link: HTMLAnchorElement | null = null;
 
-      /** Create a temporary invisible anchor element to trigger the download */
-      const link = document.createElement("a");
-      link.href = url;
+      try {
+        /** Create a temporary invisible anchor element to trigger the download */
+        link = document.createElement('a');
+        link.href = url;
 
-      /**
-       * Attempt to extract the filename from the Content-Disposition header.
-       * If absent, fall back to a sanitized tournament-name based filename.
-       */
-      const contentDisposition = response.headers.get("content-disposition");
-      const extension = format === "cdm" ? "xlsm" : "csv";
-      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.${extension}`;
+        /**
+         * Attempt to extract the filename from the Content-Disposition header.
+         * If absent, fall back to a sanitized tournament-name based filename.
+         */
+        const contentDisposition = response.headers.get('content-disposition');
+        const extension = format === 'cdm' ? 'xlsm' : 'csv';
+        const safeTournamentName = tournamentName.replace(/[^a-zA-Z0-9]/g, '_');
+        let filename = `${safeTournamentName}-full-export.${extension}`;
 
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
+        if (contentDisposition) {
+          const filenamePattern = /filename="?([^"]+)"?/;
+          const filenameMatch = contentDisposition.match(filenamePattern);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        /**
+         * Set the download attribute to suggest the filename to the browser,
+         * append the anchor to the DOM, and click it programmatically.
+         * The anchor must be in the DOM for the click to work in all browsers.
+         */
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+      } finally {
+        /**
+         * Cleanup is unconditional once an object URL exists. Browser/DOM
+         * failures during setup or click must not leave temporary nodes or
+         * blob-backed object URLs behind.
+         */
+        try {
+          link?.remove();
+        } finally {
+          window.URL.revokeObjectURL(url);
         }
       }
-
-      /**
-       * Set the download attribute to suggest the filename to the browser,
-       * append the anchor to the DOM, click it programmatically, then clean up.
-       * The anchor must be in the DOM for the click to work in all browsers.
-       */
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      /** Revoke the object URL to free the memory held by the blob */
-      window.URL.revokeObjectURL(url);
     } catch (error) {
       /**
        * Log export failures with structured metadata for debugging.
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
-      logger.error("Export failed", metadata);
+      logger.error('Export failed', metadata);
       setErrorMessage(buildExportErrorMessage(error, t));
     } finally {
       setIsExporting(false);
@@ -179,7 +191,7 @@ export function ExportButton({
   };
 
   const isDisabled = disabled || isExporting;
-  const label = isExporting ? t("exporting") : children || t("exportAll");
+  const label = isExporting ? t('exporting') : children || t('exportAll');
 
   return (
     <div className="inline-flex flex-col items-start gap-1">
