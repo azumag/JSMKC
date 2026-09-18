@@ -123,16 +123,13 @@ export function ExportButton({
       setIsExporting(true);
       setErrorMessage(null);
       const query = format === "cdm" ? "?format=cdm" : "";
-      const response = await fetch(
-        `/api/tournaments/${tournamentId}/export${query}`,
-      );
+      const exportUrl = `/api/tournaments/${tournamentId}/export${query}`;
+      const response = await fetch(exportUrl);
 
       if (!response.ok) {
         const detail = await response.text().catch(() => "");
-        throw new ExportRequestError(
-          response.status,
-          detail.trim().slice(0, 160),
-        );
+        const safeDetail = detail.trim().slice(0, 160);
+        throw new ExportRequestError(response.status, safeDetail);
       }
 
       /** Convert the response to a binary blob for download */
@@ -153,15 +150,15 @@ export function ExportButton({
          */
         const contentDisposition = response.headers.get("content-disposition");
         const extension = format === "cdm" ? "xlsm" : "csv";
-        let filename = `${tournamentName.replace(
+        const safeTournamentName = tournamentName.replace(
           /[^a-zA-Z0-9]/g,
           "_",
-        )}-full-export.${extension}`;
+        );
+        let filename = `${safeTournamentName}-full-export.${extension}`;
 
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(
-            /filename="?([^"]+)"?/,
-          );
+          const filenamePattern = /filename="?([^"]+)"?/;
+          const filenameMatch = contentDisposition.match(filenamePattern);
           if (filenameMatch) {
             filename = filenameMatch[1];
           }
