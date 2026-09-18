@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { createLogger } from '@/lib/client-logger';
@@ -67,11 +67,13 @@ export function CdmArchiveReconcileButton({
   const tCommon = useTranslations('common');
   const japanese = locale.startsWith('ja');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   if (status !== 'completed' || excluded) return null;
 
   const run = async () => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const previewResponse = await fetch(`/api/tournaments/${tournamentId}/qualification-schedule/reconcile`, {
@@ -125,6 +127,7 @@ export function CdmArchiveReconcileButton({
       logger.error('Failed to reconcile CDM archive schedule', { error, tournamentId });
       alert(tCommon('networkError'));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
