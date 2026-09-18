@@ -36,7 +36,11 @@ class ExportRequestError extends Error {
   }
 }
 
-function buildExportErrorMessage(error: unknown, t: ReturnType<typeof useTranslations>): string {
+function buildExportErrorMessage(
+  error: unknown,
+  t: ReturnType<typeof useTranslations>,
+  responseReceived: boolean,
+): string {
   const baseMessage = t('exportFailed');
 
   if (error instanceof ExportRequestError) {
@@ -47,13 +51,20 @@ function buildExportErrorMessage(error: unknown, t: ReturnType<typeof useTransla
     return `${baseMessage}: ${statusMessage}`;
   }
 
+  // Once the API has responded, later failures belong to Blob/object-URL/DOM
+  // setup. Keep their low-level browser/runtime detail in the logger only.
+  if (responseReceived) {
+    return baseMessage;
+  }
+
   if (error instanceof TypeError) {
     return `${baseMessage}: ${t('exportFailedNetwork')}`;
   }
 
-  // Keep low-level browser/runtime details in the structured logger only. Generic
-  // Error.message values can contain proxy, URL, filesystem, or DOM implementation
-  // details that are not useful in the operator-facing alert.
+  if (error instanceof Error && error.message) {
+    return `${baseMessage}: ${error.message}`;
+  }
+
   return baseMessage;
 }
 
@@ -115,12 +126,14 @@ export function ExportButton({
   const handleExport = async () => {
     if (disabled || isExporting) return;
 
+    let responseReceived = false;
     try {
       setIsExporting(true);
       setErrorMessage(null);
       const query = format === 'cdm' ? '?format=cdm' : '';
       const exportUrl = `/api/tournaments/${tournamentId}/export${query}`;
       const response = await fetch(exportUrl);
+      responseReceived = true;
 
       if (!response.ok) {
         const detail = await response.text().catch(() => '');
@@ -183,7 +196,7 @@ export function ExportButton({
        */
       const metadata = error instanceof Error ? { message: error.message, stack: error.stack } : { error };
       logger.error('Export failed', metadata);
-      setErrorMessage(buildExportErrorMessage(error, t));
+      setErrorMessage(buildExportErrorMessage(error, t, responseReceived));
     } finally {
       setIsExporting(false);
     }
