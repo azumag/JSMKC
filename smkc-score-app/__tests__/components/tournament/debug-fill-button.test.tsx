@@ -6,7 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DebugFillButton } from '@/components/tournament/debug-fill-button';
 
 jest.mock('next-intl', () => {
-  const translations = {
+  const translations: Record<'en' | 'ja', Record<string, Record<string, string>>> = {
     en: {
       common: { networkError: 'common.networkError' },
       debugFill: {
@@ -29,20 +29,17 @@ jest.mock('next-intl', () => {
         failure: '失敗: {message}',
       },
     },
-  } as const;
-  let locale: keyof typeof translations = 'ja';
+  };
+  let locale: 'en' | 'ja' = 'ja';
 
   return {
-    __setMockLocale: (nextLocale: keyof typeof translations) => {
+    __setMockLocale: (nextLocale: 'en' | 'ja') => {
       locale = nextLocale;
     },
-    useTranslations:
-      (namespace: keyof (typeof translations)['en']) =>
-      (key: string, values?: Record<string, string | number>) => {
-        const template = translations[locale][namespace][key as keyof (typeof translations)['en'][typeof namespace]];
-        if (typeof template !== 'string') return `${namespace}.${key}`;
-        return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(values?.[name] ?? `{${name}}`));
-      },
+    useTranslations: (namespace: string) => (key: string, values?: Record<string, string | number>) => {
+      const template = translations[locale]?.[namespace]?.[key] ?? `${namespace}.${key}`;
+      return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(values?.[name] ?? `{${name}}`));
+    },
   };
 });
 
