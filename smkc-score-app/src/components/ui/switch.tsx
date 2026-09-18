@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import * as React from "react";
+import * as React from 'react';
 
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 export interface SwitchProps {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   disabled?: boolean;
   /** Accessible label for assistive tech. Required because the switch has no visible label. */
-  "aria-label": string;
+  'aria-label': string;
   className?: string;
   id?: string;
 }
@@ -27,7 +27,7 @@ export function Switch({
   disabled = false,
   className,
   id,
-  "aria-label": ariaLabel,
+  'aria-label': ariaLabel,
 }: SwitchProps) {
   const handleClick = () => {
     if (disabled) return;
@@ -36,7 +36,7 @@ export function Switch({
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.repeat) return;
-    if (event.key === "Enter" || event.key === " ") {
+    if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       handleClick();
     }
@@ -53,20 +53,20 @@ export function Switch({
       onKeyDown={handleKeyDown}
       disabled={disabled}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-transparent",
-        "transition-colors duration-200 ease-in-out",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "bg-muted/60 hover:bg-muted",
-        className
+        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border border-transparent',
+        'transition-colors duration-200 ease-in-out',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        checked ? 'bg-primary' : 'bg-muted/60 hover:bg-muted',
+        className,
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "pointer-events-none inline-block size-5 rounded-full bg-white shadow-md ring-0",
-          "transition-transform duration-200 ease-in-out",
-          checked ? "translate-x-5" : "translate-x-0.5"
+          'pointer-events-none inline-block size-5 rounded-full bg-white shadow-md ring-0',
+          'transition-transform duration-200 ease-in-out',
+          checked ? 'translate-x-5' : 'translate-x-0.5',
         )}
       />
     </button>
