@@ -13,7 +13,7 @@
  */
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -84,6 +84,7 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
   const [players, setPlayers] = useState<Player[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const mutationInFlightRef = useRef(false);
 
   const invalidScoreLabels = invalidBroadcastIntegerInputLabels([
     { label: tb('playerScore', { player: '1P' }), value: player1WinsInput },
@@ -159,7 +160,9 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
   const handleSave = async () => {
     if (!isAdmin) return;
     if (scoreInputError) return;
+    if (mutationInFlightRef.current) return;
 
+    mutationInFlightRef.current = true;
     setSaving(true);
     const player1 = players.find((p) => p.nickname === player1Input.trim());
     const player2 = players.find((p) => p.nickname === player2Input.trim());
@@ -185,12 +188,16 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
         setTimeout(() => setSavedFlash(false), 2000);
       }
     } finally {
+      mutationInFlightRef.current = false;
       setSaving(false);
     }
   };
 
   const handleClear = async () => {
     if (!isAdmin) return;
+    if (mutationInFlightRef.current) return;
+
+    mutationInFlightRef.current = true;
     setSaving(true);
     try {
       await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
@@ -217,6 +224,7 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
       setLayoutInput(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
       await fetchBroadcastState();
     } finally {
+      mutationInFlightRef.current = false;
       setSaving(false);
     }
   };
