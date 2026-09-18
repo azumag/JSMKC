@@ -304,7 +304,11 @@ function TaPhaseRoundCard({ event, now }: { event: OverlayEvent; now: number }) 
             >
               <div className="min-w-0 flex items-center gap-2">
                 {denseParticipants ? (
-                  <span role="img" className="h-2 w-2 shrink-0 rounded-full bg-green-300" aria-label="Active" />
+                  <span
+                    role="img"
+                    className="h-2 w-2 shrink-0 rounded-full bg-green-300"
+                    aria-label="Active"
+                  />
                 ) : (
                   <span className="rounded bg-green-400/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-green-300">
                     Active
