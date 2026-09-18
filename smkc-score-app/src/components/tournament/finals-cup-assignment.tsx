@@ -57,8 +57,7 @@ export function FinalsCupAssignment({
         return;
       }
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        alert(payload?.error || t('failedUpdateMatchCup'));
+        alert(t('failedUpdateMatchCup'));
         return;
       }
       onSaved();
