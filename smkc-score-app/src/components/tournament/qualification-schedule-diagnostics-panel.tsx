@@ -95,6 +95,7 @@ export function QualificationScheduleDiagnosticsPanel({
 
       {summary.totalGroupCount > 0 && (
         <div
+          role="group"
           aria-label="Qualification schedule decision summary"
           className="grid gap-2 rounded-md border bg-muted/20 p-3 text-xs sm:grid-cols-2 lg:grid-cols-3"
         >
@@ -123,7 +124,7 @@ export function QualificationScheduleDiagnosticsPanel({
         </div>
       )}
 
-      <div aria-label="Qualification schedule policy matrix" className="space-y-2 rounded-md border p-3">
+      <div role="group" aria-label="Qualification schedule policy matrix" className="space-y-2 rounded-md border p-3">
         <div>
           <h3 className="font-medium">Policy matrix (7–21 players)</h3>
           <p className="text-xs text-muted-foreground">
@@ -157,7 +158,11 @@ export function QualificationScheduleDiagnosticsPanel({
       </div>
 
       {unsupportedCdmFixtureCandidateDecisions.length > 0 && (
-        <div aria-label="Unsupported CDM fixture candidate decisions" className="space-y-2 rounded-md border p-3">
+        <div
+          role="group"
+          aria-label="Unsupported CDM fixture candidate decisions"
+          className="space-y-2 rounded-md border p-3"
+        >
           <div>
             <h3 className="font-medium">Unsupported CDM candidate evidence</h3>
             <p className="text-xs text-muted-foreground">
@@ -232,7 +237,11 @@ export function QualificationScheduleDiagnosticsPanel({
         </div>
       )}
 
-      <div aria-label="Circle versus CDM schedule comparison" className="space-y-2 rounded-md border p-3">
+      <div
+        role="group"
+        aria-label="Circle versus CDM schedule comparison"
+        className="space-y-2 rounded-md border p-3"
+      >
         <div>
           <h3 className="font-medium">Circle → CDM impact (7–12 players)</h3>
           <p className="text-xs text-muted-foreground">
