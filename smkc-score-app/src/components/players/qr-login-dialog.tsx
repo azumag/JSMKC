@@ -315,7 +315,7 @@ export function QrLoginDialog({ playerId, playerNickname, trigger }: QrLoginDial
         <div className="space-y-4 py-4">
           {error && (
             <div className="space-y-2 text-red-500 text-sm">
-              <div>{error}</div>
+              <div role="alert">{error}</div>
               {!status && !loading && (
                 <Button
                   type="button"
