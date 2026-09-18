@@ -82,6 +82,39 @@ describe('FinalsScoreOverride', () => {
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a generic failure and allows retry after a network rejection', async () => {
+    const onSaved = jest.fn();
+    const alertMock = jest.fn();
+    window.alert = alertMock;
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('private network detail'));
+
+    render(
+      <FinalsScoreOverride
+        match={{
+          id: 'm1',
+          version: 4,
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1: { nickname: 'One' },
+          player2: { nickname: 'Two' },
+        }}
+        endpoint="/api/test"
+        score1={2}
+        score2={1}
+        onSaved={onSaved}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Record corrected result (admin)'));
+    const saveButton = screen.getByRole('button', { name: 'Save corrected result' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(alertMock).toHaveBeenCalledWith('Failed to save corrected result'));
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('private network detail'));
+  });
+
   it('keeps an existing player-2 tie override when the correction form is opened again', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
 
