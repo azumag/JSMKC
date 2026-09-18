@@ -92,6 +92,14 @@ describe('UpdateIndicator — time display', () => {
 
     expect(screen.getByText('最終更新: 10秒前')).toBeInTheDocument();
   });
+
+  it('clamps a future lastUpdated timestamp to zero seconds ago', () => {
+    const future = new Date(Date.now() + 5_000);
+    render(<UpdateIndicator lastUpdated={future} isPolling={false} />);
+
+    expect(screen.getByText('Last updated: 0s ago')).toBeInTheDocument();
+    expect(screen.queryByText(/-\d+s ago/)).not.toBeInTheDocument();
+  });
 });
 
 describe('UpdateIndicator — live timer', () => {
@@ -117,14 +125,16 @@ describe('UpdateIndicator — live timer', () => {
   it('TC-2739: restarting interval when lastUpdated prop changes', () => {
     const first = new Date(Date.now() - 30_000);
     const { rerender } = render(<UpdateIndicator lastUpdated={first} isPolling={false} />);
-    expect(screen.getByText(/30s ago/)).toBeInTheDocument();
+    expect(screen.getByText('Last updated: 30s ago')).toBeInTheDocument();
 
-    // Update to a fresh timestamp
+    // Update to a fresh timestamp. The displayed age must reset immediately,
+    // before the next one-second interval tick.
     const fresh = new Date();
     act(() => {
       rerender(<UpdateIndicator lastUpdated={fresh} isPolling={false} />);
     });
-    expect(screen.getByText(/0s ago/)).toBeInTheDocument();
+    expect(screen.getByText('Last updated: 0s ago')).toBeInTheDocument();
+    expect(screen.queryByText('Last updated: 30s ago')).not.toBeInTheDocument();
   });
 
   it('TC-2740: initial secondsAgo is computed synchronously from lastUpdated', () => {
