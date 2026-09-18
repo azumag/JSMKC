@@ -175,7 +175,10 @@ describe('LocaleSwitcher', () => {
       status: 200,
       json: jest.fn().mockResolvedValue({}),
     } as unknown as Response;
-    const fetchSpy = jest.spyOn(global, 'fetch').mockReturnValueOnce(firstRequest).mockResolvedValue(successfulResponse);
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockReturnValueOnce(firstRequest)
+      .mockResolvedValue(successfulResponse);
     render(<LocaleSwitcher />);
 
     const button = screen.getByRole('switch');
