@@ -27,6 +27,12 @@ reports `error: "update"`. The previously known `publicModes` state is retained,
 the UI shows `common.networkError`, and the switch becomes available again after
 `updating` is cleared so an administrator can retry.
 
+Publish mutations are synchronously serialized. The hook acquires an in-flight
+ref lock before publishing `updating=true`, so a second `toggle()` call from the
+same render cannot start another PUT while React is still batching the state
+update. The lock is released in `finally`, including HTTP and network failure
+paths, so a later retry is not blocked.
+
 A successful retry clears the error, updates local state, and continues to emit
 the existing `publicModesChanged` event so tournament tab badges refresh without
 a page reload.
@@ -35,6 +41,6 @@ a page reload.
 
 - Tournament summary endpoint and publish PUT endpoint are unchanged.
 - `addPublicMode` / `removePublicMode` remain the source of the outgoing list.
-- The double-submit guard remains active while an update is in flight.
+- The double-submit guard remains active from the first synchronous `toggle()` entry until the update settles.
 - Initial-load retry is read-only and never constructs a publish PUT.
 - No raw browser/network `Error.message` is shown in the publish control UI.
