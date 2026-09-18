@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsRoundCoursesSettings } from '@/components/tournament/finals-round-courses-settings';
 import enMessages from '../../../messages/en.json';
 import jaMessages from '../../../messages/ja.json';
@@ -156,5 +156,53 @@ describe('FinalsRoundCoursesSettings', () => {
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Failed to update round courses'));
     expect(onSaved).not.toHaveBeenCalled();
     await waitFor(() => expect(applyButton).not.toBeDisabled());
+  });
+
+  it('serializes same-render apply activations into one PATCH', async () => {
+    const onSaved = jest.fn();
+    let resolveSave!: (response: Response) => void;
+    global.fetch = jest.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+
+    render(
+      <FinalsRoundCoursesSettings
+        match={{ id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4 }}
+        matches={[
+          { id: 'm1', stage: 'finals', round: 'winners_qf', completed: false, version: 4, assignedCourses: ['MC1'] },
+        ]}
+        endpoint="/api/test"
+        onSaved={onSaved}
+      />,
+    );
+
+    const applyButton = screen.getByRole('button', { name: 'Apply courses to pending' });
+    act(() => {
+      applyButton.click();
+      applyButton.click();
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/test',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          matchId: 'm1',
+          roundCourses: { courses: ['MC1'], expectedVersions: { m1: 4 } },
+        }),
+      }),
+    );
+
+    await act(async () => {
+      resolveSave({ ok: true } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(applyButton).not.toBeDisabled());
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 });
