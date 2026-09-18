@@ -13,8 +13,15 @@ export function TaModeBadge({ mode, verbose = true }: { mode: TaMode; verbose?: 
   const full = battleRoyale ? t('battleRoyaleModeTitle') : t('standardTaModeTitle');
   const compact = battleRoyale ? t('battleRoyaleModeShort') : t('standardTaModeShort');
   return (
-    <Badge variant={battleRoyale ? 'default' : 'outline'} title={full} aria-label={full}>
-      {verbose ? full : compact}
+    <Badge variant={battleRoyale ? 'default' : 'outline'} title={full}>
+      {verbose ? (
+        full
+      ) : (
+        <>
+          <span aria-hidden="true">{compact}</span>
+          <span className="sr-only">{full}</span>
+        </>
+      )}
     </Badge>
   );
 }

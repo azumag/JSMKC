@@ -39,7 +39,11 @@ describe('TA follow-up components', () => {
     expect(container).toBeEmptyDOMElement();
 
     rerender(<TaModeBadge mode="battle_royale" verbose={false} />);
-    expect(screen.getByText('battleRoyaleModeShort')).toBeInTheDocument();
+    const compact = screen.getByText('battleRoyaleModeShort');
+    const full = screen.getByText('battleRoyaleModeTitle');
+    expect(compact).toHaveAttribute('aria-hidden', 'true');
+    expect(full).toHaveClass('sr-only');
+    expect(compact.closest('[data-slot="badge"]')).not.toHaveAttribute('aria-label');
   });
 
   it('changes mode by keyboard-accessible radio controls', async () => {
