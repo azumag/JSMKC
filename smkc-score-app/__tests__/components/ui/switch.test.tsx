@@ -66,14 +66,20 @@ describe('Switch', () => {
     expect(screen.getByRole('switch')).toBeDisabled();
   });
 
-  it('TC-2796: Space activates the native button exactly once', async () => {
-    const user = userEvent.setup();
+  it('TC-2796: Space defers to one native button activation', () => {
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
     const button = screen.getByRole('switch');
-    button.focus();
 
-    await user.keyboard('{Space}');
+    // jsdom does not synthesize the browser's Space -> click default action.
+    // Verify the component does not toggle manually, then model that single
+    // native activation with the click the browser would dispatch on keyup.
+    const wasNotCanceled = fireEvent.keyDown(button, { key: ' ' });
+    expect(wasNotCanceled).toBe(true);
+    expect(onCheckedChange).not.toHaveBeenCalled();
+
+    fireEvent.keyUp(button, { key: ' ' });
+    fireEvent.click(button);
 
     expect(onCheckedChange).toHaveBeenCalledTimes(1);
     expect(onCheckedChange).toHaveBeenCalledWith(true);
