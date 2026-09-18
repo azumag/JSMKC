@@ -20,7 +20,7 @@ describe('TA sudden-death mutation fallback i18n', () => {
 
   it('does not forward server-provided error details to the admin UI', () => {
     expect(source).not.toContain('errorData.error');
-    expect(source).not.toContain("setSaveError(errorData.error");
+    expect(source).not.toContain('setSaveError(errorData.error');
   });
 
   it('keeps failure context in the client logger', () => {
