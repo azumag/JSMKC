@@ -43,7 +43,11 @@ export function TieWarningBanner({ hasTies, isAdmin }: TieWarningBannerProps) {
           clipRule="evenodd"
         />
       </svg>
-      <span>{isAdmin ? tc("tiedRanksWarningAdmin") : tc("tiedRanksWarningViewer")}</span>
+      <span>
+        {isAdmin
+          ? tc("tiedRanksWarningAdmin")
+          : tc("tiedRanksWarningViewer")}
+      </span>
     </div>
   );
 }
