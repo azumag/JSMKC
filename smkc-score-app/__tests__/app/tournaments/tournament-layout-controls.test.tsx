@@ -6,7 +6,7 @@
  * string-match test only verified that certain source fragments existed; this
  * renders the actual component and exercises the fetch/status-update flow.
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import TournamentLayout from '@/app/tournaments/[id]/layout';
 
@@ -170,13 +170,19 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
   });
 
   it('blocks duplicate clicks while a status update is in flight', async () => {
-    let resolveFetch: (value: unknown) => void;
-    (global.fetch as jest.Mock).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveFetch = resolve;
-        }),
-    );
+    let resolveFetch!: (value: unknown) => void;
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ data: { ...summaryTournament, status: 'completed' } }),
+      });
 
     render(<TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>);
 
@@ -185,16 +191,24 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
     });
 
     const activeButton = screen.getByRole('button', { name: 'startTournament' });
-    fireEvent.click(activeButton);
-    fireEvent.click(activeButton);
-
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+    act(() => {
+      activeButton.click();
+      activeButton.click();
     });
 
-    resolveFetch!(updatedResponse);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFetch(updatedResponse);
+      await Promise.resolve();
+    });
+
+    const completeButton = await screen.findByRole('button', { name: 'completeTournament' });
+    expect(completeButton).not.toBeDisabled();
+    fireEvent.click(completeButton);
+
     await waitFor(() => {
-      expect((global.fetch as jest.Mock).mock.calls.length).toBe(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 });
