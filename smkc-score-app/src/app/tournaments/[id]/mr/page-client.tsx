@@ -292,8 +292,11 @@ export default function MatchRacePageClient({
       if (response.ok) {
         refetch();
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.error || tc('networkError'));
+        logger.error('Failed to toggle qualification confirmed', {
+          status: response.status,
+          tournamentId,
+        });
+        toast.error(tc('networkError'));
       }
     } catch (err) {
       logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
@@ -378,8 +381,11 @@ export default function MatchRacePageClient({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.error || tc('networkError'));
+        logger.error('Failed to update match:', {
+          status: response.status,
+          tournamentId,
+        });
+        toast.error(tc('networkError'));
         return;
       }
 
