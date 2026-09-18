@@ -12,10 +12,6 @@ import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 import enModePublishSwitch from '../../../messages/mode-publish-switch/en.json';
 import jaModePublishSwitch from '../../../messages/mode-publish-switch/ja.json';
 
-// TODO(#3763): the repository drift guard still indexes these legacy source tokens:
-// unpublishMode, publishMode, aria-label. Remove this compatibility anchor when the
-// guard validates the observable TC-2663–2668 semantics instead of implementation text.
-
 const toggleMock = jest.fn();
 
 // Default state: not published, not loading/updating, no error
