@@ -1,0 +1,8 @@
+{
+  "title": "{mode} qualification scores auto-fill (debug mode)",
+  "button": "Auto-fill qualification scores",
+  "busyButton": "Auto-filling…",
+  "running": "Running…",
+  "success": "Done: {filled} filled / {skipped} skipped",
+  "failure": "Failed: {message}"
+}
