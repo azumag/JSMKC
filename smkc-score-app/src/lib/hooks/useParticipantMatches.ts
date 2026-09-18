@@ -15,7 +15,7 @@
  */
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
@@ -118,6 +118,9 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   const [myMatches, setMyMatches] = useState<TMatch[]>([]);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [qualificationConfirmed, setQualificationConfirmed] = useState(false);
+  // React state does not synchronously serialize calls made within one render.
+  // This ref is the actual submit lock; `submitting` remains the UI-facing state.
+  const reportSubmissionInFlightRef = useRef(false);
 
   /* Initial data fetch on mount */
   useEffect(() => {
@@ -227,6 +230,8 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
    */
   const submitReport = useCallback(
     async (matchId: string, body: Record<string, unknown>): Promise<Record<string, unknown> | null> => {
+      if (reportSubmissionInFlightRef.current) return null;
+      reportSubmissionInFlightRef.current = true;
       setSubmitting(matchId);
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/${mode}/match/${matchId}/report`, {
@@ -261,6 +266,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
         setError(networkErrorMessage || 'Failed to submit report. Please check your connection.');
         return null;
       } finally {
+        reportSubmissionInFlightRef.current = false;
         setSubmitting(null);
       }
     },
