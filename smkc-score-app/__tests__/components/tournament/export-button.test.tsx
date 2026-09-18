@@ -220,7 +220,8 @@ describe('ExportButton', () => {
       }));
     });
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: network down');
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('network down');
     expect(clickSpy).not.toHaveBeenCalled();
     expect(window.URL.createObjectURL).not.toHaveBeenCalled();
   });
