@@ -115,6 +115,50 @@ describe('FinalsScoreOverride', () => {
     expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('private network detail'));
   });
 
+  it('redacts HTTP error detail and allows retry', async () => {
+    const onSaved = jest.fn();
+    const alertMock = jest.fn();
+    window.alert = alertMock;
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ error: 'private database detail' }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: {} }) });
+    global.fetch = fetchMock;
+
+    render(
+      <FinalsScoreOverride
+        match={{
+          id: 'm1',
+          version: 4,
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1: { nickname: 'One' },
+          player2: { nickname: 'Two' },
+        }}
+        endpoint="/api/test"
+        score1={2}
+        score2={1}
+        onSaved={onSaved}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Record corrected result (admin)'));
+    const saveButton = screen.getByRole('button', { name: 'Save corrected result' });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(alertMock).toHaveBeenCalledWith('Failed to save corrected result'));
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('private database detail'));
+    expect(onSaved).not.toHaveBeenCalled();
+
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  });
+
   it('serializes same-render save activations into a single PUT', async () => {
     const onSaved = jest.fn();
     let resolveSave!: (response: Response) => void;
