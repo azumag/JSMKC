@@ -187,6 +187,8 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 2000);
       }
+    } catch {
+      // Preserve the current form state and allow a retry without exposing raw transport details.
     } finally {
       mutationInFlightRef.current = false;
       setSaving(false);
@@ -200,7 +202,7 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
     mutationInFlightRef.current = true;
     setSaving(true);
     try {
-      await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
+      const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -215,6 +217,8 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
           layout: DEFAULT_OVERLAY_BROADCAST_LAYOUT,
         }),
       });
+      if (!res.ok) return;
+
       setPlayer1Input('');
       setPlayer2Input('');
       setMatchLabelInput('');
@@ -223,6 +227,8 @@ export default function BroadcastPage({ params }: { params: Promise<{ id: string
       setMatchFtInput('');
       setLayoutInput(DEFAULT_OVERLAY_BROADCAST_LAYOUT);
       await fetchBroadcastState();
+    } catch {
+      // Preserve the current form state and allow a retry without exposing raw transport details.
     } finally {
       mutationInFlightRef.current = false;
       setSaving(false);
