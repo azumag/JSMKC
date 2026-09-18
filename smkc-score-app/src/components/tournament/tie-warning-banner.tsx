@@ -11,8 +11,8 @@
  * unconditional placement above each group's standings table.
  */
 
-"use client";
-import { useTranslations } from "next-intl";
+'use client';
+import { useTranslations } from 'next-intl';
 
 interface TieWarningBannerProps {
   hasTies: boolean;
@@ -20,12 +20,15 @@ interface TieWarningBannerProps {
 }
 
 export function TieWarningBanner({ hasTies, isAdmin }: TieWarningBannerProps) {
-  const tc = useTranslations("common");
+  const tc = useTranslations('common');
 
   if (!hasTies) return null;
 
   return (
-    <div className="mb-2 flex items-center gap-2 rounded-sm border border-l-[3px] border-l-accent border-foreground/15 bg-accent/15 px-3 py-2 text-sm text-foreground">
+    <div
+      role="status"
+      className="mb-2 flex items-center gap-2 rounded-sm border border-l-[3px] border-l-accent border-foreground/15 bg-accent/15 px-3 py-2 text-sm text-foreground"
+    >
       {/* Warning icon */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -40,11 +43,7 @@ export function TieWarningBanner({ hasTies, isAdmin }: TieWarningBannerProps) {
           clipRule="evenodd"
         />
       </svg>
-      <span>
-        {isAdmin
-          ? tc("tiedRanksWarningAdmin")
-          : tc("tiedRanksWarningViewer")}
-      </span>
+      <span>{isAdmin ? tc('tiedRanksWarningAdmin') : tc('tiedRanksWarningViewer')}</span>
     </div>
   );
 }

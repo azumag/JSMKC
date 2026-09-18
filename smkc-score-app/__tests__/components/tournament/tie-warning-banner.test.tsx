@@ -16,34 +16,32 @@ jest.mock('next-intl', () => ({
 
 describe('TieWarningBanner', () => {
   it('TC-2653: renders nothing when hasTies is false (admin)', () => {
-    const { container } = render(
-      <TieWarningBanner hasTies={false} isAdmin={true} />,
-    );
+    const { container } = render(<TieWarningBanner hasTies={false} isAdmin={true} />);
 
     expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('TC-2654: renders nothing when hasTies is false (non-admin)', () => {
-    const { container } = render(
-      <TieWarningBanner hasTies={false} isAdmin={false} />,
-    );
+    const { container } = render(<TieWarningBanner hasTies={false} isAdmin={false} />);
 
     expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('TC-2655: renders admin message when hasTies is true and isAdmin is true', () => {
+  it('TC-2655: renders admin message as a status when hasTies is true and isAdmin is true', () => {
     render(<TieWarningBanner hasTies={true} isAdmin={true} />);
 
     // useTranslations returns the i18n key — admin branch uses "tiedRanksWarningAdmin"
-    expect(screen.getByText('tiedRanksWarningAdmin')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('tiedRanksWarningAdmin');
     expect(screen.queryByText('tiedRanksWarningViewer')).toBeNull();
   });
 
-  it('TC-2656: renders viewer message when hasTies is true and isAdmin is false', () => {
+  it('TC-2656: renders viewer message as a status when hasTies is true and isAdmin is false', () => {
     render(<TieWarningBanner hasTies={true} isAdmin={false} />);
 
     // useTranslations returns the i18n key — non-admin branch uses "tiedRanksWarningViewer"
-    expect(screen.getByText('tiedRanksWarningViewer')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('tiedRanksWarningViewer');
     expect(screen.queryByText('tiedRanksWarningAdmin')).toBeNull();
   });
 });
