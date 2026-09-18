@@ -68,18 +68,24 @@ export function FinalsScoreOverride({
     const parsed1 = parsedScore1;
     const parsed2 = parsedScore2;
     if (parsed1 === null || parsed2 === null) return;
-    const response = await fetch(endpoint, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        matchId: match.id,
-        expectedVersion: match.version,
-        score1: parsed1,
-        score2: parsed2,
-        override: true,
-        ...(parsed1 === parsed2 ? { winnerId } : {}),
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchId: match.id,
+          expectedVersion: match.version,
+          score1: parsed1,
+          score2: parsed2,
+          override: true,
+          ...(parsed1 === parsed2 ? { winnerId } : {}),
+        }),
+      });
+    } catch {
+      alert(t('failedSaveCorrectedResult'));
+      return;
+    }
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
       alert(payload?.error || t('failedSaveCorrectedResult'));
