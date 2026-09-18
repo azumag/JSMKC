@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -122,7 +123,8 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
   };
 
   const startBattleRoyale = async () => {
-    if (saving || selectedPlayers.length < 2) return;
+    if (savingRef.current || selectedPlayers.length < 2) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -154,6 +156,7 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       setError(tc('networkError'));
       setConfirmOpen(false);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
