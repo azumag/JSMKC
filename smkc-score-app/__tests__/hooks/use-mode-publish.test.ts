@@ -267,6 +267,38 @@ describe('useModePublish', () => {
       // Second call must not trigger a new fetch request
       expect(global.fetch).not.toHaveBeenCalled();
     });
+
+    it('rejects a same-render second toggle before updating state is published', async () => {
+      mockedFetchWithRetry.mockResolvedValue({
+        ok: true,
+        json: async () => ({ publicModes: [] }),
+      } as Response);
+
+      let resolvePut!: (response: Response) => void;
+      const pendingPut = new Promise<Response>((resolve) => {
+        resolvePut = resolve;
+      });
+      (global.fetch as jest.Mock).mockReturnValue(pendingPut);
+
+      const { result } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      let firstToggle!: Promise<void>;
+      let secondToggle!: Promise<void>;
+      act(() => {
+        firstToggle = result.current.toggle();
+        secondToggle = result.current.toggle();
+      });
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolvePut({ ok: true } as Response);
+        await firstToggle;
+        await secondToggle;
+      });
+      expect(result.current.updating).toBe(false);
+    });
   });
 
   describe('TC-2639: cancels pending state update when hook unmounts', () => {
