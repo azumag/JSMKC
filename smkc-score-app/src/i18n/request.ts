@@ -13,6 +13,8 @@ import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
 import enBroadcast from '../../messages/broadcast/en.json';
 import jaBroadcast from '../../messages/broadcast/ja.json';
+import enDebugFill from '../../messages/debug-fill/en.json';
+import jaDebugFill from '../../messages/debug-fill/ja.json';
 import enGpCupAssignment from '../../messages/gp-cup-assignment/en.json';
 import jaGpCupAssignment from '../../messages/gp-cup-assignment/ja.json';
 import enLoadingOverlay from '../../messages/loading-overlay/en.json';
@@ -39,6 +41,11 @@ const broadcastMessages = {
   en: enBroadcast,
   ja: jaBroadcast,
 } satisfies Record<Locale, typeof enBroadcast>;
+
+const debugFillMessages = {
+  en: enDebugFill,
+  ja: jaDebugFill,
+} satisfies Record<Locale, typeof enDebugFill>;
 
 const gpCupAssignmentMessages = {
   en: enGpCupAssignment,
@@ -96,6 +103,7 @@ async function loadMessages(locale: Locale) {
   return {
     ...messages,
     broadcast: broadcastMessages[locale],
+    debugFill: debugFillMessages[locale],
     gpCupAssignment: {
       cupDetailsResolution: messages.finals.cupDetailsResolution,
       keepCupDetails: messages.finals.keepCupDetails,
