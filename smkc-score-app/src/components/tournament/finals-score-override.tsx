@@ -88,8 +88,7 @@ export function FinalsScoreOverride({
       return;
     }
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      alert(payload?.error || t('failedSaveCorrectedResult'));
+      alert(t('failedSaveCorrectedResult'));
       return;
     }
     const payload = await response.json().catch(() => null);
