@@ -24,12 +24,16 @@ const diagnostics: QualificationScheduleDiagnostics = {
 };
 
 describe('QualificationScheduleDiagnosticsPanel accessibility', () => {
-  it('exposes each labelled diagnostic region as a named group', () => {
+  it('uses headings to name each diagnostic group', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={diagnostics} />);
 
     expect(screen.getByRole('group', { name: 'Qualification schedule decision summary' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Qualification schedule policy matrix' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Unsupported CDM fixture candidate decisions' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Circle versus CDM schedule comparison' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Policy matrix (7–21 players)' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Unsupported CDM candidate evidence' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Circle → CDM impact (7–12 players)' })).toBeInTheDocument();
+
+    expect(screen.getByRole('heading', { name: 'Qualification schedule decision summary', level: 3 })).toHaveClass(
+      'sr-only',
+    );
   });
 });
