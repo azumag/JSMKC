@@ -9,7 +9,7 @@
  * shape, and success/failure feedback.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BracketSlotEditDialog, type SlotEditMatchData } from '@/components/tournament/bracket-slot-edit-dialog';
 
 jest.mock('sonner', () => ({
@@ -107,6 +107,45 @@ describe('BracketSlotEditDialog', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it('serializes same-render final confirmation into one PATCH', async () => {
+    const onSaved = jest.fn();
+    const onOpenChange = jest.fn();
+    let resolveSave!: (response: Response) => void;
+    fetchMock.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    renderDialog({ onSaved, onOpenChange });
+
+    fireEvent.click(screen.getByTestId('slot-edit-swap-confirm'));
+    expect(await screen.findByTestId('slot-edit-confirm-summary')).toBeInTheDocument();
+    const confirmButton = screen.getByTestId('slot-edit-confirm-final');
+
+    act(() => {
+      confirmButton.click();
+      confirmButton.click();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/tournaments/t1/bm/finals');
+    expect(JSON.parse(init.body)).toEqual({
+      matchId: 'm1',
+      slotEdit: { op: 'swap', expectedVersion: 2 },
+    });
+
+    await act(async () => {
+      resolveSave({ ok: true, json: async () => ({ success: true }) } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('fetches qualification candidates and excludes players already confirmed in the stage', async () => {

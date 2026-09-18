@@ -18,7 +18,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
@@ -106,6 +106,7 @@ export function BracketSlotEditDialog({
   const tCommon = useTranslations('common');
   const [tab, setTab] = useState<SlotEditTab>('swap');
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [qualifications, setQualifications] = useState<QualificationCandidate[]>([]);
   const [loadingQuals, setLoadingQuals] = useState(false);
   const [candidateLoadFailed, setCandidateLoadFailed] = useState(false);
@@ -197,6 +198,8 @@ export function BracketSlotEditDialog({
   }
 
   const runSlotEdit = async (slotEdit: Record<string, unknown>) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const response = await fetch(finalsApiPath, {
@@ -215,6 +218,7 @@ export function BracketSlotEditDialog({
     } catch {
       toast.error(tf('slotEditFailed'));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
