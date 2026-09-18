@@ -39,6 +39,11 @@ interface UpdateIndicatorProps {
   isPolling: boolean;
 }
 
+function secondsSince(lastUpdated: Date | null): number {
+  if (!lastUpdated) return 0;
+  return Math.max(0, Math.floor((Date.now() - lastUpdated.getTime()) / 1000));
+}
+
 /**
  * Real-time update status indicator.
  *
@@ -61,24 +66,19 @@ export function UpdateIndicator({ lastUpdated, isPolling }: UpdateIndicatorProps
    * Uses a factory initializer to compute the initial value synchronously
    * without causing a re-render on mount.
    */
-  const [secondsAgo, setSecondsAgo] = useState(() => {
-    if (!lastUpdated) return 0;
-    return Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
-  });
+  const [secondsAgo, setSecondsAgo] = useState(() => secondsSince(lastUpdated));
 
   /**
-   * Effect: Updates the secondsAgo counter every second.
-   * Re-runs when lastUpdated changes (new data arrives), resetting
-   * the counter. Cleans up the interval on unmount or dependency change
-   * to prevent memory leaks.
+   * Effect: Recomputes secondsAgo immediately when lastUpdated changes, then
+   * updates it every second. Cleanup prevents stale intervals after prop
+   * changes or unmount.
    */
   useEffect(() => {
+    setSecondsAgo(secondsSince(lastUpdated));
     if (!lastUpdated) return;
 
     const interval = setInterval(() => {
-      const now = new Date();
-      const diff = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
-      setSecondsAgo(diff);
+      setSecondsAgo(secondsSince(lastUpdated));
     }, 1000);
 
     return () => clearInterval(interval);
