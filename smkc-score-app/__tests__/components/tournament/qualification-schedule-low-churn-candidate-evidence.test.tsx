@@ -9,7 +9,7 @@ describe('QualificationScheduleDiagnosticsPanel low-churn CDM candidate evidence
   it('shows the fairness-equivalent low-churn 13-player alternative and remaining blockers', () => {
     render(<QualificationScheduleDiagnosticsPanel configuredMethod="cdm" diagnostics={{ bm: [], mr: [], gp: [] }} />);
 
-    const evidence = screen.getByLabelText('Unsupported CDM fixture candidate decisions');
+    const evidence = screen.getByRole('group', { name: 'Unsupported CDM candidate evidence' });
     expect(evidence).toHaveTextContent('Fairness representative BREAK slots: 1, 5, 9');
     expect(evidence).toHaveTextContent('Lowest-churn fair BREAK slots: 8, 12, 16');
     expect(evidence).toHaveTextContent(
