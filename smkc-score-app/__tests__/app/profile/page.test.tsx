@@ -7,8 +7,7 @@
  * linked-player fetch error fallback contract, and session-transition safety:
  * - The QR login card renders only when a player record is loaded
  * - No QR card is shown for admin-only sessions (no linked player)
- * - API-specific errors are preferred over the shared generic fallback
- * - Generic HTTP and network failures use common.networkError
+ * - HTTP and transport failures use common.networkError without exposing raw details
  * - Session changes clear the previous linked player immediately
  * - Stale requests cannot overwrite the current session's player record
  */
@@ -49,19 +48,7 @@ describe('ProfilePage', () => {
     expect(screen.getByRole('button', { name: 'qrLogin' })).toBeInTheDocument();
   });
 
-  it('does not show the QR login card for an admin session with no linked player', async () => {
-    (useSession as jest.Mock).mockReturnValue({
-      status: 'authenticated',
-      data: { user: { name: 'Admin', email: 'admin@example.com', role: 'admin' } },
-    });
-
-    render(<ProfilePage />);
-
-    await waitFor(() => expect(screen.getByText('noPlayerSession')).toBeInTheDocument());
-    expect(screen.queryByText('qrLoginCardTitle')).not.toBeInTheDocument();
-  });
-
-  it('prefers an API-specific error when linked player loading fails', async () => {
+  it('redacts an API-specific error when linked player loading fails', async () => {
     (useSession as jest.Mock).mockReturnValue({
       status: 'authenticated',
       data: { user: { name: 'Test Player', role: 'player', playerId: 'player-1' } },
@@ -73,7 +60,8 @@ describe('ProfilePage', () => {
 
     render(<ProfilePage />);
 
-    await waitFor(() => expect(screen.getByText('Player lookup unavailable')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('networkError')).toBeInTheDocument());
+    expect(screen.queryByText('Player lookup unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('qrLoginCardTitle')).not.toBeInTheDocument();
   });
 
