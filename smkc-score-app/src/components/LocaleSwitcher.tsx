@@ -77,6 +77,7 @@ export function LocaleSwitcher() {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
+      if (event.repeat) return;
       switchLocale();
     }
   };

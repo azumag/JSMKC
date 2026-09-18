@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
@@ -149,6 +149,18 @@ describe('LocaleSwitcher', () => {
     await userEvent.keyboard('{Enter}');
 
     expect(fetchSpy).toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it.each([' ', 'Enter'])('repeat=true の %p keydown は native activation を抑止して POST しない', (key) => {
+    mockLocale('en');
+    const fetchSpy = mockFetch(true);
+    render(<LocaleSwitcher />);
+
+    const wasNotCanceled = fireEvent.keyDown(screen.getByRole('switch'), { key, repeat: true });
+
+    expect(wasNotCanceled).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 
