@@ -7,7 +7,7 @@
  * 2. Security header injection (CSP, X-Frame-Options, etc.)
  *
  * Route protection strategy:
- * - API routes: Only mutating methods (POST, PUT, DELETE) require authentication.
+ * - API routes: Mutating methods (POST, PUT, PATCH, DELETE) require authentication.
  *   GET requests are public so anyone can view players and tournaments.
  * - Frontend routes: Only /profile requires authentication.
  *
@@ -19,8 +19,8 @@
  * (error code 1101) from propagating — a graceful fallback is better than
  * returning nothing and leaving the user with a broken page.
  */
-import { NextResponse, type NextRequest } from 'next/server'
-import { auth } from '@/lib/auth'
+import { NextResponse, type NextRequest } from 'next/server';
+import { auth } from '@/lib/auth';
 
 /** Edge runtime required for Cloudflare Workers deployment */
 export const runtime = 'experimental-edge';
@@ -30,9 +30,9 @@ export const runtime = 'experimental-edge';
  * @returns Base64-encoded random nonce string (128-bit entropy)
  */
 function generateNonce(): string {
-  const array = new Uint8Array(16)
-  crypto.getRandomValues(array)
-  return btoa(String.fromCharCode(...array))
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array));
 }
 
 /**
@@ -41,35 +41,41 @@ function generateNonce(): string {
  */
 function addSecurityHeaders(response: NextResponse, nonce: string): void {
   if (process.env.NODE_ENV === 'production') {
-    response.headers.set('Content-Security-Policy', [
-      "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com`,
-      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-      `font-src 'self' https://fonts.gstatic.com`,
-      `img-src 'self' data: blob: https://www.google-analytics.com`,
-      `connect-src 'self'`,
-      "frame-src 'none'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "upgrade-insecure-requests"
-    ].join('; '))
+    response.headers.set(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com`,
+        `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+        `font-src 'self' https://fonts.gstatic.com`,
+        `img-src 'self' data: blob: https://www.google-analytics.com`,
+        `connect-src 'self'`,
+        "frame-src 'none'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        'upgrade-insecure-requests',
+      ].join('; '),
+    );
   } else {
-    response.headers.set('Content-Security-Policy', [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "connect-src 'self'",
-      "font-src 'self' data:",
-      "frame-ancestors 'none'",
-    ].join('; '))
+    response.headers.set(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "connect-src 'self'",
+        "font-src 'self' data:",
+        "frame-ancestors 'none'",
+      ].join('; '),
+    );
   }
 
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 }
 
 /**
@@ -79,51 +85,51 @@ function addSecurityHeaders(response: NextResponse, nonce: string): void {
  */
 export default async function middleware(req: NextRequest) {
   try {
-    const { pathname } = req.nextUrl
-    const method = req.method || 'GET'
+    const { pathname } = req.nextUrl;
+    const method = req.method || 'GET';
 
-    const protectedApiRoutes = ['/api/tournaments', '/api/players']
-    const protectedFrontendRoutes = ['/profile']
-    const protectedMethods = ['POST', 'PUT', 'DELETE']
+    const protectedApiRoutes = ['/api/tournaments', '/api/players'];
+    const protectedFrontendRoutes = ['/profile'];
+    const protectedMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
-    const isProtectedApi = protectedApiRoutes.some(route => pathname.startsWith(route))
-    const requiresAuthApi = isProtectedApi && protectedMethods.includes(method)
-    const isProtectedFrontend = protectedFrontendRoutes.some(route => pathname.startsWith(route))
-    const requiresAuth = requiresAuthApi || isProtectedFrontend
+    const isProtectedApi = protectedApiRoutes.some((route) => pathname.startsWith(route));
+    const requiresAuthApi = isProtectedApi && protectedMethods.includes(method);
+    const isProtectedFrontend = protectedFrontendRoutes.some((route) => pathname.startsWith(route));
+    const requiresAuth = requiresAuthApi || isProtectedFrontend;
 
     // Only call auth() when the route actually requires authentication.
     // This avoids JWT verification overhead on every GET request.
     if (requiresAuth) {
-      const session = await auth()
+      const session = await auth();
       if (!session) {
         if (isProtectedFrontend) {
-          const signInUrl = new URL('/auth/signin', req.url)
-          signInUrl.searchParams.set('callbackUrl', pathname)
-          return NextResponse.redirect(signInUrl)
+          const signInUrl = new URL('/auth/signin', req.url);
+          signInUrl.searchParams.set('callbackUrl', pathname);
+          return NextResponse.redirect(signInUrl);
         }
-        return new NextResponse(
-          JSON.stringify({ success: false, error: 'Unauthorized' }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } }
-        )
+        return new NextResponse(JSON.stringify({ success: false, error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
     }
 
     // Generate nonce and add security headers
-    const nonce = generateNonce()
-    const requestHeaders = new Headers(req.headers)
-    requestHeaders.set('x-nonce', nonce)
+    const nonce = generateNonce();
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set('x-nonce', nonce);
     // Forward the pathname so the root layout can render chrome-less HTML
     // for the OBS overlay route — without this header the layout has no
     // way to detect /overlay during SSR (Next.js does not expose pathname
     // to Server Components by default).
-    requestHeaders.set('x-pathname', pathname)
+    requestHeaders.set('x-pathname', pathname);
 
     const response = NextResponse.next({
       request: { headers: requestHeaders },
-    })
+    });
 
-    addSecurityHeaders(response, nonce)
-    return response
+    addSecurityHeaders(response, nonce);
+    return response;
   } catch (err) {
     // Graceful degradation: if auth() throws (e.g., WASM engine failure on Workers),
     // pass the request through rather than returning error code 1101.
@@ -131,8 +137,8 @@ export default async function middleware(req: NextRequest) {
     // independently calls auth() and enforces access control, so the middleware
     // is not the sole security boundary. Frontend pages (/profile etc.) also
     // perform server-side auth checks independent of this middleware redirect.
-    console.error('[middleware] Unhandled error:', err instanceof Error ? err.stack || err.message : err)
-    return NextResponse.next()
+    console.error('[middleware] Unhandled error:', err instanceof Error ? err.stack || err.message : err);
+    return NextResponse.next();
   }
 }
 
@@ -158,5 +164,5 @@ export const config = {
     '/players/:path*',
     '/profile/:path*',
     '/tournaments/:path*',
-  ]
-}
+  ],
+};

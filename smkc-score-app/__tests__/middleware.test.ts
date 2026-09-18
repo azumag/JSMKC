@@ -192,6 +192,19 @@ describe('middleware — auth gate', () => {
     expect(res.body).toContain('"Unauthorized"');
     expect(mockAuth).toHaveBeenCalledTimes(1);
   });
+
+  it('PATCH /api/tournaments も認証を要求する', async () => {
+    const { mockNextFn } = getMocks();
+    mockAuth.mockResolvedValue(null);
+    const req = makeRequest('http://localhost/api/tournaments/t1/ta', 'PATCH');
+
+    const res = (await middleware(req)) as { status: number; body: unknown };
+
+    expect(res.status).toBe(401);
+    expect(res.body).toContain('"Unauthorized"');
+    expect(mockAuth).toHaveBeenCalledTimes(1);
+    expect(mockNextFn).not.toHaveBeenCalled();
+  });
 });
 
 describe('middleware — ヘッダー付与', () => {
