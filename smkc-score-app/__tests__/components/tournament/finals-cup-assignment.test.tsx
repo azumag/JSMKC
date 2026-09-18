@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsCupAssignment } from '@/components/tournament/finals-cup-assignment';
 import enMessages from '../../../messages/en.json';
 import jaMessages from '../../../messages/ja.json';
@@ -80,5 +80,46 @@ describe('FinalsCupAssignment', () => {
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('Failed to update match cup'));
     expect(onSaved).not.toHaveBeenCalled();
     await waitFor(() => expect(saveButton).not.toBeDisabled());
+  });
+
+  it('serializes same-render save activations into a single PATCH', async () => {
+    const onSaved = jest.fn();
+    let resolveSave!: (response: Response) => void;
+    global.fetch = jest.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+
+    render(
+      <FinalsCupAssignment match={{ id: 'm1', version: 4, cup: 'Mushroom' }} endpoint="/api/test" onSaved={onSaved} />,
+    );
+
+    const saveButton = screen.getByRole('button', { name: 'Save match cup' });
+    act(() => {
+      saveButton.click();
+      saveButton.click();
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/test',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          matchId: 'm1',
+          cupAssignment: { cup: 'Mushroom', expectedVersion: 4, resolution: 'keep' },
+        }),
+      }),
+    );
+
+    await act(async () => {
+      resolveSave({ ok: true } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(saveButton).not.toBeDisabled());
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 });
