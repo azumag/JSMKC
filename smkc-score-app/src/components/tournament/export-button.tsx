@@ -134,38 +134,48 @@ export function ExportButton({
 
       /** Create a temporary object URL pointing to the in-memory blob */
       const url = window.URL.createObjectURL(blob);
+      let link: HTMLAnchorElement | null = null;
 
-      /** Create a temporary invisible anchor element to trigger the download */
-      const link = document.createElement("a");
-      link.href = url;
+      try {
+        /** Create a temporary invisible anchor element to trigger the download */
+        link = document.createElement("a");
+        link.href = url;
 
-      /**
-       * Attempt to extract the filename from the Content-Disposition header.
-       * If absent, fall back to a sanitized tournament-name based filename.
-       */
-      const contentDisposition = response.headers.get("content-disposition");
-      const extension = format === "cdm" ? "xlsm" : "csv";
-      let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.${extension}`;
+        /**
+         * Attempt to extract the filename from the Content-Disposition header.
+         * If absent, fall back to a sanitized tournament-name based filename.
+         */
+        const contentDisposition = response.headers.get("content-disposition");
+        const extension = format === "cdm" ? "xlsm" : "csv";
+        let filename = `${tournamentName.replace(/[^a-zA-Z0-9]/g, "_")}-full-export.${extension}`;
 
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        /**
+         * Set the download attribute to suggest the filename to the browser,
+         * append the anchor to the DOM, and click it programmatically.
+         * The anchor must be in the DOM for the click to work in all browsers.
+         */
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+      } finally {
+        /**
+         * Cleanup is unconditional once an object URL exists. Browser/DOM
+         * failures during setup or click must not leave temporary nodes or
+         * blob-backed object URLs behind.
+         */
+        try {
+          link?.remove();
+        } finally {
+          window.URL.revokeObjectURL(url);
         }
       }
-
-      /**
-       * Set the download attribute to suggest the filename to the browser,
-       * append the anchor to the DOM, click it programmatically, then clean up.
-       * The anchor must be in the DOM for the click to work in all browsers.
-       */
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      /** Revoke the object URL to free the memory held by the blob */
-      window.URL.revokeObjectURL(url);
     } catch (error) {
       /**
        * Log export failures with structured metadata for debugging.
