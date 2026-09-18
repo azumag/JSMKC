@@ -105,17 +105,25 @@ describe('Switch', () => {
     expect(onCheckedChange).not.toHaveBeenCalled();
   });
 
-  it('ignores repeated Space keydown events', () => {
+  it('ignores and cancels repeated Space keydown events', () => {
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
-    fireEvent.keyDown(screen.getByRole('switch'), { key: ' ', repeat: true });
+    const wasNotCanceled = fireEvent.keyDown(screen.getByRole('switch'), {
+      key: ' ',
+      repeat: true,
+    });
+    expect(wasNotCanceled).toBe(false);
     expect(onCheckedChange).not.toHaveBeenCalled();
   });
 
-  it('ignores repeated Enter keydown events', () => {
+  it('ignores and cancels repeated Enter keydown events', () => {
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
-    fireEvent.keyDown(screen.getByRole('switch'), { key: 'Enter', repeat: true });
+    const wasNotCanceled = fireEvent.keyDown(screen.getByRole('switch'), {
+      key: 'Enter',
+      repeat: true,
+    });
+    expect(wasNotCanceled).toBe(false);
     expect(onCheckedChange).not.toHaveBeenCalled();
   });
 });
