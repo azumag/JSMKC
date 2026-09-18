@@ -52,9 +52,7 @@ describe('useModePublish', () => {
       const { result } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
       expect(result.current.loading).toBe(true);
       expect(result.current.isPublic).toBe(false);
-      expect(mockedFetchWithRetry).toHaveBeenCalledWith(
-        `/api/tournaments/${TOURNAMENT_ID}?fields=summary`,
-      );
+      expect(mockedFetchWithRetry).toHaveBeenCalledWith(`/api/tournaments/${TOURNAMENT_ID}?fields=summary`);
     });
   });
 
@@ -252,13 +250,19 @@ describe('useModePublish', () => {
       await waitFor(() => expect(result.current.loading).toBe(false));
 
       // Start first toggle — fetch never resolves, so updating stays true
-      act(() => { void result.current.toggle(); });
+      act(() => {
+        void result.current.toggle();
+      });
       await waitFor(() => expect(result.current.updating).toBe(true));
 
       // Clear call count and attempt a second toggle while updating=true
       (global.fetch as jest.Mock).mockClear();
-      act(() => { void result.current.toggle(); });
-      await act(async () => { await Promise.resolve(); });
+      act(() => {
+        void result.current.toggle();
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
 
       // Second call must not trigger a new fetch request
       expect(global.fetch).not.toHaveBeenCalled();
@@ -268,7 +272,9 @@ describe('useModePublish', () => {
   describe('TC-2639: cancels pending state update when hook unmounts', () => {
     it('does not call setState after unmount when fetch resolves late', async () => {
       let resolvePromise!: (v: unknown) => void;
-      const deferred = new Promise((res) => { resolvePromise = res; });
+      const deferred = new Promise((res) => {
+        resolvePromise = res;
+      });
       mockedFetchWithRetry.mockReturnValue(deferred as Promise<Response>);
 
       const { result, unmount } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
