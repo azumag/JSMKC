@@ -16,14 +16,18 @@ jest.mock('next-intl', () => ({
 
 describe('TieWarningBanner', () => {
   it('TC-2653: renders nothing when hasTies is false (admin)', () => {
-    const { container } = render(<TieWarningBanner hasTies={false} isAdmin={true} />);
+    const { container } = render(
+      <TieWarningBanner hasTies={false} isAdmin={true} />,
+    );
 
     expect(container.firstChild).toBeNull();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('TC-2654: renders nothing when hasTies is false (non-admin)', () => {
-    const { container } = render(<TieWarningBanner hasTies={false} isAdmin={false} />);
+    const { container } = render(
+      <TieWarningBanner hasTies={false} isAdmin={false} />,
+    );
 
     expect(container.firstChild).toBeNull();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
