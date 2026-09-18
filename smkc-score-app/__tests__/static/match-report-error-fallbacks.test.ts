@@ -20,14 +20,14 @@ function readMatchValidationMessages(locale: 'en' | 'ja') {
   ) as Record<string, string>;
 }
 
-describe('MR/GP match report error fallback contract (issue #3588)', () => {
-  it.each(['mr', 'gp'] as const)('%s preserves API errors and localizes generic submit failures', (mode) => {
+describe('MR/GP match report error fallback contract (issues #3588, #3840)', () => {
+  it.each(['mr', 'gp'] as const)('%s hides API error details and localizes submit failures', (mode) => {
     const source = readMatchPage(mode);
 
-    expect(source).toContain('const data = await response.json().catch(() => ({}));');
-    expect(source).toContain("setError(data.error || tCommon('networkError'));");
+    expect(source).not.toContain('const data = await response.json().catch(() => ({}));');
+    expect(source).not.toContain("setError(data.error || tCommon('networkError'));");
     expect(source).toContain("logger.error('Failed to submit result:', { error: err });");
-    expect(source).toContain("setError(tCommon('networkError'));");
+    expect(source.match(/setError\(tCommon\('networkError'\)\);/g)).toHaveLength(2);
   });
 
   it('removes the MR hard-coded English generic failure', () => {

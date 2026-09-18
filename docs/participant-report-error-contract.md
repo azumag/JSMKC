@@ -23,6 +23,12 @@ BM / MR / GP の participant page は `smkc-score-app/src/lib/hooks/useParticipa
 
 ブラウザ・通信層由来の raw `Error.message` は UI に表示しない。元の例外は client logger に記録し、診断可能性を維持する。
 
+## MR / GP shared match の report 送信
+
+MR / GP の shared match detail page (`/mr/match/[matchId]` / `/gp/match/[matchId]`) は上記 participant hook とは独立した submit path を持つ。この経路では HTTP non-2xx と `fetch()` rejection のどちらもユーザー向けには `common.networkError` のみを表示し、response body の `error` やブラウザ由来の raw error detail を UI に露出しない。
+
+成功時の submitted state、`refetch()`、request payload、client-side validation は変更しない。transport-level exception は引き続き client logger に記録し、失敗後は `finally` で submitting state を解除して再試行可能な状態へ戻す。
+
 ## MR shared match の identity validation
 
 MR の shared match page は score report 前に reporting player identity を選択する必要がある。未選択時の client-side validation は英語リテラルを持たず、既存の `match.selectPlayer` を使う。これにより英語では `Please select which player you are`、日本語では `自分がどちらのプレイヤーか選択してください` が現在の locale に従って表示される。
@@ -55,4 +61,4 @@ report 失敗時は `submitReport()` が `null` を返し、呼び出し側が�
 - request rejection の raw detail が UI に漏れず logger に残ること
 - non-JSON error response が JSON parse error を UI に漏らさないこと
 
-加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR shared match の identity validation が `match.selectPlayer` を使うこと、および race-winner validation が `match.selectAllRaceWinners` に `TOTAL_MR_RACES` を渡すことを固定する。race-winner validation の EN/JA split catalog は同一キー集合であることと、`src/i18n/request.ts` が `match` namespace に merge することも同テストで確認する。
+加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR / GP shared match submit の HTTP non-2xx と transport failure が `common.networkError` に統一され、raw API error を UI fallback に使わないことを固定する。同じ static test で MR shared match の identity validation が `match.selectPlayer` を使うこと、および race-winner validation が `match.selectAllRaceWinners` に `TOTAL_MR_RACES` を渡すことも確認する。race-winner validation の EN/JA split catalog は同一キー集合であることと、`src/i18n/request.ts` が `match` namespace に merge することも同テストで確認する。

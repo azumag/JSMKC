@@ -287,8 +287,7 @@ export default function GPMatchPage({ params }: { params: Promise<{ id: string; 
         setSubmitted(true);
         refetch();
       } else {
-        const data = await response.json().catch(() => ({}));
-        setError(data.error || tCommon('networkError'));
+        setError(tCommon('networkError'));
       }
     } catch (err) {
       logger.error('Failed to submit result:', { error: err });
