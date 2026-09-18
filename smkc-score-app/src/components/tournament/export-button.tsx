@@ -51,10 +51,9 @@ function buildExportErrorMessage(error: unknown, t: ReturnType<typeof useTransla
     return `${baseMessage}: ${t('exportFailedNetwork')}`;
   }
 
-  if (error instanceof Error && error.message) {
-    return `${baseMessage}: ${error.message}`;
-  }
-
+  // Keep low-level browser/runtime details in the structured logger only. Generic
+  // Error.message values can contain proxy, URL, filesystem, or DOM implementation
+  // details that are not useful in the operator-facing alert.
   return baseMessage;
 }
 
