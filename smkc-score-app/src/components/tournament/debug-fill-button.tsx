@@ -10,7 +10,7 @@
  * when `debugMode` is false, so it never appears for normal tournaments.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { createLogger } from '@/lib/client-logger';
@@ -29,10 +29,12 @@ export function DebugFillButton({ tournamentId, mode, onFilled, className }: Deb
   const tCommon = useTranslations('common');
   const tDebugFill = useTranslations('debugFill');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [statusText, setStatusText] = useState<string | null>(null);
 
   async function handleClick() {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setStatusText(tDebugFill('running'));
     try {
@@ -54,6 +56,7 @@ export function DebugFillButton({ tournamentId, mode, onFilled, className }: Deb
       logger.error('Debug fill request failed:', { error: err, tournamentId, mode });
       setStatusText(tCommon('networkError'));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }

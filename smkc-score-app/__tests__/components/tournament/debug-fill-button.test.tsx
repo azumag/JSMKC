@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DebugFillButton } from '@/components/tournament/debug-fill-button';
 
 jest.mock('next-intl', () => {
@@ -114,27 +114,39 @@ describe('DebugFillButton', () => {
     expect(screen.queryByText('実行中…')).toBeNull();
   });
 
-  it('TC-2689: prevents duplicate clicks while a request is in-flight', async () => {
-    let resolve!: (r: Response) => void;
-    jest.spyOn(global, 'fetch').mockImplementation(
-      () =>
-        new Promise<Response>((res) => {
-          resolve = res;
-        }),
-    );
+  it('TC-2689: prevents duplicate clicks in the same render batch and unlocks after completion', async () => {
+    let resolveFirst!: (r: Response) => void;
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValue(new Response(JSON.stringify({ filled: 1, skipped: 0 }), { status: 200 }));
 
     render(<DebugFillButton tournamentId="t-1" mode="gp" />);
     const btn = screen.getByRole('button');
-    fireEvent.click(btn);
-    // Verify disabled state is set before additional clicks
+
+    // React batches these native activations, so state alone still has the old `busy=false`
+    // value for each handler call. The synchronous ref lock must admit only the first one.
+    act(() => {
+      btn.click();
+      btn.click();
+      btn.click();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(btn).toBeDisabled();
-    // Note: fireEvent bypasses disabled; the if(busy) guard is the real prevention mechanism
-    fireEvent.click(btn);
-    fireEvent.click(btn);
 
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveFirst(new Response(JSON.stringify({ filled: 0, skipped: 0 }), { status: 200 }));
+    });
+    await waitFor(() => expect(btn).not.toBeDisabled());
 
-    resolve(new Response(JSON.stringify({ filled: 0, skipped: 0 }), { status: 200 }));
+    fireEvent.click(btn);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(btn).not.toBeDisabled());
   });
 
