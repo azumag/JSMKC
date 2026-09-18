@@ -51,9 +51,8 @@ jest.mock('@/lib/client-logger', () => {
   };
 });
 
-const setMockLocale = (
-  jest.requireMock('next-intl') as { __setMockLocale: (locale: 'en' | 'ja') => void }
-).__setMockLocale;
+const setMockLocale = (jest.requireMock('next-intl') as { __setMockLocale: (locale: 'en' | 'ja') => void })
+  .__setMockLocale;
 const mockLoggerError = (jest.requireMock('@/lib/client-logger') as { __mockLoggerError: jest.Mock }).__mockLoggerError;
 
 describe('DebugFillButton', () => {
