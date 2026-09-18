@@ -1,0 +1,8 @@
+{
+  "live": "ライブ",
+  "paused": "一時停止",
+  "lastUpdated": "最終更新: {time}",
+  "secondsAgo": "{count}秒前",
+  "minutesAgo": "{count}分前",
+  "hoursAgo": "{count}時間前"
+}

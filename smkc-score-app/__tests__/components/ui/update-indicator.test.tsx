@@ -3,14 +3,36 @@
  *
  * Unit tests for the UpdateIndicator component (TC-2731 through TC-2740).
  *
- * UpdateIndicator shows polling status (Live/Paused badge) and a relative
+ * UpdateIndicator shows polling status and a localized relative
  * "last updated" time that refreshes every second via setInterval.
  */
 import { act, render, screen } from '@testing-library/react';
+
 import { UpdateIndicator } from '@/components/ui/update-indicator';
+import enUpdateIndicator from '../../../messages/update-indicator/en.json';
+import jaUpdateIndicator from '../../../messages/update-indicator/ja.json';
+
+const mockUpdateIndicatorMessages = {
+  en: enUpdateIndicator,
+  ja: jaUpdateIndicator,
+};
+let mockLocale: keyof typeof mockUpdateIndicatorMessages = 'en';
+
+jest.mock('next-intl', () => ({
+  useTranslations:
+    () =>
+    (key: keyof typeof enUpdateIndicator, values?: Record<string, string | number>) => {
+      let message = mockUpdateIndicatorMessages[mockLocale][key];
+      for (const [name, value] of Object.entries(values ?? {})) {
+        message = message.replace(`{${name}}`, String(value));
+      }
+      return message;
+    },
+}));
 
 beforeEach(() => {
   jest.useFakeTimers();
+  mockLocale = 'en';
 });
 
 afterEach(() => {
@@ -30,6 +52,14 @@ describe('UpdateIndicator — polling badge', () => {
     render(<UpdateIndicator lastUpdated={null} isPolling={false} />);
     expect(screen.getByText('Paused')).toBeInTheDocument();
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
+
+  it('uses Japanese polling labels for Japanese locale', () => {
+    mockLocale = 'ja';
+    render(<UpdateIndicator lastUpdated={null} isPolling={false} />);
+
+    expect(screen.getByText('一時停止')).toBeInTheDocument();
+    expect(screen.queryByText('Paused')).not.toBeInTheDocument();
   });
 });
 
@@ -56,6 +86,14 @@ describe('UpdateIndicator — time display', () => {
     render(<UpdateIndicator lastUpdated={twoHoursAgo} isPolling={false} />);
     expect(screen.getByText(/Last updated:.*2h ago/)).toBeInTheDocument();
   });
+
+  it('uses Japanese relative time for Japanese locale', () => {
+    mockLocale = 'ja';
+    const tenSecondsAgo = new Date(Date.now() - 10_000);
+    render(<UpdateIndicator lastUpdated={tenSecondsAgo} isPolling={false} />);
+
+    expect(screen.getByText('最終更新: 10秒前')).toBeInTheDocument();
+  });
 });
 
 describe('UpdateIndicator — live timer', () => {
@@ -64,15 +102,15 @@ describe('UpdateIndicator — live timer', () => {
     render(<UpdateIndicator lastUpdated={now} isPolling={true} />);
     // Initially 0s ago
     expect(screen.getByText(/Last updated:.*0s ago/)).toBeInTheDocument();
-    act(() => { jest.advanceTimersByTime(1000); });
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
     expect(screen.getByText(/Last updated:.*1s ago/)).toBeInTheDocument();
   });
 
   it('TC-2738: interval is cleared on component unmount (no setState after unmount)', () => {
     const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
-    const { unmount } = render(
-      <UpdateIndicator lastUpdated={new Date()} isPolling={true} />,
-    );
+    const { unmount } = render(<UpdateIndicator lastUpdated={new Date()} isPolling={true} />);
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalled();
     clearIntervalSpy.mockRestore();
@@ -80,14 +118,14 @@ describe('UpdateIndicator — live timer', () => {
 
   it('TC-2739: restarting interval when lastUpdated prop changes', () => {
     const first = new Date(Date.now() - 30_000);
-    const { rerender } = render(
-      <UpdateIndicator lastUpdated={first} isPolling={false} />,
-    );
+    const { rerender } = render(<UpdateIndicator lastUpdated={first} isPolling={false} />);
     expect(screen.getByText(/30s ago/)).toBeInTheDocument();
 
     // Update to a fresh timestamp
     const fresh = new Date();
-    act(() => { rerender(<UpdateIndicator lastUpdated={fresh} isPolling={false} />); });
+    act(() => {
+      rerender(<UpdateIndicator lastUpdated={fresh} isPolling={false} />);
+    });
     expect(screen.getByText(/0s ago/)).toBeInTheDocument();
   });
 
@@ -96,5 +134,11 @@ describe('UpdateIndicator — live timer', () => {
     const fiveSecondsAgo = new Date(Date.now() - 5_000);
     render(<UpdateIndicator lastUpdated={fiveSecondsAgo} isPolling={false} />);
     expect(screen.getByText(/5s ago/)).toBeInTheDocument();
+  });
+});
+
+describe('UpdateIndicator translation catalog', () => {
+  it('keeps English and Japanese update-indicator keys aligned', () => {
+    expect(Object.keys(jaUpdateIndicator).sort()).toEqual(Object.keys(enUpdateIndicator).sort());
   });
 });
