@@ -43,31 +43,63 @@ export function FinalsPlayoffReconciliation({
   onSaved: () => void;
 }) {
   const t = useTranslations('finals');
+  const tCommon = useTranslations('common');
   const [saving, setSaving] = useState(false);
   const [blockers, setBlockers] = useState<ReconcileBlocker[]>([]);
   const [preview, setPreview] = useState<ReconcilePreview | null>(null);
+  const [previewError, setPreviewError] = useState(false);
+  const [applyError, setApplyError] = useState(false);
   const barrageR2 = playoffMatches.filter((match) => match.round === 'playoff_r2');
   const available = matches.length > 0 && barrageR2.length === 4 && barrageR2.every((match) => match.completed);
 
   const refreshPreview = useCallback(async () => {
     if (!available) {
       setPreview(null);
+      setPreviewError(false);
       return;
     }
-    const response = await fetch(endpoint);
-    const payload = await response.json().catch(() => null);
-    setPreview(payload?.data?.upperReconciliation ?? null);
+    try {
+      const response = await fetch(endpoint);
+      const payload = await response.json().catch(() => null);
+      setPreview(payload?.data?.upperReconciliation ?? null);
+      setPreviewError(false);
+    } catch {
+      setPreview(null);
+      setPreviewError(true);
+    }
   }, [available, endpoint]);
 
   useEffect(() => {
     void refreshPreview();
   }, [refreshPreview]);
 
-  if (!available || !preview || preview.status === 'unavailable') return null;
+  if (!available) return null;
+
+  if (previewError) {
+    return (
+      <div className="space-y-2 rounded-md border border-destructive/50 bg-destructive/5 p-3">
+        <div>
+          <p className="text-sm font-medium">{t('reconcileUpperSlots')}</p>
+          <p className="text-xs text-muted-foreground">{t('reconcileUpperSlotsDesc')}</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p role="alert" className="text-xs text-destructive">
+            {tCommon('networkError')}
+          </p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void refreshPreview()}>
+            {tCommon('tryAgain')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!preview || preview.status === 'unavailable') return null;
 
   const reconcile = async () => {
     setSaving(true);
     setBlockers([]);
+    setApplyError(false);
     try {
       const response = await fetch(endpoint, {
         method: 'PATCH',
@@ -86,6 +118,8 @@ export function FinalsPlayoffReconciliation({
       }
       onSaved();
       await refreshPreview();
+    } catch {
+      setApplyError(true);
     } finally {
       setSaving(false);
     }
@@ -108,6 +142,11 @@ export function FinalsPlayoffReconciliation({
           </Button>
         )}
       </div>
+      {applyError && (
+        <p role="alert" className="text-xs text-destructive">
+          {tCommon('networkError')}
+        </p>
+      )}
       {isInSync && (
         <p role="status" className="text-xs text-muted-foreground">
           {t('reconcileUpperSlotsInSync')}
