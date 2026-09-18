@@ -58,6 +58,22 @@ describe('useModePublish', () => {
     });
   });
 
+  describe('toggle() while publicModes is still loading', () => {
+    it('does not send a PUT from the unknown default state', async () => {
+      mockedFetchWithRetry.mockReturnValue(new Promise(() => {})); // keep initial read pending
+      const { result } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
+      expect(result.current.loading).toBe(true);
+
+      await act(async () => {
+        await result.current.toggle();
+      });
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(result.current.updating).toBe(false);
+      expect(result.current.isPublic).toBe(false);
+    });
+  });
+
   describe('TC-2629: isPublic=true when mode is in publicModes', () => {
     it('sets isPublic=true and loading=false when mode is included in fetched publicModes', async () => {
       mockedFetchWithRetry.mockResolvedValue({
