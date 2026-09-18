@@ -3,6 +3,7 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Switch } from '@/components/ui/switch';
 
 const defaultProps = {
@@ -65,18 +66,34 @@ describe('Switch', () => {
     expect(screen.getByRole('switch')).toBeDisabled();
   });
 
-  it('TC-2796: Space key calls onCheckedChange', () => {
+  it('TC-2796: Space defers to one native button activation', () => {
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
-    fireEvent.keyDown(screen.getByRole('switch'), { key: ' ' });
+    const button = screen.getByRole('switch');
+
+    // jsdom does not synthesize the browser's Space -> click default action.
+    // Verify the component does not toggle manually, then model that single
+    // native activation with the click the browser would dispatch on keyup.
+    const wasNotCanceled = fireEvent.keyDown(button, { key: ' ' });
+    expect(wasNotCanceled).toBe(true);
+    expect(onCheckedChange).not.toHaveBeenCalled();
+
+    fireEvent.keyUp(button, { key: ' ' });
+    fireEvent.click(button);
+
     expect(onCheckedChange).toHaveBeenCalledTimes(1);
     expect(onCheckedChange).toHaveBeenCalledWith(true);
   });
 
-  it('TC-2797: Enter key calls onCheckedChange', () => {
+  it('TC-2797: Enter activates the native button exactly once', async () => {
+    const user = userEvent.setup();
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
-    fireEvent.keyDown(screen.getByRole('switch'), { key: 'Enter' });
+    const button = screen.getByRole('switch');
+    button.focus();
+
+    await user.keyboard('{Enter}');
+
     expect(onCheckedChange).toHaveBeenCalledTimes(1);
     expect(onCheckedChange).toHaveBeenCalledWith(true);
   });
