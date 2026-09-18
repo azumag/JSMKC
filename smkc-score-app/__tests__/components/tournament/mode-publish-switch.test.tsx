@@ -9,6 +9,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
+import enModePublishSwitch from '../../../messages/mode-publish-switch/en.json';
+import jaModePublishSwitch from '../../../messages/mode-publish-switch/ja.json';
 
 const toggleMock = jest.fn();
 
@@ -21,8 +23,32 @@ const defaultPublishState = {
   error: null,
 };
 
+const mockModeMessages = {
+  en: enModePublishSwitch,
+  ja: jaModePublishSwitch,
+};
+const mockCommonMessages = {
+  en: {
+    battleMode: 'Battle Mode',
+    networkError: 'Network error',
+    tryAgain: 'Try again',
+  },
+  ja: {
+    battleMode: 'バトルモード',
+    networkError: 'ネットワークエラー',
+    tryAgain: '再試行',
+  },
+};
+let mockLocale: keyof typeof mockModeMessages = 'en';
+
 jest.mock('next-intl', () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: (namespace: string) => (key: string, values?: Record<string, string>) => {
+    const message =
+      namespace === 'modePublishSwitch'
+        ? mockModeMessages[mockLocale][key as keyof typeof enModePublishSwitch]
+        : mockCommonMessages[mockLocale][key as keyof (typeof mockCommonMessages)['en']];
+    return message?.replace('{mode}', values?.mode ?? '{mode}') ?? `${namespace}.${key}`;
+  },
 }));
 
 jest.mock('@/hooks/use-mode-publish', () => ({
@@ -34,26 +60,26 @@ import { useModePublish } from '@/hooks/use-mode-publish';
 const mockUseModePublish = useModePublish as jest.Mock;
 
 beforeEach(() => {
+  mockLocale = 'en';
   toggleMock.mockClear();
   mockUseModePublish.mockReturnValue(defaultPublishState);
 });
 
 describe('ModePublishSwitch', () => {
-  it('TC-2663: shows unpublishMode badge when isPublic is false', () => {
+  it('TC-2663: shows an explicit unpublished state when isPublic is false', () => {
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
-    // useTranslations returns the key as-is
-    expect(screen.getByText('unpublishMode')).toBeInTheDocument();
-    expect(screen.queryByText('publishMode')).toBeNull();
+    expect(screen.getByText('Unpublished')).toBeInTheDocument();
+    expect(screen.queryByText('Published')).toBeNull();
   });
 
-  it('TC-2664: shows publishMode badge when isPublic is true', () => {
+  it('TC-2664: shows an explicit published state when isPublic is true', () => {
     mockUseModePublish.mockReturnValue({ ...defaultPublishState, isPublic: true });
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
-    expect(screen.getByText('publishMode')).toBeInTheDocument();
-    expect(screen.queryByText('unpublishMode')).toBeNull();
+    expect(screen.getByText('Published')).toBeInTheDocument();
+    expect(screen.queryByText('Unpublished')).toBeNull();
   });
 
   it('TC-2665: switch is disabled while loading', () => {
@@ -61,7 +87,6 @@ describe('ModePublishSwitch', () => {
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
-    // Switch renders as a button with role="switch"
     const switchEl = screen.getByRole('switch');
     expect(switchEl).toBeDisabled();
   });
@@ -75,10 +100,6 @@ describe('ModePublishSwitch', () => {
   });
 
   it('TC-2667: clicking switch calls toggle()', async () => {
-    // userEvent is preferred over fireEvent for Radix UI Switch, which relies
-    // on pointer events internally — userEvent fires the full pointer-event
-    // sequence (pointerdown → mousedown → pointerup → mouseup → click) so the
-    // test is resilient to future internal event-handling changes.
     const user = userEvent.setup();
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
@@ -87,13 +108,29 @@ describe('ModePublishSwitch', () => {
     expect(toggleMock).toHaveBeenCalledTimes(1);
   });
 
-  it('TC-2668: switch aria-label includes modeLabelKey and current state key', () => {
+  it('TC-2668: switch name identifies the control while aria-checked carries state', () => {
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
-    // aria-label = "${tc(modeLabelKey)}: ${stateLabel}"
-    // useTranslations mock returns the key, so: "battleMode: unpublishMode"
-    const switchEl = screen.getByRole('switch');
-    expect(switchEl).toHaveAttribute('aria-label', 'battleMode: unpublishMode');
+    const switchEl = screen.getByRole('switch', { name: 'Battle Mode publication' });
+    expect(switchEl).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('keeps the switch accessible name stable when the published state changes', () => {
+    mockUseModePublish.mockReturnValue({ ...defaultPublishState, isPublic: true });
+
+    render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
+
+    const switchEl = screen.getByRole('switch', { name: 'Battle Mode publication' });
+    expect(switchEl).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('uses Japanese state and control labels from the real catalog', () => {
+    mockLocale = 'ja';
+
+    render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
+
+    expect(screen.getByText('未公開')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'バトルモードの公開設定' })).toHaveAttribute('aria-checked', 'false');
   });
 
   it('TC-2669: initial load failure shows network error and disables switch', () => {
@@ -101,7 +138,7 @@ describe('ModePublishSwitch', () => {
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.getByRole('alert')).toHaveTextContent('Network error');
     expect(screen.getByRole('switch')).toBeDisabled();
   });
 
@@ -110,7 +147,13 @@ describe('ModePublishSwitch', () => {
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.getByRole('alert')).toHaveTextContent('Network error');
     expect(screen.getByRole('switch')).toBeEnabled();
+  });
+});
+
+describe('ModePublishSwitch — catalog parity', () => {
+  it('keeps English and Japanese mode-publish-switch keys aligned', () => {
+    expect(Object.keys(jaModePublishSwitch).sort()).toEqual(Object.keys(enModePublishSwitch).sort());
   });
 });
