@@ -259,7 +259,9 @@ export function TASuddenDeathPanel<Entry extends TASuddenDeathEntry>({
       <CardContent>
         {saveError && (
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive rounded-md">
-            <p className="text-destructive text-sm">{saveError}</p>
+            <p role="alert" className="text-destructive text-sm">
+              {saveError}
+            </p>
           </div>
         )}
         <div className="mb-4 space-y-1">
