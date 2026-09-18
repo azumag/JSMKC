@@ -60,10 +60,12 @@ describe('LoadingOverlay — message', () => {
 });
 
 describe('LoadingOverlay — accessibility', () => {
-  it('TC-2730: has role="dialog" and localized aria-label', () => {
+  it('TC-2730: exposes a localized modal dialog as a polite live region', () => {
     render(<LoadingOverlay isOpen={true} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveAttribute('aria-live', 'polite');
+    expect(dialog).not.toHaveAttribute('aria-busy');
     expect(dialog).toHaveAttribute('aria-label', 'Loading');
   });
 
