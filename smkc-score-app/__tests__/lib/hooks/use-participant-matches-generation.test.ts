@@ -99,9 +99,12 @@ it('does not restore tournament or matches when an old initial fetch resolves af
 
   await act(async () => {
     tournamentRequest.resolve(
-      new Response(JSON.stringify({ data: { id: TOURNAMENT_ID, name: 'Stale', date: '2026-01-01', status: 'active' } }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({ data: { id: TOURNAMENT_ID, name: 'Stale', date: '2026-01-01', status: 'active' } }),
+        {
+          status: 200,
+        },
+      ),
     );
     matchesRequest.resolve(
       new Response(JSON.stringify({ data: { matches: [match], qualificationConfirmed: true } }), { status: 200 }),
