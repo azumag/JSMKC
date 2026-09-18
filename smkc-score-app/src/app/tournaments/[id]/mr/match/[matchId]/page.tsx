@@ -221,8 +221,7 @@ export default function MatchDetailPage({ params }: { params: Promise<{ id: stri
         setSubmitted(true);
         refetch();
       } else {
-        const data = await response.json().catch(() => ({}));
-        setError(data.error || tCommon('networkError'));
+        setError(tCommon('networkError'));
       }
     } catch (err) {
       logger.error('Failed to submit result:', { error: err });
