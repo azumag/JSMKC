@@ -77,9 +77,10 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const isPublic = publicModes.includes(mode);
 
   const toggle = useCallback(async () => {
-    // A failed initial load means publicModes is unknown. Refuse to build a PUT
-    // payload from the default empty state, which could overwrite other modes.
-    if (updating || error === 'load') return;
+    // Until the current publicModes read completes successfully, the state is
+    // unknown. Refuse to build a PUT payload from the default/stale local value,
+    // which could overwrite other modes.
+    if (loading || updating || error === 'load') return;
     setUpdating(true);
     setError(null);
     try {
@@ -108,7 +109,7 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
     } finally {
       setUpdating(false);
     }
-  }, [error, isPublic, mode, publicModes, tournamentId, updating]);
+  }, [error, isPublic, loading, mode, publicModes, tournamentId, updating]);
 
   return { isPublic, toggle, retryLoad, updating, loading, error };
 }
