@@ -72,8 +72,7 @@ export function FinalsRoundCoursesSettings({
         return;
       }
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        alert(payload?.error || t('failedUpdateRoundCourses'));
+        alert(t('failedUpdateRoundCourses'));
         return;
       }
       onSaved();
