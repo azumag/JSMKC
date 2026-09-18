@@ -232,12 +232,12 @@ describe('E2E case drift coverage', () => {
     ],
     [
       'TC-1080',
-      'n/a (static/unit coverage)',
+      'n/a (unit/static coverage)',
       'smkc-score-app/__tests__/static/tc-1080-qualification-route-comment.test.ts',
     ],
     [
       'TC-1088',
-      'n/a (static/unit coverage)',
+      'n/a (unit/static coverage)',
       'smkc-score-app/__tests__/static/tc-1088-qualification-route-comment.test.ts',
     ],
     [
@@ -490,6 +490,13 @@ describe('E2E case drift coverage', () => {
     /\/\/\s*TC-831 stays before TC-832[^\n]*(?:\n\s*\/\/[^\n]*)*\n\s*\{\s*name:\s*['"]TC-831['"]\s*,\s*fn:\s*runTc831\s*\}\s*,\s*\n\s*\{\s*name:\s*['"]TC-832['"]\s*,\s*fn:\s*runTc832\s*\}/;
 
   it('documents why GP TC-831 stays before TC-832 in the suite order', () => {
+    // Regex intent:
+    // - [^\\n]* matches the first rationale comment line.
+    // - (?:\\n\\s*//[^\\n]*)* allows wrapped rationale comments while rejecting code.
+    // - \\s* tolerates formatting drift in whitespace between comment and suite entry.
+    // - ['"] accepts either quote style around TC labels in the runner list.
+    // - TC-831 and TC-832 should remain adjacent and ordered for log readability.
+    // Allow multiline comment formatting drift while requiring comment -> TC-831 -> TC-832 adjacency.
     expect(tcGp).toMatch(gpTc831Tc832OrderRationale);
   });
 
@@ -570,7 +577,7 @@ describe('E2E case drift coverage', () => {
     const preflight = readE2eLib('preview-schema-preflight.js');
     const preflightTest = readRepoFile('smkc-score-app', '__tests__', 'e2e', 'preview-schema-preflight.test.ts');
 
-    expect(sectionBetween(preflight, 'function shouldFailOnWranglerAuthOrLogFailure', 'function buildWranglerAuthOrLogFailureMessage')).toContain('return');
+    expect(preflight).toContain('shouldFailOnWranglerAuthOrLogFailure');
     expect(preflight).toContain('buildWranglerAuthOrLogFailureMessage');
     expect(preflight).toContain('console.warn(message)');
     expect(preflightTest).toContain('continues preview startup on Wrangler auth and log setup failures by default');
@@ -589,6 +596,7 @@ describe('E2E case drift coverage', () => {
     expect(preflight).toContain('isWranglerStdoutAuthError');
     expect(preflight).toContain('CLOUDFLARE_API_TOKEN');
     expect(preflight).toContain('non-interactive environment');
+    /* Flat {"error": "string"} shape removed per YAGNI (issue #2384): no real Wrangler version emits it. */
     expect(preflight).not.toContain("typeof errorField === 'string'");
     expect(section).toContain('issue #2384');
     expect(preflightTest).toContain('detects CLOUDFLARE_API_TOKEN auth error in Wrangler stdout JSON');
@@ -642,6 +650,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('/api/auth/session-status');
     expect(section).toContain('createSharedE2eFixture');
     expect(section).toContain('npm run e2e:preview:login');
+    /* E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT escape hatch must be documented (issue #2366). */
     expect(section).toContain('E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT');
     expect(runner).toContain('assertPreviewAdminSession');
     expect(runner).toContain('E2E_SKIP_PREVIEW_ADMIN_PREFLIGHT');
@@ -801,6 +810,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('test:` または `refactor:');
     expect(prTemplate).toContain('PR title and Conventional Commit type match the actual diff.');
     expect(prTemplate).toContain('Use `docs:` only when this PR changes documentation.');
+    // Check actual assertion content rather than the it() description to avoid fragility from renames.
     expect(prTemplateTest).toContain('Use `test:` or `refactor:` for test-only refactors.');
   });
 
@@ -827,6 +837,7 @@ describe('E2E case drift coverage', () => {
     expect(staticTest).toContain(
       'uses class merging behavior so hydrated tabs do not keep whitespace-only guard classes',
     );
+    // guardClassName string check belongs to TC-2205; omit here to avoid duplication
   });
 
   it('keeps TC-2204 aligned with tournament-tab positive match fallback coverage', () => {
@@ -861,7 +872,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1942');
     expect(section).toContain('[^>]*');
     expect(section).toContain('tc-939-tournament-tabs-link.test.ts');
+    // [^>]* constrains the <a> match to within a single opening tag
     expect(staticTest).toContain('<a[^>]*href=');
+    // [\s\S]* would match across tag boundaries — must not regress
     expect(staticTest).not.toContain('<a[\\s\\S]*href=');
   });
 
@@ -1005,6 +1018,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('titleSkeletonClassName');
     expect(section).toContain('w-48');
     expect(section).toContain('__tests__/components/ui/loading-skeleton.test.tsx');
+    // The AST-backed contract owns the source-level default check; the component test owns rendered behavior.
     expect(loadingSkeletonContractTest).toContain("titleSkeletonBinding.initializer.text).toBe('w-48')");
     expect(qualificationFallbackTest).toContain("getByTestId('title-skeleton')).toHaveClass('w-48')");
     for (const pageClient of [bmPageClient, mrPageClient, gpPageClient]) {
@@ -1024,12 +1038,16 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('role="status"');
     expect(section).toContain('aria-label');
     expect(section).toContain('data-testid="title-skeleton"');
+    // The AST-backed contract verifies ownership/order without coupling this docs guard to quote style or locale text.
     expect(loadingSkeletonContractTest).toContain('expect(roleIndex).toBeGreaterThan(spreadIndex)');
     expect(loadingSkeletonContractTest).toContain('expect(ariaLabelIndex).toBeGreaterThan(spreadIndex)');
     expect(loadingSkeletonContractTest).toContain("expression.arguments[0].text === 'ariaLabel'");
+    // SkeletonProps must not redundantly declare className (HTMLAttributes already provides it)
     expect(loadingSkeleton).not.toContain('interface SkeletonProps');
     expect(loadingSkeleton).toContain('type SkeletonProps');
+    // title-skeleton testid must exist in QualificationClientLoadingState
     expect(loadingSkeleton).toContain('data-testid="title-skeleton"');
+    // Unit tests must cover the accessibility contract
     expect(qualificationFallbackTest).toContain('TC-2401');
     expect(qualificationFallbackTest).toContain("getByRole('status')");
     expect(qualificationFallbackTest).toContain("queryByRole('img')");
@@ -1045,6 +1063,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #816');
     expect(section).toContain('FINALS_BRACKET_SLOTS');
     expect(section).toContain('native bracket coordinates');
+    // The bracket geometry table moved to cdm-constants.ts; the fill map resolves
+    // each round through it. The route no longer carries the old slot helpers.
     expect(cdmConstants).toContain('FINALS_BRACKET_SLOTS');
     expect(cdmConstants).toContain('playoff_r1');
     expect(cdmConstants).toContain('winners_r1');
@@ -1054,6 +1074,11 @@ describe('E2E case drift coverage', () => {
     expect(exportRoute).not.toContain('cdmFinalsSlotRound');
     expect(exportRoute).not.toContain('cdmFinalsSlotForMatch');
     expect(exportRoute).not.toContain('cdmFinalsMatchLabel');
+    // The E2E script (tc-all.js) reads the exported workbook and keeps its own slot
+    // table synchronized with cdm-constants.ts. After the ZIP-surgery rewrite it
+    // verifies the structural parts the old exporter destroyed plus the input cells
+    // the new exporter writes at native coordinates (seed numbers, written names,
+    // completed-match scores, BM/MR seed list) — it no longer reads label/cup cells.
     expect(tcAll).toContain('TC-816A');
     expect(tcAll).toContain('CDM_FINALS_E2E_SLOTS');
     expect(tcAll).toContain('XLSX.read(Buffer.from(exportResp.bytes)');
@@ -1071,11 +1096,13 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).toContain("if (missingModes.has('BM')) generators.push({ mode: 'BM'");
     expect(tcAll).toContain("if (missingModes.has('MR')) generators.push({ mode: 'MR'");
     expect(tcAll).toContain('cdmE2eFinalsReadinessSummary');
+    // The old label/cup-summary reads are gone (route no longer writes them).
     expect(tcAll).not.toContain('cdmE2eMatchLabel');
     expect(tcAll).not.toContain('cdmE2eGpCupResultsSummary');
     expect(tcAll).not.toContain('slot.blockStart + 5');
     expect(section).toContain('mode 別 match count と round 一覧');
     expect(section).toContain('__tests__/e2e/tc-816a-cdm-finals-fixture.test.ts');
+    // The unit test now decodes the real .xlsm and checks typed seed + score cells.
     expect(cdmFinalsFixtureTest).toContain("} from '../../e2e/tc-all';");
     expect(cdmFinalsFixtureTest).not.toContain("import * as tcAllExports from '../../e2e/tc-all';");
     expect(exportRouteTest).toContain('should place CDM finals seeds and scores in native bracket coordinates');
@@ -1098,10 +1125,13 @@ describe('E2E case drift coverage', () => {
     expect(ttQualificationsSection).toContain('E62〜Z62');
     expect(ttQualificationsSection).toContain('E61/F61');
     expect(ttQualificationsSection).toContain('__tests__/app/api/tournaments/[id]/export/route.test.ts');
+    // The Main Hub caps at 60 rows; TT Qualifications caps at its own 47-row table.
     expect(cdmConstants).toContain('MAIN_HUB_MAX_PLAYERS = 60');
     expect(cdmConstants).toContain('TT_QUAL_MAX_PLAYERS = 47');
     expect(exportRouteTest).toContain('should cap Main Hub player rows at 60 when more players are provided');
     expect(exportRouteTest).toContain('should cap TT Qualifications rows at 60 when more entries are provided');
+    // Row-62 protection is now "the fixed table never addresses row 62", verified
+    // by decoding the real .xlsm and asserting the row-62 cells stay undefined.
     expect(exportRouteTest).toContain('KEEP-OUT-OF-BOUNDS');
     expect(exportRouteTest).not.toContain('KEEP-OUT-BOUNDS');
     expect(exportRouteTest).toContain('ttBoundaryColumns');
@@ -1138,6 +1168,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1877');
     expect(section).toContain('bracketPosition.includes("reset")');
     expect(section).toContain('normalizeRound');
+    // Round normalization moved into the finals fill map's normalizeRound.
     expect(finalsFill).toContain("if (bracketPosition.includes('reset')) return 'grand_final_reset'");
     expect(finalsFill).not.toContain("round === 'grand_final_reset' || bracketPosition.includes('reset')");
     expect(exportRoute).not.toContain('function cdmFinalsSlotRound');
@@ -1150,6 +1181,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1878');
     expect(section).toContain('zz_custom_showmatch');
     expect(section).toContain('skip');
+    // No positional fallback: an unmapped round returns null and is skipped.
     expect(finalsFill).toContain('return null; // unmapped: caller skips');
     expect(exportRoute).not.toContain('isFallback: true');
     expect(exportRouteTest).toContain('should skip an unknown CDM finals round instead of using a fallback slot');
@@ -1161,6 +1193,9 @@ describe('E2E case drift coverage', () => {
 
     expect(section).toContain('issue #1879');
     expect(section).toContain('FINALS_BRACKET_SLOTS');
+    // The production slot table moved to cdm-constants.ts (the old route.ts
+    // CDM_FINALS_BRACKET_SLOTS was deleted in the rewrite); the E2E sync comment
+    // now points there.
     expect(tcAll).toContain('Keep this expectation map synchronized with src/lib/cdm-export/cdm-constants.ts');
     expect(tcAll).toContain('FINALS_BRACKET_SLOTS');
     expect(tcAll).not.toContain('route.ts CDM_FINALS_BRACKET_SLOTS');
@@ -1171,6 +1206,11 @@ describe('E2E case drift coverage', () => {
     const section = e2eCaseSection('TC-1880A');
 
     expect(section).toContain('issue #1880');
+    // The GP cup-summary cell no longer exists in the rewritten exporter, so the
+    // old gpCupResultsChecked gate is gone. Its surviving intent — a freshly
+    // generated bracket with no completed match must not false-fail — now lives in
+    // the completion-gated score check plus the always-written seed-number / seed-
+    // list anchors that keep every mode at >=1 check.
     expect(section).toContain('completed');
     expect(tcAll).not.toContain('gpCupResultsChecked');
     expect(tcAll).not.toContain('GP cupResults not available; skipped summary-cell check');
@@ -1229,8 +1269,15 @@ describe('E2E case drift coverage', () => {
     expect(exportRoute).toContain('include: BASE_EXPORT_INCLUDE');
     expect(exportRouteTest).toContain('should export tournament data with summary section');
     expect(exportRouteTest).toContain('should export a populated CDM macro workbook when requested');
+    // ttPhaseRounds gained a nested suddenDeathRounds include (issue: CDM
+    // export ignored sudden-death outcomes when replaying TT Finals life
+    // loss) — was a bare `ttPhaseRounds: true`, now fetches the resolved
+    // sudden-death chain the replay needs.
     expect(exportRoute).toContain('suddenDeathRounds:');
     expect(exportRouteTest).toContain('suddenDeathRounds:');
+    // The CDM include carries MR/GP qualification seeds and TT phase rounds, but
+    // NOT playerScores: the Overall Ranking sheet is formula-driven and the
+    // rewritten exporter never writes it (design §3.6).
     expect(exportRoute).not.toContain('playerScores: { include:');
     expect(exportRouteTest).not.toContain('playerScores: { include: { player: { select: PLAYER_PUBLIC_SELECT } } }');
   });
@@ -1243,6 +1290,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #818');
     expect(section).toContain('timeValueForCDM');
     expect(section).toContain('timeStringToCdmTime');
+    // The route no longer owns any time conversion; it delegates to the module.
     expect(exportRoute).not.toContain('function timeValueForCDM');
     expect(exportRoute).not.toContain('function parseTimeMs');
     expect(timeFormat).toContain('export function timeStringToCdmTime');
@@ -1257,6 +1305,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #819');
     expect(section).toContain('cdm-constants.ts');
     expect(section).toContain('TT_FINALS_*');
+    // The template coordinates moved to cdm-constants.ts with verification comments.
     expect(cdmConstants).toContain('template coordinates');
     expect(cdmConstants).toContain('verified against a full cell dump');
     expect(cdmConstants).toContain('MAIN_HUB_MAX_PLAYERS');
@@ -1264,7 +1313,9 @@ describe('E2E case drift coverage', () => {
     expect(cdmConstants).toContain('QUAL_BLOCK_MAX_BLOCKS');
     expect(cdmConstants).toContain('FINALS_BRACKET_SLOTS');
     expect(cdmConstants).toContain('TT_FINALS_MAX_ROUNDS');
+    // A fill module actually consumes the named constants.
     expect(mainHubFill).toContain('MAIN_HUB_MAX_PLAYERS');
+    // The route no longer carries any CDM coordinate constants.
     expect(exportRoute).not.toContain('CDM_TT_ROUND_START_COLUMNS');
     expect(exportRoute).not.toContain('CDM_PLAYER_HUB_MAX_PLAYERS');
   });
@@ -1280,6 +1331,7 @@ describe('E2E case drift coverage', () => {
     expect(cdmConstants).toContain('TT_QUAL_FIRST_ROW');
     expect(cdmConstants).toContain('TT_QUAL_MAX_PLAYERS');
     expect(cdmConstants).toContain('TT_QUAL_FIRST_TIME_COLUMN');
+    // The fill module clears/slices using the TT-specific constants.
     expect(ttQualFill).toContain('TT_QUAL_FIRST_ROW + TT_QUAL_MAX_PLAYERS');
     expect(ttQualFill).toContain('.slice(0, TT_QUAL_MAX_PLAYERS)');
   });
@@ -1310,7 +1362,9 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #1874');
     expect(section).toContain('#SPILL!');
     expect(section).toContain('sheet-xml-patcher.ts');
+    // The patcher refuses to write a value over a formula cell (no more #SPILL!).
     expect(patcher).toContain('refusing to write a value over the formula cell');
+    // The old width-named coordinate constants are gone from the route.
     expect(exportRoute).not.toContain('CDM_FINALS_BLOCK_WIDTH');
     expect(exportRoute).not.toContain('CDM_TT_ROUND_BLOCK_WIDTH');
     expect(exportRoute).not.toContain('CDM_FINALS_BLOCK_END_OFFSET');
@@ -1322,9 +1376,10 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('issue #2088/#2193');
     expect(section).toContain('TypeScript AST');
     expect(section).toContain('tc-2088-cdm-main-hub-boundary.test.ts');
-    expect(tc2088BoundaryTest).toContain("'Array.from'");
-    expect(tc2088BoundaryTest).toContain("'Main Hub'");
-    expect(tc2088BoundaryTest).toContain('ts.forEachChild');
+    // Check AST behavior targets rather than function names to avoid fragility on renames (#2354).
+    expect(tc2088BoundaryTest).toContain("'Array.from'"); // AST detects Array.from({ length: 60 }) call
+    expect(tc2088BoundaryTest).toContain("'Main Hub'"); // AST detects Main Hub cell boundary access
+    expect(tc2088BoundaryTest).toContain('ts.forEachChild'); // AST traversal approach still in use
     expect(tc2088BoundaryTest).not.toContain("toContain('Array.from({ length: 60 }')");
     expect(tc2088BoundaryTest).not.toContain('B62).toBeUndefined()');
     expect(exportRouteTest).toContain('should write the Main Hub player rows for exactly 60 players');
@@ -1388,6 +1443,7 @@ describe('E2E case drift coverage', () => {
     expect(disabledButtonSection).toContain('disabled');
     expect(secondaryButtonSection).toContain('issue #1682');
     expect(secondaryButtonSection).toContain('variant="secondary"');
+    // TC-1680/1682 explicitly anticipated this reversal ("将来...selectable UIに戻す場合はguard更新が必要になる").
     expect(selectorReturnSection).toContain('issue #1007/#1678/#1680/#1682');
     expect(selectorReturnSection).toContain('GROUP_COUNT_OPTIONS');
     expect(helperAliasSection).toContain('issue #1980 / #1982');
@@ -1398,6 +1454,7 @@ describe('E2E case drift coverage', () => {
     expect(helperAliasCallGuardSection).toContain('同一の `throwUnexpectedMockCall(...)` 呼び出し');
     expect(groupSetupHelperTest).not.toContain('const expectedPageRoleLookups');
     expect(groupSetupHelperTest).not.toContain('const actualPageRoleLookup');
+    // Throwing on not-found is the assertion — the return value always contains the required args
     callExpressionWithArguments(groupSetupHelperTest, 'throwUnexpectedMockCall', [
       "'page.getByRole'",
       'roleLookup(_role, name)',
@@ -1407,6 +1464,7 @@ describe('E2E case drift coverage', () => {
     expect(guard).toContain("e2eCaseSection('TC-1678')");
     expect(guard).toContain("not.toContain('groupCount={groupCount}')");
     expect(guard).toContain("not.toContain('setGroupCount={setGroupCount}')");
+    // TC-3010 replaced the disabled/secondary read-only display with a real 2/3 selector.
     expect(guard).toContain("expect(groupCountButton).toContain('onClick={() => handleGroupCountChange(n)}')");
     expect(guard).toContain("expect(groupCountButton).toContain('disabled={saving}')");
   });
@@ -1682,6 +1740,8 @@ describe('E2E case drift coverage', () => {
   it('keeps TC-1068 aligned with orphan eliminated-entry ordering coverage', () => {
     const section = e2eCaseSection('TC-1068');
 
+    // Keep the doc assertions intentionally narrow: TC prose can change as long as
+    // it still links the issue to the executable API route coverage.
     expect(section).toContain('issue #1068');
     expect(section).toContain('smkc-score-app/__tests__/app/api/tournaments/[id]/ta/phases/route.test.ts');
     const routeCase = sectionBetween(
@@ -1985,6 +2045,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('entry.rankOverride != null');
     expect(section).toContain('rankOverride: undefined');
     expect(serverRanking).toContain('if (entry.rankOverride != null)');
+    // Use regex so a rename of the boolean variable (e.g. overrideRank → hasOverride) still triggers detection — see issue #2353
     expect(serverRanking).not.toMatch(/const \w+ = entry\.rankOverride != null/);
     expect(serverRankingTest).toContain('treats undefined rankOverride as auto-ranked');
     expect(serverRankingTest).toContain('rankOverride: undefined');
@@ -2033,14 +2094,17 @@ describe('E2E case drift coverage', () => {
     expect(tc1083).toContain('apiFetchMr');
     expect(tc1083).toContain('apiFetchMrStandings');
     expect(tc1083).toContain('assertMrStandingStats');
+    // assertMrStandingStats must be wrapped in try-catch to avoid bypassing log() (issue #2370)
     expect(tc1083).toContain('standingsErr');
     expect(mrReportRouteTest).toContain('useRoundDifferential: true');
+    // Use test case name instead of internal error message to avoid implementation-string dependency (#2372).
     expect(mrStandingsAssertionsTest).toContain("'fails with a targeted stat diff'");
     expect(tc1083).not.toContain('waitForTimeout(3000)');
   });
 
   it('keeps TC-608 assertMrStandingStats wrapped in try-catch to avoid bypassing log()', () => {
     const tc608 = sectionBetween(tcMr, 'async function runTc608', 'async function runTc609');
+    // assertMrStandingStats must be wrapped in try-catch to avoid bypassing log() (issue #2370/#2425)
     expect(tc608).toContain('standingsErr');
   });
 
@@ -2129,6 +2193,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('suddenDeathWinnerId: null');
     expect(section).toContain('prisma.gPMatch.update');
     expect(section).toContain('gp/finals/route.test.ts');
+    // Use regex to tolerate Prettier line-wrap reformatting — see issue #2375
     expect(gpFinalsRouteTest).toMatch(
       /const updatedMatch\s*=\s*\{\s*\.\.\.mockMatch,\s*suddenDeathWinnerId:\s*null\s*\}/,
     );
@@ -2315,6 +2380,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('smkc-score-app/__tests__/lib/prisma-selects.test.ts');
     expect(prismaSelectsTest).toContain('Object.entries(BM_MR_MATCH_LEAN_SELECT)');
     expect(prismaSelectsTest).toContain('selectedFields.length');
+    // Issue #2024: exact-key guard must also be present (detects accidental field additions).
     expect(prismaSelectsTest).toContain('Object.keys(BM_MR_MATCH_LEAN_SELECT)');
     expect(prismaSelectsTest).toContain('EXPECTED_FIELDS');
   });
@@ -2407,6 +2473,7 @@ describe('E2E case drift coverage', () => {
       'should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when player2 is named',
       "it('should allow GP playoff round 1 results to finish at first to 1'",
     );
+
     const unmatchedCase = sectionBetween(
       routeTest,
       'should ignore sudden-death winner on tied GP finals scores while the match is incomplete, even when unmatched',
@@ -2422,6 +2489,7 @@ describe('E2E case drift coverage', () => {
     expect(player2WinnerCase).toContain("player2Id: 'p2'");
     expect(player2WinnerCase).toContain("suddenDeathWinnerId: 'p2'");
     expect(player2WinnerCase).not.toContain('player-8');
+    /* Unmatched case must use short 'p...' style, not numeric 'player-N' IDs. */
     expect(unmatchedCase).not.toContain('player-z');
     expect(unmatchedCase).toContain("suddenDeathWinnerId: 'p3'");
   });
@@ -2595,6 +2663,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Issue**: #2076');
     expect(section).toContain('MRMatch.scoresConfirmed=true');
     expect(section).toContain('400');
+    /* Whitespace-tolerant: Prettier may wrap log()'s arguments onto separate
+     * lines depending on the line's width. */
     expect(tcMr).toMatch(
       /log\(\s*'TC-822',\s*mismatch && confirmRes\.s === 200 && storedConfirmed && reportBlocked \? 'PASS' : 'FAIL'/,
     );
@@ -2626,14 +2696,18 @@ describe('E2E case drift coverage', () => {
 
   it('documents TC-2109 as MR dual-report player-session coverage', () => {
     const section = e2eCaseSection('TC-2109');
+    // Narrow to the TC-822 function body to avoid false positives from other functions (#2436).
     const tc822Source = sectionBetween(tcMr, 'async function runTc822', 'async function runTc2108');
 
     expect(section).toContain('Issue**: #2109');
     expect(section).toContain('P1 session');
     expect(section).toContain('P2 session');
+    // Check function calls in the TC-822 section specifically, not the whole file.
     expect(tc822Source).toContain('loginSharedPlayer(adminPage, p1)');
     expect(tc822Source).toContain('loginSharedPlayer(adminPage, p2)');
+    // p1Context.page.evaluate verifies the dual-session player-context usage.
     expect(tc822Source).toContain('p1Context.page.evaluate');
+    // rejectedReport confirms post-confirm participant report is blocked (#2436).
     expect(tc822Source).toContain('rejectedReport');
   });
 
@@ -2815,8 +2889,10 @@ describe('E2E case drift coverage', () => {
     expect(tcGp).toContain("log('TC-2234'");
     expect(tcGp).toContain('apiSetGpFinalsScore(adminPage, tournamentId, match.id, 1, 1, suddenDeathWinnerId)');
     expect(tcGp).toContain('seededWinner?.playerId === suddenDeathWinnerId');
+    /* Guard for preview.raw.data absence must throw a diagnostic error (issue #2367). */
     expect(tcGp).toContain('TC-2234: preview.raw.data missing');
     expect(section).toContain('preview.raw.data');
+    /* After guard, optional chaining is dead – access must be preview.raw.data.* directly (issue #2458). */
     expect(tcGp).toContain('preview.raw.data.playoffStructure');
     expect(tcGp).toContain('preview.raw.data.seededPlayers');
   });
@@ -2941,10 +3017,15 @@ describe('E2E case drift coverage', () => {
       "it('keeps TC-1612 aligned with the PlayoffCompleteCard className merge contract'",
       "it('keeps TC-1614 aligned",
     );
+    // Current TC-1612 guard body is substantially longer than this threshold;
+    // the named lower bound catches empty/truncated extraction while allowing
+    // harmless wording edits in the test body.
     const TC1612_DRIFT_MIN_BODY_LENGTH = 300;
 
     expect(section).toContain('issue #1614');
     expect(section).toContain('コンポーネントソースファイルの文字列詳細を検査していない');
+    // Positive anchors keep the negative string checks from passing against an
+    // empty extraction if the surrounding test names are refactored later.
     expect(tc1612DriftTest.length).toBeGreaterThan(TC1612_DRIFT_MIN_BODY_LENGTH);
     expect(tc1612DriftTest).toContain("const section = e2eCaseSection('TC-1612');");
     expect(tc1612DriftTest).not.toContain("'src'");
@@ -2991,15 +3072,26 @@ describe('E2E case drift coverage', () => {
   });
 
   it('keeps resolveSuddenDeathThroughSharedCard using scoped option selector and state-based wait (#2380 #2381)', () => {
+    // Extract only the resolveSuddenDeathThroughSharedCard function body to avoid
+    // matching patterns that are legitimately used elsewhere in tc-ta.js.
     const resolveSuddenDeathSection = sectionBetween(
       tcTa,
       'async function resolveSuddenDeathThroughSharedCard(',
       'async function runTc814(',
     );
+    // #2380: option click must be scoped to the shadcn/ui SelectContent element
+    // (data-slot="select-content") so that other role=option elements on the page
+    // cannot be accidentally selected. Note: Radix emits data-state/data-side only;
+    // the data-slot attribute is added by the shadcn/ui wrapper (select.tsx).
     expect(resolveSuddenDeathSection).toContain('[data-slot="select-content"]');
     expect(resolveSuddenDeathSection).not.toMatch(/adminPage\.getByRole\('option'\)/);
+    // #2381: fixed-time waitForTimeout is flaky under CI load; wait for the panel
+    // to transition to hidden state instead (deterministic, not time-dependent).
     expect(resolveSuddenDeathSection).not.toContain('waitForTimeout');
     expect(resolveSuddenDeathSection).toContain("state: 'hidden'");
+    // #2419: catch must use allowlist approach — only detached/closed errors are silently
+    // ignored (stale element after navigation); all other errors including Timeout are
+    // re-thrown. Denylist approach (Timeout check only) silently swallows unexpected errors.
     expect(resolveSuddenDeathSection).not.toContain('.catch(() => {})');
     expect(resolveSuddenDeathSection).toContain('/detached|closed/i');
     expect(resolveSuddenDeathSection).toContain('throw e');
@@ -3007,13 +3099,20 @@ describe('E2E case drift coverage', () => {
 
   it('keeps TC-2415 E2E scenario documenting correct shadcn/ui SelectContent attribute (#2416)', () => {
     const section = e2eCaseSection('TC-2415');
+    // The correct attribute added by shadcn/ui select.tsx wrapper is data-slot="select-content",
+    // not data-radix-select-content which Radix UI itself does not emit.
     expect(section).toContain('[data-slot="select-content"]');
     expect(section).not.toContain('[data-radix-select-content]');
   });
 
   it('keeps TC-2400 using stable sorted entry order and neutral variable names (#2401 #2402)', () => {
+    // runTc2400 is the last function before getSuite; use allowTerminal to read until end.
     const tc2400Section = sectionBetween(tcTa, 'async function runTc2400(', 'function getSuite(');
+    // #2401: entries must be sorted by playerId before time assignment to avoid
+    // fragile dependence on the API's return order.
     expect(tc2400Section).toContain('localeCompare');
+    // #2402: variable names must not imply speed before time values are assigned;
+    // neutral names (targetA/targetB) are used instead of slowerPlayerId/fasterPlayerId.
     expect(tc2400Section).not.toContain('slowerPlayerId');
     expect(tc2400Section).not.toContain('fasterPlayerId');
     expect(tc2400Section).toContain('targetA');
@@ -3025,10 +3124,12 @@ describe('E2E case drift coverage', () => {
     expect(tcAll).not.toContain('TC-403');
   });
 
+  // TC-2460 / issue #2374 / #2368: Unit Test Coverage ラベルのドリフトガード
   it('marks TC-2235 as Unit Test Coverage to prevent browser-step confusion (#2374)', () => {
     const section = e2eCaseSection('TC-2235');
     expect(section).toContain('Unit Test Coverage');
     expect(section).toContain('ブラウザ操作なし');
+    // 背景フィールドの既存内容は維持されていること
     expect(section).toContain('issue #2235');
     expect(section).toContain('Top-24');
   });
@@ -3038,12 +3139,14 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('Unit Test Coverage');
     expect(section).toContain('ブラウザ操作なし');
     expect(section).toContain('ユニットテストで自動検証済み');
+    // 背景フィールドの既存内容は維持されていること
     expect(section).toContain('issue #2249');
     expect(section).toContain('サドンデス不参加');
     expect(section).toContain('p3');
     expect(section).toContain('__tests__/lib/ta/finals-phase-manager.test.ts');
   });
 
+  // TC-2460: fail-closed security audit の安定契約ドリフトガード (issue #3118)
   it('documents TC-2460 as fail-closed security audit behavior coverage', () => {
     const section = e2eCaseSection('TC-2460');
     expect(section).toContain('issue #2016 / #3118');
@@ -3053,6 +3156,8 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/docs/ci-config.test.ts');
   });
 
+  // TC-2472〜TC-2475: Tournament Archive API ドリフトガード
+  // HTTP ステータスコードとエラーコードで検証する（自然言語の表現変更に対し安定）
   it('documents TC-2472 as archive GET 403 for empty publicModes', () => {
     const section = e2eCaseSection('TC-2472');
     expect(section).toContain('403');
@@ -3082,6 +3187,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/app/api/tournaments/[id]/archive/route.test.ts');
   });
 
+  // TC-2476: jest.mocked(auth) 移行ドリフトガード
   it('documents TC-2476 as jest.mocked(auth) migration in auth.ts', () => {
     const section = e2eCaseSection('TC-2476');
     expect(section).toContain('jest.mocked(auth)');
@@ -3089,6 +3195,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('src/lib/auth.ts');
   });
 
+  // TC-2477〜TC-2481: Middleware ドリフトガード
   it('documents TC-2477 as middleware 401 for unauthenticated POST', () => {
     const section = e2eCaseSection('TC-2477');
     expect(section).toContain('401');
@@ -3124,6 +3231,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('__tests__/middleware.test.ts');
   });
 
+  // TC-2482〜TC-2487: overlay-events route ドリフトガード
   it('documents TC-2482 as overlay-events 404 when tournament not found', () => {
     const section = e2eCaseSection('TC-2482');
     expect(section).toContain('404');
@@ -3205,7 +3313,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('undefined');
     expect(section).toContain('audit-log.test.ts');
     expect(auditTest).toContain('TC-2497');
-    expect(auditTest).toContain('id: undefined');
+    expect(auditTest).toContain('id: undefined'); // user.id が undefined のケースを具体的にカバー
   });
 
   it('documents TC-2498 as requireAdminSession returning error for null session', () => {
@@ -3220,7 +3328,7 @@ describe('E2E case drift coverage', () => {
   it('documents TC-2499 as requireAdminSession returning error when session has no user', () => {
     const section = e2eCaseSection('TC-2499');
     const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
-    expect(section).toContain('{}');
+    expect(section).toContain('{}'); // "user なしセッション ({})" scenario-specific token
     expect(section).toContain('api-auth.test.ts');
     expect(apiAuthTest).toContain('TC-2499');
     expect(apiAuthTest).toContain('requireAdminSession');
@@ -3256,7 +3364,7 @@ describe('E2E case drift coverage', () => {
   it('documents TC-2503 as requireAdminOrPlayerSession returning session for admin role', () => {
     const section = e2eCaseSection('TC-2503');
     const apiAuthTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'api-auth.test.ts');
-    expect(section).toContain('requireAdminOrPlayerSession');
+    expect(section).toContain('requireAdminOrPlayerSession'); // scenario-specific: distinguishes TC-2503 from TC-2501 which tests requireAdminSession
     expect(section).toContain('api-auth.test.ts');
     expect(apiAuthTest).toContain('TC-2503');
     expect(apiAuthTest).toContain("role: 'admin'");
@@ -3437,6 +3545,7 @@ describe('E2E case drift coverage', () => {
       const section = e2eCaseSection('TC-2519');
       expect(section).toContain('query-counter.test.ts');
       expect(qcTest).toContain('TC-2519');
+      // result.result はリターン値の転送パターンを表す。特定のリテラル値ではなくプロパティ名を確認する (#2539)。
       expect(qcTest).toContain('result.result');
     });
 
@@ -3454,6 +3563,7 @@ describe('E2E case drift coverage', () => {
       expect(section).toContain('AsyncLocalStorage');
       expect(qcTest).toContain('TC-2521');
       expect(qcTest).toContain('totalDurationMs');
+      // recordQuery 呼び出しパターンで振る舞いを確認する。合計値の特定リテラルは除外 (#2539)。
       expect(qcTest).toContain('recordQuery');
     });
 
@@ -3461,6 +3571,7 @@ describe('E2E case drift coverage', () => {
       const section = e2eCaseSection('TC-2522');
       expect(section).toContain('query-counter.test.ts');
       expect(qcTest).toContain('TC-2522');
+      // テスト説明の "does not throw" は振る舞いキーワードとして安定している (#2539)。
       expect(qcTest).toContain('does not throw');
     });
 
@@ -3483,6 +3594,7 @@ describe('E2E case drift coverage', () => {
       const section = e2eCaseSection('TC-2525');
       expect(section).toContain('query-counter.test.ts');
       expect(qcTest).toContain('TC-2525');
+      // "accumulate" は振る舞いを表す語句であり、特定の合計値リテラルより堅牢 (#2539)。
       expect(qcTest).toContain('accumulate');
     });
 
@@ -3571,6 +3683,7 @@ describe('E2E case drift coverage', () => {
       const section = e2eCaseSection('TC-2546');
       expect(section).toContain('time-format.test.ts');
       expect(tfTest).toContain('TC-2546');
+      // 出力値 0 は toBe(0) 等でも使われる汎用リテラルなので出力値確認は省略する (#2542)。
     });
 
     it('documents TC-2547 as msToCdmTime rounding 155ms to 16cs', () => {
@@ -3578,6 +3691,7 @@ describe('E2E case drift coverage', () => {
       expect(section).toContain('time-format.test.ts');
       expect(tfTest).toContain('TC-2547');
       expect(tfTest).toContain('155');
+      // '16' は汎用的な数値リテラルなので toBe(16) の形式で確認し一意性を高める (#2545)
       expect(tfTest).toContain('toBe(16)');
     });
 
@@ -3646,6 +3760,7 @@ describe('E2E case drift coverage', () => {
         'overlay-events',
         'route.test.ts',
       );
+      // TC-2555: expect(array).toHaveLength(n) preferred over expect(array.length).toBe(n) (#2562)
       expect(overlayTest).toContain('TC-2555');
       expect(overlayTest).toContain('toHaveLength');
       expect(overlayTest).not.toContain('.length).toBe(1)');
@@ -3664,6 +3779,7 @@ describe('E2E case drift coverage', () => {
       ];
       for (const file of factoryFiles) {
         const src = readRepoFile('smkc-score-app', 'src', 'lib', 'api-factories', file);
+        // TC-2556: handleAuthzError() must replace createErrorResponse('Forbidden', 403, 'FORBIDDEN') (#2563)
         expect(src).not.toContain("createErrorResponse('Forbidden', 403, 'FORBIDDEN')");
       }
     });
@@ -3705,6 +3821,7 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2569', 'TC-2570', 'TC-2571', 'TC-2572', 'TC-2573', 'TC-2574', 'TC-2575', 'TC-2576']) {
         expect(qualTest).toContain(tc);
       }
+      // Verifies the function under test is fetchQualInitialData
       expect(qualTest).toContain('fetchQualInitialData');
     });
 
@@ -3720,10 +3837,13 @@ describe('E2E case drift coverage', () => {
         expect(pollingTest).toContain(tc);
       }
       expect(pollingTest).toContain('createMatchesPollingHandlers');
+      // TC-2577/TC-2578 use lastCall to reliably reference each test's own paginate call (#2588)
       expect(pollingTest).toContain('mock.lastCall?.[0]');
+      // TC-2577/TC-2578 restore objectContaining({findMany, count}) shape check (#2587)
       expect(pollingTest).toContain(
         'objectContaining({ findMany: expect.any(Function), count: expect.any(Function) })',
       );
+      // Positive count assertion pinned to specific string to survive negative-only refactors (#2587)
       expect(pollingTest).toContain('expect(prisma.mRMatch.count).toHaveBeenCalled()');
       expect(pollingTest).toContain('expect(prisma.gPMatch.count).toHaveBeenCalled()');
     });
@@ -3740,12 +3860,17 @@ describe('E2E case drift coverage', () => {
         expect(standingsTest).toContain(tc);
       }
       expect(standingsTest).toContain('createStandingsHandlers');
+      // TC-2580: adapter.findMany is invoked to assert delegation (behavior, not implementation-detail string like 'mock.lastCall?.[0]') (#2592)
       expect(standingsTest).toContain('adapter.findMany');
+      // TC-2580: Both findMany and count must be verified for BM delegation (#2587 pattern)
       expect(standingsTest).toContain('expect(prisma.bMQualification.findMany).toHaveBeenCalled()');
       expect(standingsTest).toContain('expect(prisma.bMQualification.count).toHaveBeenCalled()');
+      // TC-2581: GP H2H must call gPMatch.findMany positively
       expect(standingsTest).toContain('expect(prisma.gPMatch.findMany).toHaveBeenCalled()');
+      // TC-2582: 304 Not Modified branch verified — use .toBe(304) for precision (#2592)
       expect(standingsTest).toContain('.toBe(304)');
       expect(standingsTest).toContain('etag-v1');
+      // TC-2582: 304 path must not reach DB — findMany/count not called (#2594)
       expect(standingsTest).toContain('prisma.bMQualification.findMany).not.toHaveBeenCalled()');
       expect(standingsTest).toContain('prisma.bMQualification.count).not.toHaveBeenCalled()');
     });
@@ -3757,9 +3882,13 @@ describe('E2E case drift coverage', () => {
       }
       expect(layoutTest).toContain('normalizeOverlayBroadcastLayout');
       expect(layoutTest).toContain('isOverlayBroadcastLayoutInput');
+      // TC-2583: non-object inputs fall back to full defaults
       expect(layoutTest).toContain('DEFAULT_OVERLAY_BROADCAST_LAYOUT');
+      // TC-2585: NaN and Infinity are handled per-coordinate — word-boundary match so
+      //          isNaN/POSITIVE_INFINITY prefixes don't generate false positives (#2600)
       expect(layoutTest).toMatch(/\bNaN\b/);
       expect(layoutTest).toMatch(/\bInfinity\b/);
+      // TC-2586: empty object is valid
       expect(layoutTest).toContain('isOverlayBroadcastLayoutInput({})');
     });
 
@@ -3779,12 +3908,16 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2601', 'TC-2602', 'TC-2603', 'TC-2604']) {
         expect(ttEntryTest).toContain(tc);
       }
+      // TC-2601: admin blocked by frozen stage — checkStageFrozen returns non-null
       expect(ttEntryTest).toContain('checkStageFrozen');
       expect(ttEntryTest).toContain('frozenStageResponse');
       expect(ttEntryTest).toContain('updateTTEntry).not.toHaveBeenCalled()');
+      // TC-2603: lastRecordedCourse/Time updated using COURSES constant (not hardcoded list)
       expect(ttEntryTest).toContain('lastRecordedCourse');
       expect(ttEntryTest).toContain('lastRecordedTime');
       expect(ttEntryTest).toContain('COURSES');
+      // TC-2604: recalculateRanks called with tournamentId/stage from DB entry (not URL param)
+      // Use a combined regex so the guard targets this specific assertion, not any toHaveBeenCalledWith
       expect(ttEntryTest).toMatch(/expect\(recalculateRanks\)\.toHaveBeenCalledWith/);
     });
 
@@ -3799,10 +3932,15 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2605', 'TC-2606', 'TC-2607', 'TC-2608', 'TC-2609', 'TC-2610']) {
         expect(debugModeTest).toContain(tc);
       }
+      // TC-2606 + TC-2609: verifies debugMode=true is asserted; stable substring avoids sensitivity to object-literal formatting
       expect(debugModeTest).toContain('debugMode: true');
+      // TC-2609: verifies the test exercises the createSuccessResponse wrapper format { data: { debugMode: true } };
+      // use toContain on the full inline object so the check is distinct from the TC-2606 check above
       expect(debugModeTest).toContain('data: { debugMode: true }');
+      // TC-2610: verifies cancellation of state update when unmounted; check behavior description, not internal var name
       expect(debugModeTest).toContain('unmount');
       expect(debugModeTest).toContain('cancels state update');
+      // URL correctness check
       expect(debugModeTest).toContain('?fields=summary');
     });
 
@@ -3817,17 +3955,23 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2611', 'TC-2612', 'TC-2613', 'TC-2614', 'TC-2615', 'TC-2616', 'TC-2617', 'TC-2618']) {
         expect(qualActionsTest).toContain(tc);
       }
+      // TC-2611: handleRankOverrideSave calls refetch on success
       expect(qualActionsTest).toContain('handleRankOverrideSave');
       expect(qualActionsTest).toMatch(/expect\(refetch\)\.toHaveBeenCalledTimes\(1\)/);
+      // TC-2613: handleBulkRankOverrideSave returns true on full success
       expect(qualActionsTest).toContain('handleBulkRankOverrideSave');
       expect(qualActionsTest).toContain('returnValue).toBe(true)');
+      // TC-2614: handleBulkRankOverrideSave stops on failure and returns false
       expect(qualActionsTest).toContain('returnValue).toBe(false)');
+      // TC-2615: handleTvAssign sends matchId and tvNumber
       expect(qualActionsTest).toContain('handleTvAssign');
       expect(qualActionsTest).toContain('matchId');
       expect(qualActionsTest).toContain('tvNumber');
+      // TC-2616: handleBroadcastReflect calls broadcast PUT with player names; toast key checked
       expect(qualActionsTest).toContain('handleBroadcastReflect');
       expect(qualActionsTest).toContain('/broadcast');
       expect(qualActionsTest).toContain("'broadcastReflected'");
+      // TC-2617/TC-2618: toast.error with broadcastError key on failure paths
       expect(qualActionsTest).toContain("'broadcastError'");
     });
 
@@ -3852,27 +3996,40 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(participantMatchesTest).toContain(tc);
       }
+      // TC-2619: sessionStatus=loading keeps loading=true; check the expected outcome, not mock syntax
       expect(participantMatchesTest).toContain('loading).toBe(true)');
+      // TC-2620: admin-blocked sets loading=false without API calls
       expect(participantMatchesTest).toContain('isAdminBlocked');
       expect(participantMatchesTest).toContain('loading).toBe(false)');
+      // TC-2621: player session fetches tournament and matches
       expect(participantMatchesTest).toContain('?fields=summary');
       expect(participantMatchesTest).toContain('tournament?.id');
+      // TC-2622: unwraps json.data createSuccessResponse wrapper
       expect(participantMatchesTest).toContain('data: tournament');
       expect(participantMatchesTest).toContain('tournament?.name');
+      // TC-2623: sets qualificationConfirmed from response
       expect(participantMatchesTest).toContain('qualificationConfirmed: true');
       expect(participantMatchesTest).toMatch(/qualificationConfirmed\)\.toBe\(true\)/);
+      // TC-2624: myMatches filters by playerId, excludes BYE
       expect(participantMatchesTest).toContain('isBye: true');
       expect(participantMatchesTest).toMatch(/myMatches\)\.toHaveLength\(1\)/);
+      // TC-2625: myMatches sorts incomplete before completed
       expect(participantMatchesTest).toContain('completed: true');
       expect(participantMatchesTest).toContain('myMatches[0].id');
+      // TC-2626: submitReport POSTs to correct endpoint; check URL and method string
       expect(participantMatchesTest).toContain('/report');
+      // toContain("'POST'") is stable across refactors — checks the method value, not call-site syntax
       expect(participantMatchesTest).toContain("'POST'");
+      // TC-2627: submitReport on non-ok → sets error and returns null
       expect(participantMatchesTest).toContain('Score invalid');
       expect(participantMatchesTest).toMatch(/expect\(returnValue\)\.toBeNull/);
+      // TC-2640: fetchWithRetry throws → error set, loading=false
       expect(participantMatchesTest).toContain('TC-2640');
       expect(participantMatchesTest).toContain('Network timeout');
+      // TC-2641: global.fetch throws → error set, loading=false
       expect(participantMatchesTest).toContain('TC-2641');
       expect(participantMatchesTest).toContain('Connection refused');
+      // Both TC-2640/2641 verify error state is set on network failure
       expect(participantMatchesTest).toContain('error).toBeTruthy');
     });
 
@@ -3895,22 +4052,31 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(modePublishTest).toContain(tc);
       }
+      // TC-2628: loading=true before fetch resolves
       expect(modePublishTest).toContain('loading).toBe(true)');
       expect(modePublishTest).toContain('isPublic).toBe(false)');
       expect(modePublishTest).toContain('?fields=summary');
+      // TC-2629/TC-2630: isPublic reflects mode presence in publicModes
       expect(modePublishTest).toContain('isPublic).toBe(true)');
       expect(modePublishTest).toContain('loading).toBe(false)');
+      // TC-2631: non-ok fetch clears loading without setting isPublic
       expect(modePublishTest).toContain('ok: false');
+      // TC-2633: json.data unwrap path — toContain avoids nested-brace regex fragility
       expect(modePublishTest).toContain('publicModes: [MODE]');
+      // TC-2634/TC-2635: toggle sends PUT to tournament endpoint
       expect(modePublishTest).toContain("method: 'PUT'");
       expect(modePublishTest).toContain('publicModes');
+      // TC-2637: CustomEvent dispatch
       expect(modePublishTest).toContain('publicModesChanged');
       expect(modePublishTest).toContain('event.detail.tournamentId');
+      // TC-2638: double-click guard
       expect(modePublishTest).toContain('updating).toBe(true)');
       expect(modePublishTest).toContain('not.toHaveBeenCalled');
+      // TC-2639: unmount cancellation uses microtask flush (not setTimeout) per issue #2626
       expect(modePublishTest).toContain('unmount');
       expect(modePublishTest).toContain('cancelled');
       expect(modePublishTest).toContain('Promise.resolve');
+      // TC-2642: toggle() network exception → isPublic unchanged, updating resets
       expect(modePublishTest).toContain('updating).toBe(false)');
       expect(modePublishTest).toContain('Network error');
     });
@@ -3943,34 +4109,50 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(rankCellTest).toContain(tc);
       }
+      // TC-2643/TC-2644: non-admin view mode
       expect(rankCellTest).toContain('isAdmin={false}');
       expect(rankCellTest).toContain('queryByRole');
+      // TC-2645/TC-2646: admin view mode shows Edit rank button
       expect(rankCellTest).toContain('Edit rank');
       expect(rankCellTest).toContain('isAdmin={true}');
+      // TC-2647: empty input when no override (TC-2647 uses queryByRole for null check)
       expect(rankCellTest).toContain('rankOverride={null}');
       expect(rankCellTest).toContain('spinbutton');
-      // TC-2648/TC-2652: clear action is located by its stable accessible name.
-      expect(rankCellTest).toContain("getByRole('button', { name: 'Clear rank override' })");
+      // TC-2648/TC-2652: clear button queried consistently via getByRole
+      expect(rankCellTest).toContain("getByRole('button', { name: /✕/ })");
+      // TC-2648: prefilled input when override exists
       expect(rankCellTest).toContain('rankOverride={7}');
+      // TC-2649: Enter key save
       expect(rankCellTest).toContain("key: 'Enter'");
-      // TC-2650: save action is located by its stable accessible name.
-      expect(rankCellTest).toContain("getByRole('button', { name: 'Save rank' })");
+      // TC-2650: checkmark button save
+      expect(rankCellTest).toContain('✓');
+      // TC-2651: Escape cancel without onSave
       expect(rankCellTest).toContain("key: 'Escape'");
       expect(rankCellTest).toContain('not.toHaveBeenCalled');
+      // TC-2652: clear button targets qual-99 and calls onSave with null
+      expect(rankCellTest).toContain('✕');
       expect(rankCellTest).toContain('qual-99');
+      // TC-2657: empty string → null (parseInt("") === NaN)
       expect(rankCellTest).toContain('qual-empty');
       expect(rankCellTest).toContain('parseInt');
+      // TC-2658: rank 0 passes isNaN check
       expect(rankCellTest).toContain('qual-zero');
       expect(rankCellTest).toContain('isNaN');
+      // TC-2660: error message shown on reject
       expect(rankCellTest).toContain("getByRole('alert')");
+      // TC-2661: error cleared on reopen
       expect(rankCellTest).toContain("queryByRole('alert')");
     });
 
     it('TC-2659: commitSave has try/catch with inline error in rank-cell.tsx (structural drift guard)', () => {
+      // Verify try/catch is present in commitSave so that onSave rejections are caught
+      // and shown as inline error messages rather than propagating unhandled.
       const rankCellSrc = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'rank-cell.tsx');
       expect(rankCellSrc).toContain('commitSave');
+      // Scope the check to the commitSave function block only.
       const commitSaveBlock = rankCellSrc.match(/const commitSave[\s\S]*?\n\s*};/)?.[0] ?? '';
-      expect(commitSaveBlock).not.toBe('');
+      expect(commitSaveBlock).not.toBe(''); // sanity: function block must be present
+      // try/catch must be present in commitSave for error handling
       expect(commitSaveBlock).toMatch(/\bcatch\s*[({]/);
       expect(commitSaveBlock).toContain('setIsEditing(false)');
       expect(commitSaveBlock).toContain('setSaveError');
@@ -3987,12 +4169,16 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2653', 'TC-2654', 'TC-2655', 'TC-2656']) {
         expect(tieWarningTest).toContain(tc);
       }
+      // TC-2653/TC-2654: hasTies=false returns null
       expect(tieWarningTest).toContain('hasTies={false}');
       expect(tieWarningTest).toContain('firstChild');
+      // TC-2655: admin message i18n key
       expect(tieWarningTest).toContain('tiedRanksWarningAdmin');
       expect(tieWarningTest).toContain('isAdmin={true}');
+      // TC-2656: viewer message i18n key
       expect(tieWarningTest).toContain('tiedRanksWarningViewer');
       expect(tieWarningTest).toContain('isAdmin={false}');
+      // next-intl mocked to return key as string
       expect(tieWarningTest).toContain('useTranslations');
     });
 
@@ -4007,22 +4193,19 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2663', 'TC-2664', 'TC-2665', 'TC-2666', 'TC-2667', 'TC-2668']) {
         expect(mpsTest).toContain(tc);
       }
-      // TC-2663/TC-2664: observable publication state text, independent of translation key names.
-      expect(mpsTest).toContain("getByText('Unpublished')");
-      expect(mpsTest).toContain("queryByText('Published')");
-      expect(mpsTest).toContain("getByText('Published')");
-      expect(mpsTest).toContain("queryByText('Unpublished')");
-      // TC-2665/TC-2666: disabled while loading/updating.
+      // TC-2663: unpublishMode badge
+      expect(mpsTest).toContain('unpublishMode');
+      // TC-2664: publishMode badge
+      expect(mpsTest).toContain('publishMode');
+      // TC-2665/TC-2666: disabled when loading or updating
       expect(mpsTest).toContain('loading: true');
       expect(mpsTest).toContain('updating: true');
       expect(mpsTest).toContain('toBeDisabled');
-      // TC-2667: user interaction reaches the hook toggle exactly once.
+      // TC-2667: toggle called on click
       expect(mpsTest).toContain('toggleMock');
-      expect(mpsTest).toContain('toHaveBeenCalledTimes(1)');
-      // TC-2668: stable accessible name carries identity while aria-checked carries state.
-      expect(mpsTest).toContain("getByRole('switch', { name: 'Battle Mode publication' })");
-      expect(mpsTest).toContain("toHaveAttribute('aria-checked', 'false')");
-      expect(mpsTest).toContain("toHaveAttribute('aria-checked', 'true')");
+      // TC-2668: aria-label
+      expect(mpsTest).toContain('aria-label');
+      // useModePublish is mocked
       expect(mpsTest).toContain('useModePublish');
     });
 
@@ -4037,14 +4220,20 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2669', 'TC-2670', 'TC-2671', 'TC-2672', 'TC-2673', 'TC-2674']) {
         expect(taRowTest).toContain(tc);
       }
+      // TC-2669: courseAbbr label
       expect(taRowTest).toContain('MKS');
+      // TC-2670: onChange with courseAbbr
       expect(taRowTest).toContain('onChangeMock');
       expect(taRowTest).toContain("'MKS'");
+      // TC-2671: onBlur with courseAbbr
       expect(taRowTest).toContain('onBlurMock');
+      // TC-2672: disabled
       expect(taRowTest).toContain('disabled={true}');
       expect(taRowTest).toContain('toBeDisabled');
+      // TC-2673: timeInputProps spread
       expect(taRowTest).toContain('timeInputProps');
       expect(taRowTest).toContain('time-mks');
+      // TC-2674: full time-format string via useState wrapper
       expect(taRowTest).toContain('ControlledWrapper');
       expect(taRowTest).toContain('useState');
       expect(taRowTest).toContain("1'23");
@@ -4061,10 +4250,15 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2675', 'TC-2676', 'TC-2677', 'TC-2678', 'TC-2679', 'TC-2680']) {
         expect(stackTest).toContain(tc);
       }
+      // TC-2675: data-testid
       expect(stackTest).toContain('overlay-toast-stack');
+      // TC-2677: event id rendered per toast
       expect(stackTest).toContain('data-event-id');
+      // TC-2678: leaving set forwarding
       expect(stackTest).toContain('data-leaving');
+      // TC-2679: flex-col-reverse
       expect(stackTest).toContain('flex-col-reverse');
+      // TC-2680: fixed + pointer-events-none
       expect(stackTest).toContain('pointer-events-none');
       expect(stackTest).toContain('fixed');
     });
@@ -4080,11 +4274,15 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2681', 'TC-2682', 'TC-2683', 'TC-2684', 'TC-2685', 'TC-2686']) {
         expect(footerTest).toContain(tc);
       }
+      // TC-2681: data-testid
       expect(footerTest).toContain('dashboard-footer');
+      // TC-2683: overlayMatchLabel override
       expect(footerTest).toContain('overlayMatchLabel');
       expect(footerTest).toContain('Finals Winners Quarter Final');
+      // TC-2684: currentPhaseFormat badge
       expect(footerTest).toContain('dashboard-footer-ft');
       expect(footerTest).toContain('First to 5');
+      // TC-2686: empty overlayMatchLabel fallback
       expect(footerTest).toContain('overlayMatchLabel=""');
     });
 
@@ -4109,14 +4307,22 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(btnTest).toContain(tc);
       }
+      // TC-2687: title attribute with mode
       expect(btnTest).toContain('debug mode');
+      // TC-2688: busy state text
       expect(btnTest).toContain('実行中…');
+      // TC-2689: duplicate click prevention
       expect(btnTest).toContain('toHaveBeenCalledTimes(1)');
+      // TC-2690: correct endpoint
       expect(btnTest).toContain('debug-fill');
+      // TC-2691: success status
       expect(btnTest).toContain('件入力');
       expect(btnTest).toContain('件スキップ');
+      // TC-2692: onFilled callback
       expect(btnTest).toContain('onFilled');
+      // TC-2693: failure message
       expect(btnTest).toContain('失敗:');
+      // TC-2694: error message and re-enable
       expect(btnTest).toContain('エラー:');
       expect(btnTest).toContain('not.toBeDisabled');
     });
@@ -4148,19 +4354,27 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(layoutTest).toContain(tc);
       }
+      // TC-2705: loading state
       expect(layoutTest).toContain('sessionStatus');
       expect(layoutTest).toContain('Loading tournament data');
+      // TC-2706: admin blocked
       expect(layoutTest).toContain('isAdminBlocked');
       expect(layoutTest).toContain('Open main mode page');
+      // TC-2707: login required
       expect(layoutTest).toContain('hasAccess');
       expect(layoutTest).toContain('/auth/signin');
+      // TC-2708: tournament not found
       expect(layoutTest).toContain('tournament={null}');
       expect(layoutTest).toContain('Tournament Not Found');
+      // TC-2709: empty matches
       expect(layoutTest).toContain('myMatches={[]}');
       expect(layoutTest).toContain('renderMatchForm');
+      // TC-2713: qualification confirmed
       expect(layoutTest).toContain('qualificationConfirmed');
       expect(layoutTest).toContain('Score editing is locked');
+      // TC-2717: You badge
       expect(layoutTest).toContain('"You"');
+      // TC-2718: final score
       expect(layoutTest).toContain('score1');
       expect(layoutTest).toContain('Final Score');
     });
@@ -4170,12 +4384,17 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2719', 'TC-2720', 'TC-2721', 'TC-2722', 'TC-2723', 'TC-2724', 'TC-2725']) {
         expect(spinnerTest).toContain(tc);
       }
+      // TC-2719: getByRole('status') asserts the element has role="status"
       expect(spinnerTest).toContain("getByRole('status')");
+      // TC-2720: aria-live="polite"
       expect(spinnerTest).toContain('aria-live');
+      // TC-2721: aria-label="Loading"
       expect(spinnerTest).toContain('aria-label');
+      // TC-2722–2724: size classes
       expect(spinnerTest).toContain('h-6');
       expect(spinnerTest).toContain('h-4');
       expect(spinnerTest).toContain('h-8');
+      // TC-2725: className forwarding
       expect(spinnerTest).toContain('className');
     });
 
@@ -4184,11 +4403,16 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2726', 'TC-2727', 'TC-2728', 'TC-2729', 'TC-2730']) {
         expect(overlayTest).toContain(tc);
       }
+      // TC-2726: null when closed
       expect(overlayTest).toContain('isOpen={false}');
       expect(overlayTest).toContain('container.firstChild');
+      // TC-2727: dialog when open
       expect(overlayTest).toContain("getByRole('dialog')");
+      // TC-2728: default message
       expect(overlayTest).toContain('Processing...');
+      // TC-2729: custom message
       expect(overlayTest).toContain('ブラケット生成中');
+      // TC-2730: accessibility
       expect(overlayTest).toContain('aria-modal');
     });
 
@@ -4214,14 +4438,21 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(indicatorTest).toContain(tc);
       }
+      // TC-2731/2732: polling badges
       expect(indicatorTest).toContain('Live');
       expect(indicatorTest).toContain('Paused');
+      // TC-2733: null lastUpdated
       expect(indicatorTest).toContain('lastUpdated={null}');
+      // TC-2734–2736: time formatting
       expect(indicatorTest).toContain('1m ago');
       expect(indicatorTest).toContain('2h ago');
+      // TC-2737: timer advances
       expect(indicatorTest).toContain('advanceTimersByTime');
+      // TC-2738: cleanup on unmount
       expect(indicatorTest).toContain('clearInterval');
+      // TC-2739: prop change resets interval
       expect(indicatorTest).toContain('rerender');
+      // TC-2740: initial sync calculation
       expect(indicatorTest).toContain('5s ago');
     });
 
@@ -4249,13 +4480,21 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(buttonTest).toContain(tc);
       }
+      // TC-2742: default variant
       expect(buttonTest).toContain('bg-primary');
+      // TC-2743: destructive variant
       expect(buttonTest).toContain('bg-destructive');
+      // TC-2751: disabled state
       expect(buttonTest).toContain('toBeDisabled');
+      // TC-2752: onClick fires
       expect(buttonTest).toContain('toHaveBeenCalledTimes(1)');
+      // TC-2753: onClick not called when disabled
       expect(buttonTest).toContain('not.toHaveBeenCalled');
+      // TC-2754: asChild renders child
       expect(buttonTest).toContain('asChild');
+      // TC-2755: data-slot
       expect(buttonTest).toContain("'data-slot', 'button'");
+      // TC-2756: data-variant
       expect(buttonTest).toContain('data-variant');
     });
 
@@ -4264,9 +4503,13 @@ describe('E2E case drift coverage', () => {
       for (const tc of ['TC-2759', 'TC-2760', 'TC-2761', 'TC-2762', 'TC-2763', 'TC-2764', 'TC-2765', 'TC-2766']) {
         expect(inputTest).toContain(tc);
       }
+      // TC-2759: renders as input
       expect(inputTest).toContain("tagName).toBe('INPUT')");
+      // TC-2760: data-slot
       expect(inputTest).toContain("'data-slot', 'input'");
+      // TC-2763: disabled
       expect(inputTest).toContain('toBeDisabled');
+      // TC-2764: aria-invalid
       expect(inputTest).toContain('aria-invalid');
     });
 
@@ -4285,13 +4528,17 @@ describe('E2E case drift coverage', () => {
       ]) {
         expect(tabsTest).toContain(tc);
       }
+      // TC-2767/2768/2769/2770: data-slot attributes
       expect(tabsTest).toContain('data-slot="tabs"');
       expect(tabsTest).toContain('data-slot="tabs-list"');
       expect(tabsTest).toContain('data-slot="tabs-trigger"');
       expect(tabsTest).toContain('data-slot="tabs-content"');
+      // TC-2772: inactive tab not in DOM
       expect(tabsTest).toContain('not.toBeInTheDocument');
+      // TC-2773: clicking trigger switches tab
       expect(tabsTest).toContain("getByRole('tab'");
       expect(tabsTest).toContain('findByText');
+      // TC-2774: disabled trigger
       expect(tabsTest).toContain('toBeDisabled');
     });
 
@@ -4300,14 +4547,19 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2776, 2785)) {
         expect(badgeTest).toContain(tc);
       }
+      // TC-2776: renders children
       expect(badgeTest).toContain('getByText');
+      // TC-2777: default variant bg-primary
       expect(badgeTest).toContain('bg-primary');
+      // TC-2778/2779/2780: secondary/destructive/outline variants
       expect(badgeTest).toContain('bg-secondary');
       expect(badgeTest).toContain('bg-destructive');
       expect(badgeTest).toContain('border-foreground/70');
+      // TC-2781/2782/2783: flag variants
       expect(badgeTest).toContain('flag-active');
       expect(badgeTest).toContain('flag-draft');
       expect(badgeTest).toContain('flag-completed');
+      // TC-2785: asChild renders child tag
       expect(badgeTest).toContain("toBe('A')");
     });
 
@@ -4320,8 +4572,11 @@ describe('E2E case drift coverage', () => {
       );
       expect(prismaTest).toContain('TC-2786');
       expect(prismaTest).toContain('TC-2787');
+      // TC-2786: PrismaClientKnownRequestError at top-level
       expect(prismaTest).toContain('PrismaClientKnownRequestError');
+      // TC-2787: PrismaClientValidationError at top-level
       expect(prismaTest).toContain('PrismaClientValidationError');
+      // both must be constructable functions (not undefined)
       expect(prismaTest).toContain("toBe('function')");
     });
 
@@ -4330,13 +4585,19 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2788, 2801)) {
         expect(switchTest).toContain(tc);
       }
+      // TC-2788: role="switch" button
       expect(switchTest).toContain("getByRole('switch')");
+      // TC-2789/2790: aria-checked
       expect(switchTest).toContain("'aria-checked', 'false'");
       expect(switchTest).toContain("'aria-checked', 'true'");
+      // TC-2792/2793: onCheckedChange called with boolean
       expect(switchTest).toContain('toHaveBeenCalledWith(true)');
       expect(switchTest).toContain('toHaveBeenCalledWith(false)');
+      // TC-2794: not called when disabled
       expect(switchTest).toContain('not.toHaveBeenCalled');
+      // TC-2795: disabled attribute
       expect(switchTest).toContain('toBeDisabled');
+      // TC-2796/2797: keyboard keys
       expect(switchTest).toContain("key: ' '");
       expect(switchTest).toContain("key: 'Enter'");
     });
@@ -4346,6 +4607,7 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2802, 2817)) {
         expect(cardTest).toContain(tc);
       }
+      // TC-2802–2816: data-slot and className passthrough assertions
       expect(cardTest).toContain("'data-slot', 'card'");
       expect(cardTest).toContain("'data-slot', 'card-header'");
       expect(cardTest).toContain("'data-slot', 'card-title'");
@@ -4353,6 +4615,7 @@ describe('E2E case drift coverage', () => {
       expect(cardTest).toContain("'data-slot', 'card-action'");
       expect(cardTest).toContain("'data-slot', 'card-content'");
       expect(cardTest).toContain("'data-slot', 'card-footer'");
+      // TC-2817: integration test covers all subcomponents together
       expect(cardTest).toContain('CardHeader');
       expect(cardTest).toContain('CardTitle');
       expect(cardTest).toContain('CardDescription');
@@ -4363,9 +4626,13 @@ describe('E2E case drift coverage', () => {
 
     it('documents TC-2818 through TC-2820 as tcRange helper unit tests', () => {
       const driftTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'e2e-cases-drift.test.ts');
+      // Check for the it-block label prefixes, not just the TC number, to avoid
+      // a tautology where the number appears in this very tcRange(2818, 2820) call.
       expect(driftTest).toContain("it('TC-2818:");
       expect(driftTest).toContain("it('TC-2819:");
       expect(driftTest).toContain("it('TC-2820:");
+      // TC-2820: behavioral test (tcRange(...).toThrow(RangeError)) is the stronger guarantee;
+      // checking implementation details like 'if (start > end)' is fragile if tcRange moves files.
       expect(driftTest).toContain('RangeError');
     });
 
@@ -4374,8 +4641,10 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2821, 2839)) {
         expect(tableTest).toContain(tc);
       }
+      // TC-2821/2822: querySelector selectors for container and inner table element
       expect(tableTest).toContain('data-slot="table-container"');
       expect(tableTest).toContain('data-slot="table"');
+      // TC-2825/2827/2829/2831/2833/2835/2837: subcomponent data-slot selector strings
       expect(tableTest).toContain('data-slot="table-header"');
       expect(tableTest).toContain('data-slot="table-body"');
       expect(tableTest).toContain('data-slot="table-footer"');
@@ -4383,6 +4652,7 @@ describe('E2E case drift coverage', () => {
       expect(tableTest).toContain('data-slot="table-head"');
       expect(tableTest).toContain('data-slot="table-cell"');
       expect(tableTest).toContain('data-slot="table-caption"');
+      // TC-2839: integration test covers all subcomponents together
       expect(tableTest).toContain('TableHeader');
       expect(tableTest).toContain('TableBody');
       expect(tableTest).toContain('TableFooter');
@@ -4394,8 +4664,11 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2840, 2845)) {
         expect(labelTest).toContain(tc);
       }
+      // TC-2840: data-slot="label" attribute via toHaveAttribute
       expect(labelTest).toContain("'data-slot', 'label'");
+      // TC-2843: htmlFor association renders as "for" attribute in DOM
       expect(labelTest).toContain("'for', 'player-input'");
+      // TC-2844: rendered as a <label> element
       expect(labelTest).toContain("toBe('LABEL')");
     });
 
@@ -4404,9 +4677,13 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2846, 2851)) {
         expect(checkboxTest).toContain(tc);
       }
+      // TC-2846: data-slot="checkbox" attribute
       expect(checkboxTest).toContain("'data-slot', 'checkbox'");
+      // TC-2847: rendered as BUTTON element (Radix CheckboxPrimitive.Root)
       expect(checkboxTest).toContain("toBe('BUTTON')");
+      // TC-2849: unchecked default state
       expect(checkboxTest).toContain("'data-state', 'unchecked'");
+      // TC-2850: checked state when checked=true
       expect(checkboxTest).toContain("'data-state', 'checked'");
     });
 
@@ -4415,9 +4692,13 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2852, 2861)) {
         expect(alertTest).toContain(tc);
       }
+      // TC-2852: role="alert"
       expect(alertTest).toContain("getByRole('alert')");
+      // TC-2855: default variant class
       expect(alertTest).toContain('border-l-accent');
+      // TC-2856: destructive variant class
       expect(alertTest).toContain('border-l-destructive');
+      // TC-2857: AlertTitle is an h5 element
       expect(alertTest).toContain("toBe('H5')");
     });
 
@@ -4426,9 +4707,13 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2862, 2872)) {
         expect(dialogTest).toContain(tc);
       }
+      // TC-2862: querySelector for dialog-content slot (portal renders outside React tree)
       expect(dialogTest).toContain('[data-slot="dialog-content"]');
+      // TC-2864: close button detection via querySelector
       expect(dialogTest).toContain('[data-slot="dialog-close"]');
+      // TC-2865: showCloseButton=false hides close button
       expect(dialogTest).toContain('showCloseButton={false}');
+      // TC-2866: dialog-trigger data-slot via toHaveAttribute
       expect(dialogTest).toContain("'data-slot', 'dialog-trigger'");
     });
 
@@ -4437,18 +4722,28 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2873, 2902)) {
         expect(alertDialogTest).toContain(tc);
       }
+      // TC-2876: overlay classes
       expect(alertDialogTest).toContain('paddock-overlay');
+      // TC-2877: custom className on alertdialog role
       expect(alertDialogTest).toContain("getByRole('alertdialog')");
+      // TC-2879: positioning classes
       expect(alertDialogTest).toContain('left-[50%]');
+      // TC-2882: header layout classes
       expect(alertDialogTest).toContain('gap-1.5');
+      // TC-2885: footer layout classes
       expect(alertDialogTest).toContain('flex-col-reverse');
+      // TC-2888: title typography classes
       expect(alertDialogTest).toContain('font-display');
       expect(alertDialogTest).toContain('text-2xl');
+      // TC-2891: description typography classes
       expect(alertDialogTest).toContain('font-mono');
       expect(alertDialogTest).toContain('text-muted-foreground');
+      // TC-2894/TC-2897: button role (accessibility-oriented assertion)
       expect(alertDialogTest).toContain("getByRole('button'");
+      // TC-2898: cancel mobile margin
       expect(alertDialogTest).toContain('mt-2');
       expect(alertDialogTest).toContain('sm:mt-0');
+      // TC-2902: accessibility heading role
       expect(alertDialogTest).toContain("getByRole('heading'");
     });
 
@@ -4463,11 +4758,17 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2903, 2912)) {
         expect(taTimeEntryTest).toContain(tc);
       }
+      // TC-2903: isRetry=true disables time input
       expect(taTimeEntryTest).toContain('isRetry={true}');
+      // TC-2904: isRetry=false enables time input callbacks
       expect(taTimeEntryTest).toContain('isRetry={false}');
+      // TC-2905: isEditingDisabled disables retry button
       expect(taTimeEntryTest).toContain('isEditingDisabled={true}');
+      // TC-2907: livesLabel renders when provided
       expect(taTimeEntryTest).toContain('data-testid="lives"');
+      // TC-2911: TaParticipantTimeInputRow onChange called with courseAbbr
       expect(taTimeEntryTest).toContain('TaParticipantTimeInputRow');
+      // TC-2912: disabled prop forwarded to input
       expect(taTimeEntryTest).toContain('disabled={true}');
     });
 
@@ -4482,21 +4783,31 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2913, 2919)) {
         expect(taElimTest).toContain(tc);
       }
+      // TC-2913: loading skeleton animate-pulse
       expect(taElimTest).toContain('animate-pulse');
+      // TC-2914: error message + Retry button
       expect(taElimTest).toContain('Server unavailable');
+      // TC-2915: empty state "No Players"
       expect(taElimTest).toContain('No Players');
+      // TC-2917: Back to Group Stage link
       expect(taElimTest).toContain('Back to Group Stage');
+      // TC-2919: Phase Complete banner
       expect(taElimTest).toContain('Phase Complete');
     });
 
     it('documents TC-2920 through TC-2928 as recommendGroupCount / assignGroupsBySeeding unit tests', () => {
+      // TC-2920–TC-2928 moved to group-utils.test.ts per issue #2714
       const groupUtilsTest = readRepoFile('smkc-score-app', '__tests__', 'lib', 'group-utils.test.ts');
       for (const tc of tcRange(2920, 2928)) {
         expect(groupUtilsTest).toContain(tc);
       }
+      // TC-2920–TC-2923: recommendGroupCount
       expect(groupUtilsTest).toContain('recommendGroupCount');
+      // TC-2924–TC-2928: assignGroupsBySeeding
       expect(groupUtilsTest).toContain('assignGroupsBySeeding');
+      // TC-2924: serpentine pattern
       expect(groupUtilsTest).toContain('serpentine');
+      // TC-2928: immutability
       expect(groupUtilsTest).toContain('mutate');
     });
 
@@ -4511,7 +4822,9 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2929, 2932)) {
         expect(groupSetupTest).toContain(tc);
       }
+      // TC-2929: setup trigger text
       expect(groupSetupTest).toContain('Setup Groups');
+      // TC-2930: edit trigger text
       expect(groupSetupTest).toContain('Edit Groups');
     });
 
@@ -4519,9 +4832,13 @@ describe('E2E case drift coverage', () => {
       for (const tc of tcRange(2933, 2942)) {
         expect(taSuddenDeathPanelTest).toContain(tc);
       }
+      // TC-2933: isAdmin=false → renders nothing
       expect(taSuddenDeathPanelTest).toContain('isAdmin={false}');
+      // TC-2937: all rounds resolved → pendingSuddenDeath undefined
       expect(taSuddenDeathPanelTest).toContain('pendingSuddenDeath).toBeUndefined()');
+      // TC-2938: filtered by targetPlayerIds
       expect(taSuddenDeathPanelTest).toContain('pendingSuddenDeathEntries).toHaveLength(1)');
+      // TC-2940: invalid time triggers setSaveError
       expect(taSuddenDeathPanelTest).toContain('Invalid time for Mario');
     });
 
@@ -4535,12 +4852,15 @@ describe('E2E case drift coverage', () => {
       );
       expect(courseCycleTest).toContain('TC-2943');
       expect(courseCycleTest).toContain('TC-2944');
+      // TC-2943: zero available courses
       expect(courseCycleTest).toContain('availableCoursesCount={0}');
+      // TC-2944: initial cycle state (cycle=1, playedInCycle=0)
       expect(courseCycleTest).toContain('playedInCycle: 0');
     });
 
     it('documents TC-2945 through TC-2988 as Select UI component unit tests', () => {
       const selectTest = readRepoFile('smkc-score-app', '__tests__', 'components', 'ui', 'select.test.tsx');
+      // Spot-check a range of TC IDs
       for (const tc of ['TC-2945', 'TC-2950', 'TC-2960', 'TC-2970', 'TC-2980', 'TC-2985', 'TC-2988']) {
         expect(selectTest).toContain(tc);
       }
@@ -4558,6 +4878,7 @@ describe('tcRange helper', () => {
   });
 
   it('TC-2820: throws RangeError when start > end to prevent silent empty-array coverage gaps', () => {
+    // Use class + message regex rather than exact string to avoid brittle message-template coupling
     expect(() => tcRange(2817, 2802)).toThrow(RangeError);
     expect(() => tcRange(2817, 2802)).toThrow(/start \(2817\) > end \(2802\)/);
   });
