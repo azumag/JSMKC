@@ -34,7 +34,7 @@ describe('ExportButton download cleanup', () => {
     jest.restoreAllMocks();
   });
 
-  it('cleans up after a browser click failure', async () => {
+  it('cleans up after a browser click failure without exposing runtime details', async () => {
     const workbook = new Blob(['workbook'], {
       type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
     });
@@ -56,7 +56,9 @@ describe('ExportButton download cleanup', () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Failed to export tournament: synthetic click failure');
+      const alert = screen.getByRole('alert');
+      expect(alert).toHaveTextContent('Failed to export tournament');
+      expect(alert).not.toHaveTextContent('synthetic click failure');
       expect(button).not.toBeDisabled();
       expect(button).toHaveAttribute('aria-busy', 'false');
     });
