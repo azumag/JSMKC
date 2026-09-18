@@ -63,10 +63,7 @@ export function QualificationPlayoffManager({
   const savingRef = useRef(false);
   const [broadcastingGroupId, setBroadcastingGroupId] = useState<string | null>(null);
 
-  const activeGroup = useMemo(
-    () => groups.find((group) => group.id === openGroupId) ?? null,
-    [groups, openGroupId],
-  );
+  const activeGroup = useMemo(() => groups.find((group) => group.id === openGroupId) ?? null, [groups, openGroupId]);
 
   const openDialog = (group: PlayoffGroup) => {
     setOpenGroupId(group.id);
@@ -151,10 +148,7 @@ export function QualificationPlayoffManager({
 
           <div className="space-y-2">
             {draftOrder.map((player, index) => (
-              <div
-                key={player.id}
-                className="flex items-center justify-between rounded-md border px-3 py-2"
-              >
+              <div key={player.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                 <div>
                   <div className="text-sm font-medium">
                     {index + 1}. {player.nickname}
