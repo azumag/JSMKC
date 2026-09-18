@@ -33,11 +33,9 @@ const RETRY_DELAY_MS = 800;
 
 /**
  * POSTs a new player to /api/players, retrying up to MAX_ATTEMPTS times on
- * transient 5xx failures.
+ * transient 5xx or transport-level failures.
  */
-export async function createPlayerWithRetry(
-  formData: CreatePlayerFormData,
-): Promise<CreatePlayerResult> {
+export async function createPlayerWithRetry(formData: CreatePlayerFormData): Promise<CreatePlayerResult> {
   let response: Response | null = null;
 
   /**
@@ -57,11 +55,26 @@ export async function createPlayerWithRetry(
   let recovered = false;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    response = await fetch("/api/players", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
+    try {
+      response = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+    } catch {
+      // A transport failure can happen after the server has committed the
+      // INSERT but before the client receives a response. Retry it with the
+      // same budget as a transient 5xx so a subsequent 409 can still be
+      // classified as the recovered-success case described above.
+      response = null;
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        continue;
+      }
+      // Keep raw network details out of the result/UI. The caller already
+      // maps this generic failure to the localized create-player error.
+      return { ok: false, error: null, code: null };
+    }
     if (response.ok) break;
     // 409 on retry = player was created on a previous attempt that crashed
     // before sending the response. Treat as success (but password is lost).

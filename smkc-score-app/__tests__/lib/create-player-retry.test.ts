@@ -31,12 +31,10 @@ describe('createPlayerWithRetry', () => {
 
   beforeEach(() => {
     fetchSpy = jest.spyOn(globalThis, 'fetch');
-    setTimeoutSpy = jest
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation((fn: TimerHandler) => {
-        if (typeof fn === 'function') fn();
-        return 0 as unknown as ReturnType<typeof setTimeout>;
-      });
+    setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout').mockImplementation((fn: TimerHandler) => {
+      if (typeof fn === 'function') fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
   });
 
   afterEach(() => {
@@ -135,6 +133,51 @@ describe('createPlayerWithRetry', () => {
       data: { player: { id: 'p2' }, temporaryPassword: 'pw2' },
     });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a transport failure and succeeds on the second attempt', async () => {
+    fetchSpy
+      .mockRejectedValueOnce(new TypeError('socket closed before response'))
+      .mockResolvedValueOnce(
+        jsonResponse(201, { success: true, data: { player: { id: 'p3' }, temporaryPassword: 'pw3' } }),
+      );
+
+    const result = await createPlayerWithRetry(FORM);
+
+    expect(result).toEqual({
+      ok: true,
+      recovered: false,
+      data: { player: { id: 'p3' }, temporaryPassword: 'pw3' },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 800);
+  });
+
+  it('treats a 409 after a transport failure as a recovered success', async () => {
+    fetchSpy
+      .mockRejectedValueOnce(new TypeError('response stream lost after commit'))
+      .mockResolvedValueOnce(
+        jsonResponse(409, { success: false, error: 'A player with this nickname already exists' }),
+      );
+
+    const result = await createPlayerWithRetry(FORM);
+
+    expect(result).toEqual({ ok: true, recovered: true, data: {} });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a generic failure after exhausting transport retries without leaking network details', async () => {
+    fetchSpy.mockRejectedValue(new TypeError('sensitive transport detail'));
+
+    const result = await createPlayerWithRetry(FORM);
+
+    expect(result).toEqual({ ok: false, error: null, code: null });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(2);
+    expect(setTimeoutSpy).toHaveBeenNthCalledWith(1, expect.any(Function), 800);
+    expect(setTimeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 800);
   });
 
   it('returns a failure after exhausting all retries on repeated 500s', async () => {
