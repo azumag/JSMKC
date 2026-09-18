@@ -122,13 +122,37 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   // This ref is the actual submit lock; `submitting` remains the UI-facing state.
   const reportSubmissionInFlightRef = useRef(false);
 
-  /* Initial data fetch on mount */
+  /* Initial data fetch on mount and whenever its access/context changes. */
   useEffect(() => {
-    if (sessionStatus === 'loading') return;
+    let cancelled = false;
+
+    const clearParticipantData = () => {
+      setTournament(null);
+      setMatches([]);
+      setMyMatches([]);
+      setQualificationConfirmed(false);
+      setError(null);
+    };
+
+    // A session/access/context transition invalidates all data from the previous
+    // generation immediately. The cleanup guard below also prevents a slower
+    // previous request from restoring that data after the transition.
+    clearParticipantData();
+
+    if (sessionStatus === 'loading') {
+      setLoading(true);
+      return () => {
+        cancelled = true;
+      };
+    }
     if (!hasAccess) {
       setLoading(false);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
+
+    setLoading(true);
 
     const fetchData = async () => {
       try {
@@ -136,11 +160,13 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`),
           fetch(`/api/tournaments/${tournamentId}/${mode}`),
         ]);
+        if (cancelled) return;
 
         if (!tournamentResponse.ok || !matchesResponse.ok) {
           const source = !tournamentResponse.ok ? 'tournament' : 'matches';
           const failedResponse = !tournamentResponse.ok ? tournamentResponse : matchesResponse;
           const errorData = await failedResponse.json().catch(() => ({}));
+          if (cancelled) return;
           const apiError = typeof errorData.error === 'string' && errorData.error.trim() ? errorData.error : null;
           logger.error('Participant data fetch returned non-2xx:', {
             tournamentId,
@@ -154,6 +180,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
         }
 
         const [tJson, json] = await Promise.all([tournamentResponse.json(), matchesResponse.json()]);
+        if (cancelled) return;
         /* Unwrap createSuccessResponse wrappers only after both bodies parse successfully. */
         const tournamentData = tJson.data ?? tJson;
         const data = json.data ?? json;
@@ -164,14 +191,18 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           setQualificationConfirmed(data.qualificationConfirmed);
         }
       } catch (err) {
+        if (cancelled) return;
         logger.error('Data fetch error:', { error: err, tournamentId });
         setError(networkErrorMessage || 'Failed to load tournament data. Please check your connection.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    fetchData();
+    void fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [tournamentId, sessionStatus, hasAccess, mode, logger, networkErrorMessage]);
 
   /* Polling for real-time match updates */
@@ -192,6 +223,9 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   });
 
   useEffect(() => {
+    // A disabled polling source may still expose its previous cached value for a
+    // render. Never let that value repopulate state after access has been lost.
+    if (!hasAccess) return;
     if (pollingData && typeof pollingData === 'object' && 'matches' in pollingData) {
       setMatches(pollingData.matches as TMatch[]);
       /* Update qualification lock state from polling data */
@@ -202,7 +236,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     if (pollingError) {
       logger.error('Polling error:', { error: pollingError, tournamentId });
     }
-  }, [pollingData, pollingError, tournamentId, logger]);
+  }, [pollingData, pollingError, tournamentId, logger, hasAccess]);
 
   /* Filter matches for the current player — pending first, then completed */
   useEffect(() => {
