@@ -7,7 +7,7 @@
  * 2. Security header injection (CSP, X-Frame-Options, etc.)
  *
  * Route protection strategy:
- * - API routes: Only mutating methods (POST, PUT, DELETE) require authentication.
+ * - API routes: Mutating methods (POST, PUT, PATCH, DELETE) require authentication.
  *   GET requests are public so anyone can view players and tournaments.
  * - Frontend routes: Only /profile requires authentication.
  *
@@ -84,7 +84,7 @@ export default async function middleware(req: NextRequest) {
 
     const protectedApiRoutes = ['/api/tournaments', '/api/players']
     const protectedFrontendRoutes = ['/profile']
-    const protectedMethods = ['POST', 'PUT', 'DELETE']
+    const protectedMethods = ['POST', 'PUT', 'PATCH', 'DELETE']
 
     const isProtectedApi = protectedApiRoutes.some(route => pathname.startsWith(route))
     const requiresAuthApi = isProtectedApi && protectedMethods.includes(method)
