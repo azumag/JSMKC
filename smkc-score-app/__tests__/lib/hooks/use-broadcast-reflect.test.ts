@@ -55,15 +55,14 @@ describe('useBroadcastReflect', () => {
     it('keeps public callback references stable when inputs do not change', () => {
       const tvAssignments = { p1: 1, p2: 2 };
       const { result, rerender } = renderHook(
-        ({ tournamentId, assignments, hookEntries }) =>
-          useBroadcastReflect(tournamentId, assignments, hookEntries),
+        ({ tournamentId, assignments, hookEntries }) => useBroadcastReflect(tournamentId, assignments, hookEntries),
         {
           initialProps: {
             tournamentId: TOURNAMENT_ID,
             assignments: tvAssignments,
             hookEntries: entries,
           },
-        }
+        },
       );
       const initialHandle = result.current.handleBroadcastReflect;
       const initialReset = result.current.resetBroadcastStatus;
@@ -81,18 +80,14 @@ describe('useBroadcastReflect', () => {
 
   describe('broadcastStatus', () => {
     it('starts as idle', () => {
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, {}, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, {}, entries));
       expect(result.current.broadcastStatus).toBe('idle');
     });
 
     it('transitions to success on ok response', async () => {
       mockFetchOk();
       const tvAssignments = { p1: 1, p2: 2 };
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, tvAssignments, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, tvAssignments, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -103,16 +98,16 @@ describe('useBroadcastReflect', () => {
 
     it('resets to idle after 3 seconds', async () => {
       mockFetchOk();
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
       });
       expect(result.current.broadcastStatus).toBe('success');
 
-      act(() => { jest.advanceTimersByTime(3000); });
+      act(() => {
+        jest.advanceTimersByTime(3000);
+      });
       expect(result.current.broadcastStatus).toBe('idle');
     });
 
@@ -120,9 +115,7 @@ describe('useBroadcastReflect', () => {
       mockFetchOk();
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result, unmount } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result, unmount } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -141,9 +134,7 @@ describe('useBroadcastReflect', () => {
       mockFetchOk();
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -161,9 +152,7 @@ describe('useBroadcastReflect', () => {
       mockFetchOk();
       const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -184,13 +173,14 @@ describe('useBroadcastReflect', () => {
 
     it('does not schedule an idle reset when unmounted before the request settles', async () => {
       let resolveFetch!: (response: Response) => void;
-      global.fetch = jest.fn(() => new Promise<Response>((resolve) => {
-        resolveFetch = resolve;
-      }));
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result, unmount } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      global.fetch = jest.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          }),
       );
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const { result, unmount } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       const reflectPromise = result.current.handleBroadcastReflect();
       unmount();
@@ -204,9 +194,7 @@ describe('useBroadcastReflect', () => {
 
     it('transitions to error on non-ok response', async () => {
       mockFetchError();
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -217,9 +205,7 @@ describe('useBroadcastReflect', () => {
 
     it('transitions to error on network failure', async () => {
       mockFetchThrow();
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, {}, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, {}, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -234,19 +220,19 @@ describe('useBroadcastReflect', () => {
       global.fetch = jest
         .fn()
         .mockImplementationOnce(
-          () => new Promise<Response>((resolve) => {
-            resolveFirst = resolve;
-          })
+          () =>
+            new Promise<Response>((resolve) => {
+              resolveFirst = resolve;
+            }),
         )
         .mockImplementationOnce(
-          () => new Promise<Response>((resolve) => {
-            resolveSecond = resolve;
-          })
+          () =>
+            new Promise<Response>((resolve) => {
+              resolveSecond = resolve;
+            }),
         );
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       const firstReflect = result.current.handleBroadcastReflect();
       const secondReflect = result.current.handleBroadcastReflect();
@@ -273,19 +259,19 @@ describe('useBroadcastReflect', () => {
       global.fetch = jest
         .fn()
         .mockImplementationOnce(
-          () => new Promise<Response>((_resolve, reject) => {
-            rejectFirst = reject;
-          })
+          () =>
+            new Promise<Response>((_resolve, reject) => {
+              rejectFirst = reject;
+            }),
         )
         .mockImplementationOnce(
-          () => new Promise<Response>((resolve) => {
-            resolveSecond = resolve;
-          })
+          () =>
+            new Promise<Response>((resolve) => {
+              resolveSecond = resolve;
+            }),
         );
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       const firstReflect = result.current.handleBroadcastReflect();
       const secondReflect = result.current.handleBroadcastReflect();
@@ -307,14 +293,13 @@ describe('useBroadcastReflect', () => {
     it('keeps reset state when an in-flight reflect finishes later', async () => {
       let resolveFetch!: (response: Response) => void;
       global.fetch = jest.fn(
-        () => new Promise<Response>((resolve) => {
-          resolveFetch = resolve;
-        })
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          }),
       );
       const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       const reflectPromise = result.current.handleBroadcastReflect();
       act(() => {
@@ -336,9 +321,7 @@ describe('useBroadcastReflect', () => {
       mockFetchOk();
       // p1 → TV1, p2 → TV2, p3 → TV3 (should be excluded from broadcast body)
       const tvAssignments = { p1: 1, p2: 2, p3: 3 };
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, tvAssignments, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, tvAssignments, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -354,15 +337,13 @@ describe('useBroadcastReflect', () => {
             player1NoCamera: false,
             player2NoCamera: true,
           }),
-        })
+        }),
       );
     });
 
     it('sends empty strings when no TV1/TV2 players are assigned', async () => {
       mockFetchOk();
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p3: 3, p4: 4 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p3: 3, p4: 4 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -377,7 +358,7 @@ describe('useBroadcastReflect', () => {
             player1NoCamera: false,
             player2NoCamera: false,
           }),
-        })
+        }),
       );
     });
 
@@ -385,9 +366,7 @@ describe('useBroadcastReflect', () => {
       mockFetchOk();
       // p5 is eliminated — even if assigned TV1, should not be picked
       const tvAssignments = { p5: 1, p1: 2 };
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, tvAssignments, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, tvAssignments, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
@@ -404,54 +383,44 @@ describe('useBroadcastReflect', () => {
   describe('resetBroadcastStatus', () => {
     it('immediately resets status to idle', async () => {
       mockFetchOk();
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries));
 
       await act(async () => {
         await result.current.handleBroadcastReflect();
       });
       expect(result.current.broadcastStatus).toBe('success');
 
-      act(() => { result.current.resetBroadcastStatus(); });
+      act(() => {
+        result.current.resetBroadcastStatus();
+      });
       expect(result.current.broadcastStatus).toBe('idle');
     });
   });
 
   describe('hasUnbroadcastedTvAssignment', () => {
     it('is false when only TV1/TV2 are assigned', () => {
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1, p2: 2 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1, p2: 2 }, entries));
       expect(result.current.hasUnbroadcastedTvAssignment).toBe(false);
     });
 
     it('is true when any active player is on TV3', () => {
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p1: 1, p3: 3 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p1: 1, p3: 3 }, entries));
       expect(result.current.hasUnbroadcastedTvAssignment).toBe(true);
     });
 
     it('is true when any active player is on TV4', () => {
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p2: 4 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p2: 4 }, entries));
       expect(result.current.hasUnbroadcastedTvAssignment).toBe(true);
     });
 
     it('ignores eliminated players when checking TV3/TV4', () => {
       // p5 is eliminated and on TV4 — should not trigger the flag
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, { p5: 4 }, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, { p5: 4 }, entries));
       expect(result.current.hasUnbroadcastedTvAssignment).toBe(false);
     });
 
     it('is false when tvAssignments is empty', () => {
-      const { result } = renderHook(() =>
-        useBroadcastReflect(TOURNAMENT_ID, {}, entries)
-      );
+      const { result } = renderHook(() => useBroadcastReflect(TOURNAMENT_ID, {}, entries));
       expect(result.current.hasUnbroadcastedTvAssignment).toBe(false);
     });
   });
