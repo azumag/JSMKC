@@ -24,7 +24,7 @@ describe('TC-1062 qualification playoff broadcast label guard', () => {
       'setBroadcastingGroupId(null);',
     );
 
-    expect(broadcastBlock).toContain('matchLabel: tc("playoffGroupTitle", { rank: group.rank })');
+    expect(broadcastBlock).toMatch(/matchLabel:\s*tc\(['"]playoffGroupTitle['"],\s*\{\s*rank:\s*group\.rank\s*\}\)/);
     expect(broadcastBlock).not.toContain('Qualification Playoff Rank');
   });
 });
