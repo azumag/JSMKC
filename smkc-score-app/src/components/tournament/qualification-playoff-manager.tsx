@@ -62,6 +62,7 @@ export function QualificationPlayoffManager({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [broadcastingGroupId, setBroadcastingGroupId] = useState<string | null>(null);
+  const broadcastingRef = useRef(false);
 
   const activeGroup = useMemo(() => groups.find((group) => group.id === openGroupId) ?? null, [groups, openGroupId]);
 
@@ -89,6 +90,23 @@ export function QualificationPlayoffManager({
     }
   };
 
+  const handleBroadcast = async (group: PlayoffGroup) => {
+    if (!onBroadcast || group.players.length < 2 || broadcastingRef.current) return;
+    broadcastingRef.current = true;
+    setBroadcastingGroupId(group.id);
+    try {
+      await onBroadcast(group.players[0].nickname, group.players[1].nickname, {
+        matchLabel: tc('playoffGroupTitle', { rank: group.rank }),
+        player1Wins: null,
+        player2Wins: null,
+        matchFt: null,
+      });
+    } finally {
+      broadcastingRef.current = false;
+      setBroadcastingGroupId(null);
+    }
+  };
+
   if (groups.length === 0) return null;
 
   return (
@@ -106,17 +124,8 @@ export function QualificationPlayoffManager({
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={broadcastingGroupId === group.id}
-                    onClick={async () => {
-                      setBroadcastingGroupId(group.id);
-                      await onBroadcast(group.players[0].nickname, group.players[1].nickname, {
-                        matchLabel: tc('playoffGroupTitle', { rank: group.rank }),
-                        player1Wins: null,
-                        player2Wins: null,
-                        matchFt: null,
-                      });
-                      setBroadcastingGroupId(null);
-                    }}
+                    disabled={broadcastingGroupId !== null}
+                    onClick={() => void handleBroadcast(group)}
                   >
                     {broadcastingGroupId === group.id ? tc('saving') : tc('broadcastReflect')}
                   </Button>
