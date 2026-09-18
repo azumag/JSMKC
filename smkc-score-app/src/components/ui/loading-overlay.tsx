@@ -17,7 +17,10 @@
  * - Uses bg-background/80 + backdrop-blur for a frosted glass effect
  *   that maintains spatial context while preventing interaction
  * - z-50 ensures it renders above all content including dialogs
- * - aria-modal="true" traps focus within the overlay for accessibility
+ * - aria-modal="true" identifies the overlay as modal to assistive technology
+ * - aria-live="polite" announces the newly displayed processing state without
+ *   interrupting current screen reader output
+ * - aria-busy="true" exposes that the modal represents an in-progress operation
  * - Returns null when isOpen is false to avoid unnecessary DOM nodes
  */
 'use client';
@@ -61,6 +64,8 @@ export function LoadingOverlay({ isOpen, message }: LoadingOverlayProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
+      aria-live="polite"
+      aria-busy="true"
       aria-label={t('ariaLabel')}
     >
       {/* Centered card with border and shadow for visual elevation */}
