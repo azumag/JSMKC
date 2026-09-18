@@ -24,10 +24,11 @@ interface ModePublishSwitchProps {
  */
 export function ModePublishSwitch({ tournamentId, mode, modeLabelKey }: ModePublishSwitchProps) {
   const tc = useTranslations('common');
+  const t = useTranslations('modePublishSwitch');
   const { isPublic, toggle, retryLoad, updating, loading, error } = useModePublish(tournamentId, mode);
 
-  const stateLabel = isPublic ? tc('publishMode') : tc('unpublishMode');
-  const ariaLabel = `${tc(modeLabelKey)}: ${stateLabel}`;
+  const stateLabel = isPublic ? t('published') : t('unpublished');
+  const ariaLabel = t('toggleLabel', { mode: tc(modeLabelKey) });
   const initialStateUnknown = error === 'load';
 
   return (

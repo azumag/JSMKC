@@ -27,6 +27,8 @@ import enLocaleSwitcher from '../../messages/locale-switcher/en.json';
 import jaLocaleSwitcher from '../../messages/locale-switcher/ja.json';
 import enMatchValidation from '../../messages/match-validation/en.json';
 import jaMatchValidation from '../../messages/match-validation/ja.json';
+import enModePublishSwitch from '../../messages/mode-publish-switch/en.json';
+import jaModePublishSwitch from '../../messages/mode-publish-switch/ja.json';
 import enRankCell from '../../messages/rank-cell/en.json';
 import jaRankCell from '../../messages/rank-cell/ja.json';
 import enTaPromotion from '../../messages/ta-promotion/en.json';
@@ -77,6 +79,11 @@ const matchValidationMessages = {
   ja: jaMatchValidation,
 } satisfies Record<Locale, typeof enMatchValidation>;
 
+const modePublishSwitchMessages = {
+  en: enModePublishSwitch,
+  ja: jaModePublishSwitch,
+} satisfies Record<Locale, typeof enModePublishSwitch>;
+
 const rankCellMessages = {
   en: enRankCell,
   ja: jaRankCell,
@@ -115,6 +122,7 @@ async function loadMessages(locale: Locale) {
     loadingSkeleton: loadingSkeletonMessages[locale],
     loadingSpinner: loadingSpinnerMessages[locale],
     localeSwitcher: localeSwitcherMessages[locale],
+    modePublishSwitch: modePublishSwitchMessages[locale],
     rankCell: rankCellMessages[locale],
     tournamentLayout: tournamentLayoutMessages[locale],
     updateIndicator: updateIndicatorMessages[locale],
