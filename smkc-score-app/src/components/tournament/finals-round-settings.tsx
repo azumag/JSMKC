@@ -71,8 +71,7 @@ export function FinalsRoundSettings({
         return;
       }
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        alert(payload?.error || t('failedUpdateRoundFormat'));
+        alert(t('failedUpdateRoundFormat'));
         return;
       }
       onSaved();
