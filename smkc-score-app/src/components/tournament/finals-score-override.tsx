@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -48,6 +48,7 @@ export function FinalsScoreOverride({
       : match.player1Id,
   );
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const parsedScore1 = parseSignedInteger(score1);
   const parsedScore2 = parseSignedInteger(score2);
   const correctedResultLabel = t('correctedResultSignedTotals');
@@ -98,6 +99,16 @@ export function FinalsScoreOverride({
     onSaved();
   };
 
+  const saveOnce = () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    void save().finally(() => {
+      savingRef.current = false;
+      setSaving(false);
+    });
+  };
+
   return (
     <div className="space-y-2 rounded-md border border-amber-500/50 bg-amber-50/50 p-3 text-sm dark:bg-amber-950/20">
       <div className="flex items-center gap-2">
@@ -135,16 +146,7 @@ export function FinalsScoreOverride({
           <option value={match.player2Id}>{t('tieBreakWinner', { player: match.player2.nickname })}</option>
         </select>
       )}
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={saving}
-        onClick={() => {
-          setSaving(true);
-          void save().finally(() => setSaving(false));
-        }}
-      >
+      <Button type="button" size="sm" variant="outline" disabled={saving} onClick={saveOnce}>
         {t('saveCorrectedResult')}
       </Button>
     </div>

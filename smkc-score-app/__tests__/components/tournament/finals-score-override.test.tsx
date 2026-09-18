@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FinalsScoreOverride } from '@/components/tournament/finals-score-override';
 import enMessages from '../../../messages/en.json';
 import jaMessages from '../../../messages/ja.json';
@@ -113,6 +113,52 @@ describe('FinalsScoreOverride', () => {
     await waitFor(() => expect(saveButton).toBeEnabled());
     expect(onSaved).not.toHaveBeenCalled();
     expect(alertMock).not.toHaveBeenCalledWith(expect.stringContaining('private network detail'));
+  });
+
+  it('serializes same-render save activations into a single PUT', async () => {
+    const onSaved = jest.fn();
+    let resolveSave!: (response: Response) => void;
+    global.fetch = jest.fn().mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+
+    render(
+      <FinalsScoreOverride
+        match={{
+          id: 'm1',
+          version: 4,
+          player1Id: 'p1',
+          player2Id: 'p2',
+          player1: { nickname: 'One' },
+          player2: { nickname: 'Two' },
+        }}
+        endpoint="/api/test"
+        score1={2}
+        score2={1}
+        onSaved={onSaved}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Record corrected result (admin)'));
+    const saveButton = screen.getByRole('button', { name: 'Save corrected result' });
+
+    act(() => {
+      saveButton.click();
+      saveButton.click();
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveSave({ ok: true, json: async () => ({ success: true, data: {} }) } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(onSaved).toHaveBeenCalledTimes(1);
   });
 
   it('keeps an existing player-2 tie override when the correction form is opened again', async () => {
