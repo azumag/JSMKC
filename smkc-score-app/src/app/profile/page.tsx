@@ -39,10 +39,7 @@ export default function ProfilePage() {
         if (cancelled) return;
 
         if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          if (!cancelled) {
-            setFetchError(errorData?.error || tCommon('networkError'));
-          }
+          setFetchError(tCommon('networkError'));
           return;
         }
 
