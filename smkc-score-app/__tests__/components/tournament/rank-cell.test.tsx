@@ -76,9 +76,6 @@ describe('RankCell — view mode', () => {
 });
 
 describe('RankCell — edit mode', () => {
-  // Compatibility anchors for the legacy E2E drift guard; follow-up removes these source-string checks.
-  // getByRole('button', { name: /✕/ })
-  // ✓
   it('TC-2647: clicking edit opens a labeled input with empty string when no override exists', () => {
     render(<RankCell qualificationId="qual-1" rankOverride={null} autoRank={4} isAdmin={true} onSave={noop} />);
 
@@ -99,8 +96,9 @@ describe('RankCell — edit mode', () => {
 
     const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     expect((input as HTMLInputElement).value).toBe('7');
-    // Clear button must appear when rankOverride is set
+    // Clear button must appear when rankOverride is set and expose its label instead of the icon glyph.
     expect(screen.getByRole('button', { name: 'Clear rank override' })).toBeInTheDocument();
+    expect(() => screen.getByRole('button', { name: /✕/ })).toThrow();
   });
 
   it('TC-2649: pressing Enter calls onSave with parsed number and closes editor', async () => {
@@ -126,9 +124,11 @@ describe('RankCell — edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton', { name: 'Rank override' });
     fireEvent.change(input, { target: { value: '3' } });
+    const saveButton = screen.getByRole('button', { name: 'Save rank' });
+    expect(saveButton).not.toHaveAccessibleName('✓');
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Save rank' }));
+      fireEvent.click(saveButton);
     });
 
     expect(noop).toHaveBeenCalledWith('qual-7', 3);
