@@ -73,7 +73,7 @@ async function openDialog(fetchMock: jest.Mock, active: boolean) {
   fireEvent.click(screen.getByRole('button', { name: 'qrLogin' }));
 
   const expectedAction = active ? 'reissueQrCode' : 'issueQrCode';
-  await waitFor(() => expect(screen.getByRole('button', { name: expectedAction })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', { name: expectedAction })).toBeEnabled());
 }
 
 describe('QrLoginDialog mutation serialization', () => {
@@ -99,7 +99,7 @@ describe('QrLoginDialog mutation serialization', () => {
       json: async () => ({ success: true, data: { token: 'first-token', issuedAt: '2026-01-01T00:00:00.000Z' } }),
     });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'reissueQrCode' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'reissueQrCode' })).toBeEnabled());
 
     fetchMock.mockResolvedValueOnce({
       ok: true,
