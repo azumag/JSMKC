@@ -93,8 +93,6 @@ describe('QualificationPlayoffManager broadcast', () => {
       await Promise.resolve();
     });
 
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'savePlayoffResult' })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'savePlayoffResult' })).not.toBeInTheDocument());
   });
 });
