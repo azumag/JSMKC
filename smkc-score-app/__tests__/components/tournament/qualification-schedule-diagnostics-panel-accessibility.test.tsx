@@ -3,9 +3,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import {
-  QualificationScheduleDiagnosticsPanel,
-} from '@/components/tournament/qualification-schedule-diagnostics-panel';
+import { QualificationScheduleDiagnosticsPanel } from '@/components/tournament/qualification-schedule-diagnostics-panel';
 import type { QualificationScheduleDiagnostics } from '@/lib/qualification-schedule-diagnostics';
 
 const diagnostics: QualificationScheduleDiagnostics = {
