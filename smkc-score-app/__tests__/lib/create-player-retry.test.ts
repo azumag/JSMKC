@@ -31,12 +31,10 @@ describe('createPlayerWithRetry', () => {
 
   beforeEach(() => {
     fetchSpy = jest.spyOn(globalThis, 'fetch');
-    setTimeoutSpy = jest
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation((fn: TimerHandler) => {
-        if (typeof fn === 'function') fn();
-        return 0 as unknown as ReturnType<typeof setTimeout>;
-      });
+    setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout').mockImplementation((fn: TimerHandler) => {
+      if (typeof fn === 'function') fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
   });
 
   afterEach(() => {
