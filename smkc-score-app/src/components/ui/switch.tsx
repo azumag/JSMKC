@@ -35,9 +35,9 @@ export function Switch({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.repeat) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
+      if (event.repeat) return;
       handleClick();
     }
   };
