@@ -27,27 +27,28 @@ interface DebugFillButtonProps {
 
 export function DebugFillButton({ tournamentId, mode, onFilled, className }: DebugFillButtonProps) {
   const tCommon = useTranslations('common');
+  const tDebugFill = useTranslations('debugFill');
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
 
   async function handleClick() {
     if (busy) return;
     setBusy(true);
-    setStatusText('実行中…');
+    setStatusText(tDebugFill('running'));
     try {
       const res = await fetch(`/api/tournaments/${tournamentId}/${mode}/debug-fill`, {
         method: 'POST',
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg = json?.error || `HTTP ${res.status}`;
-        setStatusText(`失敗: ${msg}`);
+        const message = json?.error || `HTTP ${res.status}`;
+        setStatusText(tDebugFill('failure', { message }));
         return;
       }
       const data = json?.data ?? json;
       const filled = typeof data?.filled === 'number' ? data.filled : 0;
       const skipped = typeof data?.skipped === 'number' ? data.skipped : 0;
-      setStatusText(`完了: ${filled} 件入力 / ${skipped} 件スキップ`);
+      setStatusText(tDebugFill('success', { filled, skipped }));
       onFilled?.();
     } catch (err) {
       logger.error('Debug fill request failed:', { error: err, tournamentId, mode });
@@ -64,11 +65,16 @@ export function DebugFillButton({ tournamentId, mode, onFilled, className }: Deb
         variant="secondary"
         onClick={handleClick}
         disabled={busy}
-        title={`${mode.toUpperCase()} 予選スコアを自動入力 (debug mode)`}
+        aria-busy={busy}
+        title={tDebugFill('title', { mode: mode.toUpperCase() })}
       >
-        {busy ? '自動入力中…' : '予選スコア自動入力'}
+        {busy ? tDebugFill('busyButton') : tDebugFill('button')}
       </Button>
-      {statusText && <p className="text-xs text-muted-foreground mt-1">{statusText}</p>}
+      {statusText && (
+        <p role="status" className="text-xs text-muted-foreground mt-1">
+          {statusText}
+        </p>
+      )}
     </div>
   );
 }
