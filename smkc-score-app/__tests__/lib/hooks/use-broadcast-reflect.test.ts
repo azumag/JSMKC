@@ -227,6 +227,108 @@ describe('useBroadcastReflect', () => {
 
       expect(result.current.broadcastStatus).toBe('error');
     });
+
+    it('ignores an older non-ok response after a newer reflect succeeds', async () => {
+      let resolveFirst!: (response: Response) => void;
+      let resolveSecond!: (response: Response) => void;
+      global.fetch = jest
+        .fn()
+        .mockImplementationOnce(
+          () => new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          })
+        )
+        .mockImplementationOnce(
+          () => new Promise<Response>((resolve) => {
+            resolveSecond = resolve;
+          })
+        );
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const { result } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      const firstReflect = result.current.handleBroadcastReflect();
+      const secondReflect = result.current.handleBroadcastReflect();
+
+      await act(async () => {
+        resolveSecond({ ok: true } as Response);
+        await secondReflect;
+      });
+      expect(result.current.broadcastStatus).toBe('success');
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveFirst({ ok: false } as Response);
+        await firstReflect;
+      });
+
+      expect(result.current.broadcastStatus).toBe('success');
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores an older network failure after a newer reflect succeeds', async () => {
+      let rejectFirst!: (error: Error) => void;
+      let resolveSecond!: (response: Response) => void;
+      global.fetch = jest
+        .fn()
+        .mockImplementationOnce(
+          () => new Promise<Response>((_resolve, reject) => {
+            rejectFirst = reject;
+          })
+        )
+        .mockImplementationOnce(
+          () => new Promise<Response>((resolve) => {
+            resolveSecond = resolve;
+          })
+        );
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const { result } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      const firstReflect = result.current.handleBroadcastReflect();
+      const secondReflect = result.current.handleBroadcastReflect();
+
+      await act(async () => {
+        resolveSecond({ ok: true } as Response);
+        await secondReflect;
+      });
+
+      await act(async () => {
+        rejectFirst(new Error('stale network failure'));
+        await firstReflect;
+      });
+
+      expect(result.current.broadcastStatus).toBe('success');
+      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps reset state when an in-flight reflect finishes later', async () => {
+      let resolveFetch!: (response: Response) => void;
+      global.fetch = jest.fn(
+        () => new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
+      );
+      const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+      const { result } = renderHook(() =>
+        useBroadcastReflect(TOURNAMENT_ID, { p1: 1 }, entries)
+      );
+
+      const reflectPromise = result.current.handleBroadcastReflect();
+      act(() => {
+        result.current.resetBroadcastStatus();
+      });
+
+      await act(async () => {
+        resolveFetch({ ok: true } as Response);
+        await reflectPromise;
+      });
+
+      expect(result.current.broadcastStatus).toBe('idle');
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleBroadcastReflect', () => {
