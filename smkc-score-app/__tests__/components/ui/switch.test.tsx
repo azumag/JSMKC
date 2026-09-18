@@ -3,6 +3,7 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Switch } from '@/components/ui/switch';
 
 const defaultProps = {
@@ -65,18 +66,28 @@ describe('Switch', () => {
     expect(screen.getByRole('switch')).toBeDisabled();
   });
 
-  it('TC-2796: Space key calls onCheckedChange', () => {
+  it('TC-2796: Space activates the native button exactly once', async () => {
+    const user = userEvent.setup();
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
-    fireEvent.keyDown(screen.getByRole('switch'), { key: ' ' });
+    const button = screen.getByRole('switch');
+    button.focus();
+
+    await user.keyboard('{Space}');
+
     expect(onCheckedChange).toHaveBeenCalledTimes(1);
     expect(onCheckedChange).toHaveBeenCalledWith(true);
   });
 
-  it('TC-2797: Enter key calls onCheckedChange', () => {
+  it('TC-2797: Enter activates the native button exactly once', async () => {
+    const user = userEvent.setup();
     const onCheckedChange = jest.fn();
     render(<Switch {...defaultProps} checked={false} onCheckedChange={onCheckedChange} />);
-    fireEvent.keyDown(screen.getByRole('switch'), { key: 'Enter' });
+    const button = screen.getByRole('switch');
+    button.focus();
+
+    await user.keyboard('{Enter}');
+
     expect(onCheckedChange).toHaveBeenCalledTimes(1);
     expect(onCheckedChange).toHaveBeenCalledWith(true);
   });
