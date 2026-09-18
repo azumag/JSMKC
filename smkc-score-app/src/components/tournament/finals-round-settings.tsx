@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,15 +43,17 @@ export function FinalsRoundSettings({
   );
   const [targetWins, setTargetWins] = useState(String(activeTargetWins));
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => setTargetWins(String(activeTargetWins)), [match.id, activeTargetWins]);
 
   const apply = async () => {
     const parsed = Number(targetWins);
-    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 99) return;
+    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 99 || savingRef.current) return;
     const expectedVersions = Object.fromEntries(
       pendingRoundMatches.map((candidate) => [candidate.id, candidate.version]),
     );
+    savingRef.current = true;
     setSaving(true);
     try {
       let response: Response;
@@ -75,6 +77,7 @@ export function FinalsRoundSettings({
       }
       onSaved();
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
