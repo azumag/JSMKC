@@ -19,15 +19,13 @@ const mockUpdateIndicatorMessages = {
 let mockLocale: keyof typeof mockUpdateIndicatorMessages = 'en';
 
 jest.mock('next-intl', () => ({
-  useTranslations:
-    () =>
-    (key: keyof typeof enUpdateIndicator, values?: Record<string, string | number>) => {
-      let message = mockUpdateIndicatorMessages[mockLocale][key];
-      for (const [name, value] of Object.entries(values ?? {})) {
-        message = message.replace(`{${name}}`, String(value));
-      }
-      return message;
-    },
+  useTranslations: () => (key: keyof typeof enUpdateIndicator, values?: Record<string, string | number>) => {
+    let message = mockUpdateIndicatorMessages[mockLocale][key];
+    for (const [name, value] of Object.entries(values ?? {})) {
+      message = message.replace(`{${name}}`, String(value));
+    }
+    return message;
+  },
 }));
 
 beforeEach(() => {
