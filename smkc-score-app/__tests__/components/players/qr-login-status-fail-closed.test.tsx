@@ -36,7 +36,7 @@ describe('QR login status fail-closed behavior (issue #3661)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'qrLogin' }));
 
-    await waitFor(() => expect(screen.getByText('failedToLoadQrStatus')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('failedToLoadQrStatus'));
     expect(screen.getByRole('button', { name: 'issueQrCode' })).toBeDisabled();
     expect(screen.queryByText('qrCodeNotIssued')).not.toBeInTheDocument();
 
@@ -44,7 +44,7 @@ describe('QR login status fail-closed behavior (issue #3661)', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByText('qrCodeNotIssued')).toBeInTheDocument());
-    expect(screen.queryByText('failedToLoadQrStatus')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'issueQrCode' })).not.toBeDisabled();
   });
 
@@ -67,7 +67,7 @@ describe('QR login status fail-closed behavior (issue #3661)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'qrLogin' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.getByText('failedToLoadQrStatus')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('failedToLoadQrStatus'));
     expect(screen.getByRole('button', { name: 'issueQrCode' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'revokeQrCode' })).not.toBeInTheDocument();
     expect(screen.queryByText('qrCodeActiveNote')).not.toBeInTheDocument();
