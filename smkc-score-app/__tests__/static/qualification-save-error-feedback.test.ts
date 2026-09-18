@@ -37,20 +37,21 @@ describe('qualification save failure feedback', () => {
     expect(block.indexOf("alert(tc('networkError'))")).toBeLessThan(block.indexOf('setIsScoreDialogOpen(false)'));
   });
 
-  it('keeps MR score state on failure and reports API/network errors through toast', () => {
+  it('keeps MR score state on failure and hides API details behind common.networkError', () => {
     const block = sliceBetween(
       readPage(mrPagePath),
       'const handleMatchSubmit = async () => {',
       'const handleBroadcastMatch =',
     );
 
-    expect(block).toContain("toast.error(errorData.error || tc('networkError'));\n        return;");
+    expect(block).not.toContain('errorData.error');
+    expect(block).toContain("logger.error('Failed to update match:', {");
+    expect(block).toContain('status: response.status');
+    expect(block).toContain("toast.error(tc('networkError'));\n        return;");
     expect(block).toContain(
       "logger.error('Failed to update match:', { error: err, tournamentId });\n      toast.error(tc('networkError'));",
     );
-    expect(block.indexOf("toast.error(errorData.error || tc('networkError'))")).toBeLessThan(
-      block.indexOf('setIsMatchDialogOpen(false)'),
-    );
+    expect(block.indexOf("toast.error(tc('networkError'))")).toBeLessThan(block.indexOf('setIsMatchDialogOpen(false)'));
   });
 
   it('reports GP cup assignment API/network failures through alert', () => {
