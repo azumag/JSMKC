@@ -56,8 +56,12 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           refetch();
           return true;
         }
-        const err = await response.json().catch(() => ({}));
-        alert(err.error || tc('networkError'));
+        logger.error('Rank update returned non-2xx response', {
+          status: response.status,
+          tournamentId,
+          qualificationId,
+        });
+        alert(tc('networkError'));
         return false;
       } catch (err) {
         logger.error('Failed to update rank:', { error: err, tournamentId });
@@ -83,8 +87,12 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
             body: JSON.stringify(update),
           });
           if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            alert(err.error || tc('networkError'));
+            logger.error('Bulk rank update returned non-2xx response', {
+              status: response.status,
+              tournamentId,
+              qualificationId: update.qualificationId,
+            });
+            alert(tc('networkError'));
             return false;
           }
         }
@@ -117,8 +125,12 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           refetch();
           return true;
         }
-        const err = await response.json().catch(() => ({}));
-        alert(err.error || tc('networkError'));
+        logger.error('Combined rank update returned non-2xx response', {
+          status: response.status,
+          tournamentId,
+          qualificationId,
+        });
+        alert(tc('networkError'));
         return false;
       } catch (err) {
         logger.error('Failed to update combined rank:', { error: err, tournamentId });
@@ -140,8 +152,12 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
             body: JSON.stringify(update),
           });
           if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            alert(err.error || tc('networkError'));
+            logger.error('Bulk combined rank update returned non-2xx response', {
+              status: response.status,
+              tournamentId,
+              qualificationId: update.qualificationId,
+            });
+            alert(tc('networkError'));
             return false;
           }
         }
@@ -171,10 +187,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, tvNumber }),
       })
-        .then(async (response) => {
+        .then((response) => {
           if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            toast.error(err.error || tc('networkError'));
+            logger.error('TV assignment returned non-2xx response', {
+              status: response.status,
+              tournamentId,
+              matchId,
+            });
+            toast.error(tc('networkError'));
             refetch();
           }
         })
