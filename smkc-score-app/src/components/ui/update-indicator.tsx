@@ -50,9 +50,10 @@ function secondsSince(lastUpdated: Date | null): number {
  * Displays a badge showing the current polling state and a localized
  * relative time display showing how long ago the data was last refreshed.
  *
- * The secondsAgo counter updates every 1000ms to provide a live
- * "time since last update" display. This helps tournament operators
- * know if the data is fresh and if polling is functioning correctly.
+ * A one-second clock tick triggers re-renders while a timestamp is present.
+ * The displayed age itself is derived from the current `lastUpdated` prop on
+ * every render, so fresh data resets the label immediately instead of waiting
+ * for the next timer tick.
  *
  * The status text and relative time are hidden on small screens
  * (sm:inline) to conserve horizontal space in mobile layouts, while
@@ -60,29 +61,25 @@ function secondsSince(lastUpdated: Date | null): number {
  */
 export function UpdateIndicator({ lastUpdated, isPolling }: UpdateIndicatorProps) {
   const t = useTranslations('updateIndicator');
+  const [, setClockTick] = useState(0);
 
   /**
-   * Track seconds since last update, initialized from the lastUpdated prop.
-   * Uses a factory initializer to compute the initial value synchronously
-   * without causing a re-render on mount.
-   */
-  const [secondsAgo, setSecondsAgo] = useState(() => secondsSince(lastUpdated));
-
-  /**
-   * Effect: Recomputes secondsAgo immediately when lastUpdated changes, then
-   * updates it every second. Cleanup prevents stale intervals after prop
-   * changes or unmount.
+   * Trigger a render every second while a timestamp is visible. The relative
+   * age is derived below so lastUpdated prop changes do not need effect-driven
+   * state synchronization. Cleanup prevents stale intervals after prop changes
+   * or unmount.
    */
   useEffect(() => {
-    setSecondsAgo(secondsSince(lastUpdated));
     if (!lastUpdated) return;
 
     const interval = setInterval(() => {
-      setSecondsAgo(secondsSince(lastUpdated));
+      setClockTick((tick) => tick + 1);
     }, 1000);
 
     return () => clearInterval(interval);
   }, [lastUpdated]);
+
+  const secondsAgo = secondsSince(lastUpdated);
 
   /**
    * Formats a seconds value into a localized relative time string.
