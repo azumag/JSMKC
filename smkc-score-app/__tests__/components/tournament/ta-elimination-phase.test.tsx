@@ -52,12 +52,7 @@ const defaultProps = {
   targetSurvivors: 4,
 };
 
-function makeEntry(overrides: {
-  id: string;
-  playerId: string;
-  nickname: string;
-  eliminated?: boolean;
-}) {
+function makeEntry(overrides: { id: string; playerId: string; nickname: string; eliminated?: boolean }) {
   return {
     id: overrides.id,
     playerId: overrides.playerId,
@@ -218,11 +213,18 @@ describe('TAEliminationPhase — main render', () => {
             makeEntry({ id: 'e-4', playerId: 'p-4', nickname: 'Toad' }),
             makeEntry({ id: 'e-5', playerId: 'p-5', nickname: 'Bowser', eliminated: true }),
           ],
-          rounds: [{
-            id: 'r-1', phase: 'phase1', roundNumber: 1, course: 'GV1',
-            results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
-            eliminatedIds: ['p-5'], livesReset: false, manualOverride: false,
-          }],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase1',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
+              eliminatedIds: ['p-5'],
+              livesReset: false,
+              manualOverride: false,
+            },
+          ],
           availableCourses: ['GV2'],
           playedCourses: ['GV1'],
         },
@@ -252,11 +254,18 @@ describe('TAEliminationPhase — main render', () => {
           makeEntry({ id: 'e-4', playerId: 'p-4', nickname: 'Toad' }),
           makeEntry({ id: 'e-5', playerId: 'p-5', nickname: 'Bowser', eliminated: true }),
         ],
-        rounds: [{
-          id: 'r-1', phase: 'phase1', roundNumber: 1, course: 'GV1',
-          results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
-          eliminatedIds: ['p-5'], livesReset: false, manualOverride: false,
-        }],
+        rounds: [
+          {
+            id: 'r-1',
+            phase: 'phase1',
+            roundNumber: 1,
+            course: 'GV1',
+            results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
+            eliminatedIds: ['p-5'],
+            livesReset: false,
+            manualOverride: false,
+          },
+        ],
         availableCourses: ['GV2'],
         playedCourses: ['GV1'],
       },
@@ -277,9 +286,7 @@ describe('TAEliminationPhase — main render', () => {
     expect(screen.getByRole('button', { name: 'Undo Last Round' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel Last Round (Free Course)' })).toBeInTheDocument();
     // The Undo-vs-Cancel explainer travels with the correction buttons.
-    expect(
-      screen.getByRole('button', { name: 'Explain the difference between Undo and Cancel' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explain the difference between Undo and Cancel' })).toBeInTheDocument();
     // Start-round control stays hidden while the phase is complete.
     expect(screen.queryByRole('button', { name: /Start Round/ })).not.toBeInTheDocument();
   });
@@ -314,15 +321,26 @@ describe('TAEliminationPhase — main render', () => {
             makeEntry({ id: 'e-4', playerId: 'p-4', nickname: 'Toad' }),
             makeEntry({ id: 'e-5', playerId: 'p-5', nickname: 'Bowser', eliminated: true }),
           ],
-          rounds: [{
-            id: 'r-1', phase: 'phase1', roundNumber: 1, course: 'GV1',
-            results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
-            eliminatedIds: ['p-5'], livesReset: false, manualOverride: false,
-          }],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase1',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [{ playerId: 'p-5', timeMs: 99990, isRetry: false }],
+              eliminatedIds: ['p-5'],
+              livesReset: false,
+              manualOverride: false,
+            },
+          ],
           availableCourses: ['GV2'],
           playedCourses: ['GV1'],
           // phase2 has been promoted — phase1 rounds are now locked.
-          phaseStatus: { phase1: { total: 5, active: 4, eliminated: 1 }, phase2: { total: 8, active: 8, eliminated: 0 }, phase3: null },
+          phaseStatus: {
+            phase1: { total: 5, active: 4, eliminated: 1 },
+            phase2: { total: 8, active: 8, eliminated: 0 },
+            phase3: null,
+          },
         },
       }),
     });
@@ -357,15 +375,26 @@ describe('TAEliminationPhase — main render', () => {
           ],
           // One completed round but all 5 players still active (targetSurvivors=4)
           // so isComplete is false and the round-management card renders.
-          rounds: [{
-            id: 'r-1', phase: 'phase1', roundNumber: 1, course: 'GV1',
-            results: [{ playerId: 'p-1', timeMs: 60000, isRetry: false }],
-            eliminatedIds: null, livesReset: false, manualOverride: false,
-          }],
+          rounds: [
+            {
+              id: 'r-1',
+              phase: 'phase1',
+              roundNumber: 1,
+              course: 'GV1',
+              results: [{ playerId: 'p-1', timeMs: 60000, isRetry: false }],
+              eliminatedIds: null,
+              livesReset: false,
+              manualOverride: false,
+            },
+          ],
           availableCourses: ['GV2'],
           playedCourses: ['GV1'],
           // phase2 has already been promoted (early promotion scenario).
-          phaseStatus: { phase1: { total: 5, active: 5, eliminated: 0 }, phase2: { total: 8, active: 8, eliminated: 0 }, phase3: null },
+          phaseStatus: {
+            phase1: { total: 5, active: 5, eliminated: 0 },
+            phase2: { total: 8, active: 8, eliminated: 0 },
+            phase3: null,
+          },
         },
       }),
     });
