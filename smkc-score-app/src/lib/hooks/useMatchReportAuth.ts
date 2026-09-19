@@ -13,10 +13,10 @@
  * Used by BM, MR, and GP match entry pages.
  */
 
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useCallback, useState } from 'react';
+import { useSession } from 'next-auth/react';
 
 interface MatchForAuth {
   player1Id: string;
@@ -48,9 +48,7 @@ function getMatchKey(match: MatchForAuth | null): string | null {
   return `${match.player1Id}\u0000${match.player2Id}`;
 }
 
-export function useMatchReportAuth(
-  match: MatchForAuth | null
-): UseMatchReportAuthResult {
+export function useMatchReportAuth(match: MatchForAuth | null): UseMatchReportAuthResult {
   const { data: session, status } = useSession();
   const matchKey = getMatchKey(match);
   const [manualSelection, setManualSelection] = useState<ManualSelection>(() => ({
@@ -58,7 +56,7 @@ export function useMatchReportAuth(
     player: null,
   }));
 
-  const isAdmin = session?.user?.role === "admin";
+  const isAdmin = session?.user?.role === 'admin';
   const currentPlayerId = session?.user?.playerId;
   const isPlayer1 = !!(currentPlayerId && match && currentPlayerId === match.player1Id);
   const isPlayer2 = !!(currentPlayerId && match && currentPlayerId === match.player2Id);
@@ -68,21 +66,20 @@ export function useMatchReportAuth(
   // A route transition can reuse the same hook instance for a different match.
   // Manual selection belongs only to the ordered player pair that produced it;
   // otherwise fall back synchronously to the new match's auto-selection.
-  const selectedPlayer = manualSelection.matchKey === matchKey
-    ? manualSelection.player ?? autoSelectedPlayer
-    : autoSelectedPlayer;
+  const selectedPlayer =
+    manualSelection.matchKey === matchKey ? manualSelection.player ?? autoSelectedPlayer : autoSelectedPlayer;
 
   const setSelectedPlayer = useCallback(
     (player: SelectedPlayer) => {
       setManualSelection({ matchKey, player });
     },
-    [matchKey]
+    [matchKey],
   );
 
   return {
     canReport,
     isAdmin,
-    isSessionLoading: status === "loading",
+    isSessionLoading: status === 'loading',
     selectedPlayer,
     setSelectedPlayer,
   };
