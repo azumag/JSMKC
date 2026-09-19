@@ -4,13 +4,16 @@ TA finals の round control では、ユーザー向けエラーと診断用エ�
 
 ## Phase 1 / Phase 2
 
-`smkc-score-app/src/components/tournament/ta-elimination-phase.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` は #3864 の残りの実装単位で fail-closed 化する。それまでは既存の concrete API error fallback が残る。
+`smkc-score-app/src/components/tournament/ta-elimination-phase.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` は #3864 以降 fail-closed とする。
 
-移行後は Phase 3 と同じく、HTTP non-2xx の response body を UI 用に解析せず `common.networkError` を表示し、status / tournamentId / phase / operation など安全な context のみを logger に残す。
+- HTTP non-2xx の response body は UI 用に解析せず `common.networkError` を表示する。
+- `fetch()` rejection も `common.networkError` を表示し、raw exception detail は client logger のみに残す。
+- HTTP failure の logger には status、tournamentId、phase、必要な roundNumber など安全な context を残す。
+- request payload、成功時の state reset / refetch、confirmation dialog、loading state cleanup は変更しない。
 
 ## Phase 3
 
-`smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` は fail-closed とする。
+`smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` も同じく fail-closed とする。
 
 - HTTP non-2xx は response body の `error` / text を解析せず `common.networkError` を表示する。
 - `fetch()` rejection も `common.networkError` を表示し、raw exception detail は client logger のみに残す。

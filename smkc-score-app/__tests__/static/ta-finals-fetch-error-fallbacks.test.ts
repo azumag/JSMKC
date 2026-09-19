@@ -29,13 +29,14 @@ describe('TA finals fetch error fallback contract (issue #3632 / #3864)', () => 
     expect(fetchData).not.toContain('err instanceof Error ? err.message');
   });
 
-  it('keeps the Phase 1/2 legacy contract visible until the remaining #3864 slice lands', () => {
+  it('fails closed for Phase 1/2 HTTP failures while preserving safe diagnostics', () => {
     const fetchData = getFetchDataBlock(eliminationSource);
 
-    expect(fetchData).toContain("setError(errorData.error || tCommon('networkError'));");
     expect(fetchData).toContain("setError(tCommon('networkError'));");
     expect(fetchData).toContain("logger.error('Failed to fetch data:'");
     expect(fetchData).toContain('status: response.status');
+    expect(fetchData).not.toContain('errorData.error');
+    expect(fetchData).not.toContain('response.json().catch');
     expect(fetchData).not.toContain('err instanceof Error ? err.message');
   });
 });

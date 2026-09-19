@@ -202,14 +202,12 @@ export default function TAEliminationPhase({
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=${phase}`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         logger.error('Failed to fetch data:', {
           status: response.status,
-          error: errorData.error,
           tournamentId,
           phase,
         });
-        setError(errorData.error || tCommon('networkError'));
+        setError(tCommon('networkError'));
         return;
       }
       const json = await response.json();
@@ -307,8 +305,12 @@ export default function TAEliminationPhase({
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to start TA elimination round:', {
+          status: response.status,
+          tournamentId,
+          phase,
+        });
+        setSaveError(tCommon('networkError'));
         return;
       }
       const json2 = await response.json();
@@ -364,8 +366,13 @@ export default function TAEliminationPhase({
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to cancel TA elimination round:', {
+          status: response.status,
+          tournamentId,
+          phase,
+          roundNumber: currentRound.roundNumber,
+        });
+        setSaveError(tCommon('networkError'));
         setShowCancelConfirm(false);
         return;
       }
@@ -401,8 +408,12 @@ export default function TAEliminationPhase({
         body: JSON.stringify({ action: 'undo_round', phase }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to undo TA elimination round:', {
+          status: response.status,
+          tournamentId,
+          phase,
+        });
+        setSaveError(tCommon('networkError'));
         setShowUndoConfirm(false);
         return;
       }
@@ -440,8 +451,12 @@ export default function TAEliminationPhase({
         body: JSON.stringify({ action: 'cancel_last_round', phase }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to cancel the last TA elimination round:', {
+          status: response.status,
+          tournamentId,
+          phase,
+        });
+        setSaveError(tCommon('networkError'));
         setShowCancelLastRoundConfirm(false);
         return;
       }
@@ -596,8 +611,13 @@ export default function TAEliminationPhase({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to submit TA elimination results:', {
+          status: response.status,
+          tournamentId,
+          phase,
+          roundNumber: currentRound.roundNumber,
+        });
+        setSaveError(tCommon('networkError'));
         return;
       }
       const json = await response.json();
