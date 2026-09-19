@@ -434,8 +434,14 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({ matchId: match.id, tvNumber }),
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        toast.error(error?.error || tFinals('failedAssignTv'));
+        logger.error('Failed to assign TV number from bracket:', {
+          operation: 'assign_tv',
+          mode: 'mr',
+          tournamentId,
+          matchId: match.id,
+          status: response.status,
+        });
+        toast.error(tFinals('failedAssignTv'));
         return;
       }
       if (tvNumber === null) {
@@ -563,8 +569,14 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
           }
         }
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedUpdateMatch'));
+        logger.error('Failed to update match:', {
+          operation: 'update_match',
+          mode: 'mr',
+          tournamentId,
+          matchId: selectedMatch.id,
+          status: response.status,
+        });
+        alert(tFinals('failedUpdateMatch'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };

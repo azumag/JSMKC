@@ -516,8 +516,14 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({ matchId: match.id, tvNumber }),
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        toast.error(error?.error || tFinals('failedAssignTv'));
+        logger.error('Failed to assign TV number from bracket:', {
+          operation: 'assign_tv',
+          mode: 'gp',
+          tournamentId,
+          matchId: match.id,
+          status: response.status,
+        });
+        toast.error(tFinals('failedAssignTv'));
         return;
       }
       if (tvNumber === null) {
@@ -699,8 +705,14 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
           }
         }
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedUpdateScore'));
+        logger.error('Failed to update score:', {
+          operation: 'update_score',
+          mode: 'gp',
+          tournamentId,
+          matchId: selectedMatch.id,
+          status: response.status,
+        });
+        alert(tFinals('failedUpdateScore'));
       }
     } catch (err) {
       logger.error('Failed to update score:', { error: err, tournamentId });
