@@ -26,12 +26,7 @@ type ReconcilePreview = {
   expectedVersions: Record<string, number>;
 };
 
-const RECONCILE_PREVIEW_STATUSES = new Set<ReconcilePreview['status']>([
-  'unavailable',
-  'in_sync',
-  'stale',
-  'blocked',
-]);
+const RECONCILE_PREVIEW_STATUSES = new Set<ReconcilePreview['status']>(['unavailable', 'in_sync', 'stale', 'blocked']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -42,7 +37,9 @@ function isReconcilePreview(value: unknown): value is ReconcilePreview {
   if (!RECONCILE_PREVIEW_STATUSES.has(value.status as ReconcilePreview['status'])) return false;
   if (!Array.isArray(value.changes) || !Array.isArray(value.affectedMatches)) return false;
   if (!isRecord(value.expectedVersions)) return false;
-  return Object.values(value.expectedVersions).every((version) => typeof version === 'number' && Number.isFinite(version));
+  return Object.values(value.expectedVersions).every(
+    (version) => typeof version === 'number' && Number.isFinite(version),
+  );
 }
 
 /**
