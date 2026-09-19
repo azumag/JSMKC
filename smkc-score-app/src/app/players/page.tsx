@@ -51,6 +51,7 @@ import { extractArrayData, extractPaginationMeta, type PaginationMeta } from '@/
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { createPlayerWithRetry } from '@/lib/create-player-retry';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
+import { classifyPlayerUpdateFailure } from '@/lib/player-mutation-error';
 import { createLogger } from '@/lib/client-logger';
 
 /**
@@ -266,7 +267,8 @@ export default function PlayersPage() {
   /**
    * Handles player update form submission.
    * Sends a PUT request to update the player identified by editingPlayerId.
-   * On failure, displays the error message from the API response.
+   * On failure, preserves only a recognized machine-readable code for
+   * localization and otherwise shows a generic operation-specific message.
    */
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,17 +312,13 @@ export default function PlayersPage() {
         setEditingPlayerId(null);
         setFormData({ name: '', nickname: '', country: '', noCamera: false });
       } else {
-        const text = await response!.text();
-        try {
-          const data = JSON.parse(text);
-          setError(
-            data.code === PLAYER_ERROR_CODES.DUPLICATE_NICKNAME
-              ? t('duplicateNickname')
-              : data.error || t('failedToUpdate'),
-          );
-        } catch {
-          setError(t('failedToUpdate'));
-        }
+        const failure = await classifyPlayerUpdateFailure(response!);
+        logger.error('Player update API returned error status', {
+          status: response!.status,
+          playerId: editingPlayerId,
+          kind: failure,
+        });
+        setError(failure === 'duplicateNickname' ? t('duplicateNickname') : t('failedToUpdate'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -355,13 +353,11 @@ export default function PlayersPage() {
         setPlayers((prev) => prev.filter((p) => p.id !== id));
         fetchPlayers();
       } else {
-        const text = await response!.text();
-        try {
-          const data = JSON.parse(text);
-          alert(data.error || t('failedToDelete'));
-        } catch {
-          alert(t('failedToDelete'));
-        }
+        logger.error('Player delete API returned error status', {
+          status: response!.status,
+          playerId: id,
+        });
+        alert(t('failedToDelete'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -399,13 +395,11 @@ export default function PlayersPage() {
         setTemporaryPassword(data.temporaryPassword);
         setIsPasswordDialogOpen(true);
       } else {
-        const text = await response!.text();
-        try {
-          const data = JSON.parse(text);
-          alert(data.error || t('failedToResetPassword'));
-        } catch {
-          alert(t('failedToResetPassword'));
-        }
+        logger.error('Player reset-password API returned error status', {
+          status: response!.status,
+          playerId,
+        });
+        alert(t('failedToResetPassword'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
