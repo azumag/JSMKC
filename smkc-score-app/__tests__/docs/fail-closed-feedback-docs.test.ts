@@ -2,6 +2,7 @@ import { readRepoFile } from '../helpers/e2e-cases';
 
 describe('fail-closed client feedback docs', () => {
   const participantDoc = readRepoFile('docs', 'ta-participant-error-fallbacks.md');
+  const qualificationLoadDoc = readRepoFile('docs', 'ta-qualification-fetch-error-fallbacks.md');
   const saveDoc = readRepoFile('smkc-score-app', 'docs', 'qualification-save-error-feedback.md');
   const confirmDoc = readRepoFile('smkc-score-app', 'docs', 'qualification-confirm-error-fallbacks.md');
   const matchReportDoc = readRepoFile('smkc-score-app', 'docs', 'match-report-error-feedback.md');
@@ -11,6 +12,16 @@ describe('fail-closed client feedback docs', () => {
     expect(participantDoc).toContain('PLAYER_ELIMINATED');
     expect(participantDoc).not.toContain('可能な限り API が返す具体的な `error` を優先');
     expect(participantDoc).not.toContain('client-side 例外が `Error` として具体的な message を持つ場合');
+  });
+
+  it('keeps TA qualification load failures fail-closed', () => {
+    expect(qualificationLoadDoc).toContain('common.networkError');
+    expect(qualificationLoadDoc).toContain('raw `error` / `message`');
+    expect(qualificationLoadDoc).toContain('status');
+    expect(qualificationLoadDoc).toContain('fetchAllPlayersForSetup()');
+    expect(qualificationLoadDoc).toContain('resolveAllPlayers()');
+    expect(qualificationLoadDoc).not.toContain('keeps concrete server-provided API errors visible');
+    expect(qualificationLoadDoc).not.toContain('non-empty `error` string keeps that message');
   });
 
   it('does not document raw qualification API prose as preferred feedback', () => {
