@@ -27,9 +27,11 @@ describe('TA participant fallback error i18n', () => {
     }
   });
 
-  it('keeps concrete server errors ahead of the localized fallback', () => {
-    expect(participantPage).toMatch(/errorData\.error\s*\|\|\s*tCommon\('networkError'\)/);
-    expect(participantPage).toMatch(/json\.error\s*\|\|\s*tCommon\('networkError'\)/);
+  it('does not place raw server error prose ahead of the localized fallback', () => {
+    expect(participantPage).not.toMatch(/errorData\.error\s*\|\|\s*tCommon\('networkError'\)/);
+    expect(participantPage).not.toMatch(/json\.error\s*\|\|\s*tCommon\('networkError'\)/);
+    expect(participantPage).not.toContain('errorData.error');
+    expect(participantPage).not.toContain('json.error');
   });
 
   it('keeps the shared fallback translated in English and Japanese', () => {
