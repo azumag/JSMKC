@@ -26,6 +26,22 @@ type ReconcilePreview = {
   expectedVersions: Record<string, number>;
 };
 
+const RECONCILE_PREVIEW_STATUSES = new Set<ReconcilePreview['status']>(['unavailable', 'in_sync', 'stale', 'blocked']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isReconcilePreview(value: unknown): value is ReconcilePreview {
+  if (!isRecord(value) || typeof value.status !== 'string') return false;
+  if (!RECONCILE_PREVIEW_STATUSES.has(value.status as ReconcilePreview['status'])) return false;
+  if (!Array.isArray(value.changes) || !Array.isArray(value.affectedMatches)) return false;
+  if (!isRecord(value.expectedVersions)) return false;
+  return Object.values(value.expectedVersions).every(
+    (version) => typeof version === 'number' && Number.isFinite(version),
+  );
+}
+
 /**
  * Rebuilds only the pending Upper opening slots sourced by completed Top-24
  * barrage R2 matches. The API derives the mapping; this component sends only
@@ -61,8 +77,19 @@ export function FinalsPlayoffReconciliation({
     }
     try {
       const response = await fetch(endpoint);
+      if (!response.ok) {
+        setPreview(null);
+        setPreviewError(true);
+        return;
+      }
       const payload = await response.json().catch(() => null);
-      setPreview(payload?.data?.upperReconciliation ?? null);
+      const nextPreview = payload?.data?.upperReconciliation;
+      if (!isReconcilePreview(nextPreview)) {
+        setPreview(null);
+        setPreviewError(true);
+        return;
+      }
+      setPreview(nextPreview);
       setPreviewError(false);
     } catch {
       setPreview(null);

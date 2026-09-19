@@ -5,9 +5,11 @@
 ## Preview read
 
 - A transport-level `fetch()` rejection while loading the reconciliation preview is handled locally; it must not escape as an unhandled rejection.
+- An HTTP non-2xx response is treated as a preview failure without parsing its response body for UI content.
+- A 2xx response that cannot be decoded or does not contain a valid reconciliation preview shape is also treated as a preview failure instead of silently hiding the repair control.
 - The component remains visible and shows the localized `common.networkError` message with a `common.tryAgain` action.
-- A successful retry clears the failure state and restores the normal `in_sync`, `stale`, or `blocked` preview.
-- Raw browser, proxy, DNS, TLS, endpoint, or stack details are not rendered in the UI.
+- A successful retry clears the failure state and restores the normal `unavailable`, `in_sync`, `stale`, or `blocked` preview behavior.
+- Raw browser, proxy, DNS, TLS, endpoint, response-body, or stack details are not rendered in the UI.
 
 ## Apply mutation
 
@@ -15,6 +17,7 @@
 - `onSaved()` is not called on a failed request.
 - The saving state is always released so the existing reconciliation action can be retried.
 - The administrator sees the localized `common.networkError`; raw low-level network details remain hidden.
+- Existing machine-readable blocker/code handling for non-2xx PATCH responses is unchanged.
 
 ## Unchanged behavior
 

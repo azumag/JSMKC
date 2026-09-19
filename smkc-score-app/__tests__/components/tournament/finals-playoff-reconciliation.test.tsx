@@ -141,6 +141,37 @@ describe('FinalsPlayoffReconciliation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('treats preview HTTP failures as retryable without reading the failure body', async () => {
+    const rawServerError = 'internal shard=prod-a database timeout';
+    const failureJson = jest.fn(async () => ({ error: rawServerError }));
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: false, status: 503, json: failureJson } as unknown as Response)
+      .mockResolvedValueOnce({ ok: true, json: async () => stalePreview } as Response);
+    renderReconciliation();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.queryByText(rawServerError)).not.toBeInTheDocument();
+    expect(failureJson).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'tryAgain' }));
+
+    expect(await screen.findByRole('button', { name: 'reconcileUpperSlotsRun' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the retry state when a successful preview response has an invalid shape', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { upperReconciliation: { status: 'stale' } } }),
+    } as Response);
+    renderReconciliation();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('networkError');
+    expect(screen.getByRole('button', { name: 'tryAgain' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'reconcileUpperSlotsRun' })).not.toBeInTheDocument();
+  });
+
   it('keeps reconciliation retryable and does not save when the PATCH request rejects', async () => {
     const rawNetworkError = 'socket hang up from internal proxy';
     const onSaved = jest.fn();
