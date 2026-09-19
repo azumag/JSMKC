@@ -470,8 +470,11 @@ export default function BattleModePageClient({
                     body: JSON.stringify({ reset: true }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedResetBracket'));
+                    logger.error('Failed to reset qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    alert(tc('networkError'));
                     return;
                   }
                   setFinalsExists(false);
@@ -509,8 +512,11 @@ export default function BattleModePageClient({
                     body: JSON.stringify({ topN }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedGenerateBracket'));
+                    logger.error('Failed to generate qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    alert(tc('networkError'));
                     return;
                   }
                   setFinalsExists(true);
