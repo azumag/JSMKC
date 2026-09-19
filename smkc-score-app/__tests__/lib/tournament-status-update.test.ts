@@ -103,6 +103,48 @@ describe('tournament status updates', () => {
     expect(isUserFacingTournamentStatusUpdateError(error)).toBe(true);
   });
 
+  it('classifies a nested data.error transition error as user-facing', async () => {
+    const response = new Response(
+      JSON.stringify({ success: false, data: { error: 'Archived tournament must be restored first' } }),
+      {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Archived tournament must be restored first');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(true);
+  });
+
+  it('classifies a top-level message transition error as user-facing', async () => {
+    const response = new Response(JSON.stringify({ success: false, message: 'Tournament status is locked' }), {
+      status: 409,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('Tournament status is locked');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(true);
+  });
+
+  it('does not promote whitespace-only API detail to a user-facing error', async () => {
+    const response = new Response(
+      JSON.stringify({ success: false, error: '   ', message: '\t', data: { error: '\n' } }),
+      {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+
+    const error = await parseTournamentStatusUpdateResponse(response).catch((caught) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe('HTTP 409');
+    expect(isUserFacingTournamentStatusUpdateError(error)).toBe(false);
+  });
+
   it('classifies non-JSON HTTP fallback details as generic', async () => {
     const response = new Response('upstream failure', { status: 502 });
 
