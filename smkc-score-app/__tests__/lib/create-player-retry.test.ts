@@ -8,6 +8,10 @@
  * player before a Workers cold-start crash destroyed its response — and
  * must still be reported as success so that regression does not return.
  *
+ * Failure results intentionally keep backend-provided prose out of `error`.
+ * Callers may use the machine-readable code for known localized cases, while
+ * every other failure maps to a generic localized player-creation message.
+ *
  * We spy on setTimeout to resolve instantly, avoiding the real 800ms
  * inter-retry delay (same technique as __tests__/lib/fetch-with-retry.test.ts).
  */
@@ -43,7 +47,8 @@ describe('createPlayerWithRetry', () => {
 
   it('reports a 409 on the FIRST attempt as a genuine duplicate-nickname error (not success)', async () => {
     // This is the bug under test: a real duplicate collision must surface as
-    // an error, not be silently swallowed as a "recovered success".
+    // an error, not be silently swallowed as a "recovered success". Preserve
+    // only the code so the page can select its localized duplicate message.
     fetchSpy.mockResolvedValueOnce(
       jsonResponse(409, {
         success: false,
@@ -56,12 +61,27 @@ describe('createPlayerWithRetry', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'A player with this nickname already exists',
+      error: null,
       code: 'DUPLICATE_NICKNAME',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     // A genuine 409 is a client error — must not trigger the retry delay.
     expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('redacts backend prose for an arbitrary 4xx while preserving a machine-readable code', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse(400, {
+        success: false,
+        error: 'internal validation detail that must not reach the UI',
+        code: 'INVALID_PLAYER',
+      }),
+    );
+
+    const result = await createPlayerWithRetry(FORM);
+
+    expect(result).toEqual({ ok: false, error: null, code: 'INVALID_PLAYER' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('treats a 409 returned on a RETRY attempt as a recovered success (Workers 1101 crash)', async () => {
@@ -180,12 +200,12 @@ describe('createPlayerWithRetry', () => {
     expect(setTimeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 800);
   });
 
-  it('returns a failure after exhausting all retries on repeated 500s', async () => {
+  it('redacts backend prose after exhausting all retries on repeated 500s', async () => {
     fetchSpy.mockResolvedValue(jsonResponse(500, { success: false, error: 'still crashed' }));
 
     const result = await createPlayerWithRetry(FORM);
 
-    expect(result).toEqual({ ok: false, error: 'still crashed', code: null });
+    expect(result).toEqual({ ok: false, error: null, code: null });
     expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
