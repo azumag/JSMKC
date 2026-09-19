@@ -746,7 +746,7 @@ export default function MatchRacePageClient({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  /* Build player→group lookup for match filtering */}
+                  /* Build player→group lookup for match filtering */
                   const playerGroupMap = new Map<string, string>();
                   for (const q of qualifications) {
                     playerGroupMap.set(q.playerId, q.group);
