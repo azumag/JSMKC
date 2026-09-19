@@ -5,7 +5,7 @@
  * all 2P qualification pages, differing only in the mode string in the API URL.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/client-logger';
@@ -37,6 +37,24 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
   const tc = useTranslations('common');
   // Memoize logger so useCallback deps stay referentially stable
   const logger = useMemo(() => createLogger({ serviceName: `tournaments-${mode}` }), [mode]);
+  const identityRef = useRef({ tournamentId, mode });
+  const mountedRef = useRef(true);
+  identityRef.current = { tournamentId, mode };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const isCurrentIdentity = useCallback(
+    (requestTournamentId: string, requestMode: Mode) =>
+      mountedRef.current &&
+      identityRef.current.tournamentId === requestTournamentId &&
+      identityRef.current.mode === requestMode,
+    [],
+  );
 
   /**
    * Save rank override for a qualification entry.
@@ -46,12 +64,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    */
   const handleRankOverrideSave = useCallback(
     async (qualificationId: string, rankOverride: number | null): Promise<boolean> => {
+      if (!isCurrentIdentity(tournamentId, mode)) return false;
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ qualificationId, rankOverride }),
         });
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         if (response.ok) {
           refetch();
           return true;
@@ -64,12 +84,13 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         alert(tc('networkError'));
         return false;
       } catch (err) {
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         logger.error('Failed to update rank:', { error: err, tournamentId });
         alert(tc('networkError'));
         return false;
       }
     },
-    [tournamentId, mode, refetch, logger, tc],
+    [tournamentId, mode, refetch, logger, tc, isCurrentIdentity],
   );
 
   /**
@@ -79,13 +100,16 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    */
   const handleBulkRankOverrideSave = useCallback(
     async (updates: RankOverrideUpdate[]) => {
+      if (!isCurrentIdentity(tournamentId, mode)) return false;
       try {
         for (const update of updates) {
+          if (!isCurrentIdentity(tournamentId, mode)) return false;
           const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(update),
           });
+          if (!isCurrentIdentity(tournamentId, mode)) return false;
           if (!response.ok) {
             logger.error('Bulk rank update returned non-2xx response', {
               status: response.status,
@@ -96,15 +120,17 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
             return false;
           }
         }
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         refetch();
         return true;
       } catch (err) {
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         logger.error('Failed to update ranks:', { error: err, tournamentId });
         alert(tc('networkError'));
         return false;
       }
     },
-    [tournamentId, mode, refetch, logger, tc],
+    [tournamentId, mode, refetch, logger, tc, isCurrentIdentity],
   );
 
   /**
@@ -115,12 +141,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    */
   const handleCombinedRankOverrideSave = useCallback(
     async (qualificationId: string, combinedRankOverride: number | null): Promise<boolean> => {
+      if (!isCurrentIdentity(tournamentId, mode)) return false;
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ qualificationId, combinedRankOverride }),
         });
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         if (response.ok) {
           refetch();
           return true;
@@ -133,24 +161,28 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         alert(tc('networkError'));
         return false;
       } catch (err) {
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         logger.error('Failed to update combined rank:', { error: err, tournamentId });
         alert(tc('networkError'));
         return false;
       }
     },
-    [tournamentId, mode, refetch, logger, tc],
+    [tournamentId, mode, refetch, logger, tc, isCurrentIdentity],
   );
 
   /** Save a complete cross-group sudden-death order, then refresh once. */
   const handleBulkCombinedRankOverrideSave = useCallback(
     async (updates: CombinedRankOverrideUpdate[]) => {
+      if (!isCurrentIdentity(tournamentId, mode)) return false;
       try {
         for (const update of updates) {
+          if (!isCurrentIdentity(tournamentId, mode)) return false;
           const response = await fetch(`/api/tournaments/${tournamentId}/${mode}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(update),
           });
+          if (!isCurrentIdentity(tournamentId, mode)) return false;
           if (!response.ok) {
             logger.error('Bulk combined rank update returned non-2xx response', {
               status: response.status,
@@ -161,15 +193,17 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
             return false;
           }
         }
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         refetch();
         return true;
       } catch (err) {
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         logger.error('Failed to update combined ranks:', { error: err, tournamentId });
         alert(tc('networkError'));
         return false;
       }
     },
-    [tournamentId, mode, refetch, logger, tc],
+    [tournamentId, mode, refetch, logger, tc, isCurrentIdentity],
   );
 
   /**
@@ -182,12 +216,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
    */
   const handleTvAssign = useCallback(
     (matchId: string, tvNumber: number | null) => {
+      if (!isCurrentIdentity(tournamentId, mode)) return;
       void fetch(`/api/tournaments/${tournamentId}/${mode}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, tvNumber }),
       })
         .then((response) => {
+          if (!isCurrentIdentity(tournamentId, mode)) return;
           if (!response.ok) {
             logger.error('TV assignment returned non-2xx response', {
               status: response.status,
@@ -199,12 +235,13 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
           }
         })
         .catch((err) => {
+          if (!isCurrentIdentity(tournamentId, mode)) return;
           logger.error('Failed to assign TV:', { error: err, tournamentId, matchId });
           toast.error(tc('networkError'));
           refetch();
         });
     },
-    [tournamentId, mode, logger, tc, refetch],
+    [tournamentId, mode, logger, tc, refetch, isCurrentIdentity],
   );
 
   /**
@@ -231,12 +268,14 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         matchFt?: number | null;
       },
     ): Promise<boolean> => {
+      if (!isCurrentIdentity(tournamentId, mode)) return false;
       try {
         const res = await fetch(`/api/tournaments/${tournamentId}/broadcast`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ player1Name, player2Name, ...matchInfo }),
         });
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         if (res.ok) {
           toast.success(tc('broadcastReflected'));
           return true;
@@ -244,12 +283,13 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
         toast.error(tc('broadcastError'));
         return false;
       } catch (err) {
+        if (!isCurrentIdentity(tournamentId, mode)) return false;
         logger.error('Failed to reflect broadcast:', { error: err, tournamentId });
         toast.error(tc('broadcastError'));
         return false;
       }
     },
-    [tournamentId, tc, logger],
+    [tournamentId, mode, tc, logger, isCurrentIdentity],
   );
 
   return {

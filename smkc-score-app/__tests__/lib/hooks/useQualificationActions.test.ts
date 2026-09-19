@@ -38,6 +38,22 @@ import { toast } from 'sonner';
 const TOURNAMENT_ID = 'tournament-abc';
 const MODE = 'bm' as const;
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+};
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function makeHook(refetch = jest.fn()) {
   return renderHook(() => useQualificationActions({ tournamentId: TOURNAMENT_ID, mode: MODE, refetch }));
 }
@@ -90,6 +106,62 @@ describe('useQualificationActions', () => {
       expect(alertSpy).not.toHaveBeenCalledWith('Not found');
       expect(refetch).not.toHaveBeenCalled();
     });
+
+    it('ignores a late success after navigating to another tournament', async () => {
+      const requestA = deferred<Response>();
+      (global.fetch as jest.Mock).mockReturnValue(requestA.promise);
+      const refetchA = jest.fn();
+      const refetchB = jest.fn();
+      const { result, rerender } = renderHook(
+        ({ tournamentId, refetch }) => useQualificationActions({ tournamentId, mode: 'bm', refetch }),
+        { initialProps: { tournamentId: 'A', refetch: refetchA } },
+      );
+
+      let outcomePromise!: Promise<boolean>;
+      act(() => {
+        outcomePromise = result.current.handleRankOverrideSave('qual-a', 1);
+      });
+
+      rerender({ tournamentId: 'B', refetch: refetchB });
+
+      let outcome: boolean | undefined;
+      await act(async () => {
+        requestA.resolve({ ok: true } as Response);
+        outcome = await outcomePromise;
+      });
+
+      expect(outcome).toBe(false);
+      expect(refetchA).not.toHaveBeenCalled();
+      expect(refetchB).not.toHaveBeenCalled();
+    });
+
+    it('suppresses a late transport failure after navigating to another tournament', async () => {
+      const requestA = deferred<Response>();
+      (global.fetch as jest.Mock).mockReturnValue(requestA.promise);
+      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const refetchA = jest.fn();
+      const { result, rerender } = renderHook(
+        ({ tournamentId }) => useQualificationActions({ tournamentId, mode: 'bm', refetch: refetchA }),
+        { initialProps: { tournamentId: 'A' } },
+      );
+
+      let outcomePromise!: Promise<boolean>;
+      act(() => {
+        outcomePromise = result.current.handleRankOverrideSave('qual-a', 1);
+      });
+
+      rerender({ tournamentId: 'B' });
+
+      let outcome: boolean | undefined;
+      await act(async () => {
+        requestA.reject(new Error('old transport detail'));
+        outcome = await outcomePromise;
+      });
+
+      expect(outcome).toBe(false);
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(refetchA).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleBulkRankOverrideSave', () => {
@@ -140,6 +212,37 @@ describe('useQualificationActions', () => {
       expect(alertSpy).not.toHaveBeenCalledWith('Server error');
       expect(refetch).not.toHaveBeenCalled();
       expect(returnValue).toBe(false);
+    });
+
+    it('stops the remaining bulk PATCHes when the tournament changes mid-flight', async () => {
+      const requestA = deferred<Response>();
+      (global.fetch as jest.Mock).mockReturnValueOnce(requestA.promise);
+      const refetchA = jest.fn();
+      const { result, rerender } = renderHook(
+        ({ tournamentId }) => useQualificationActions({ tournamentId, mode: 'bm', refetch: refetchA }),
+        { initialProps: { tournamentId: 'A' } },
+      );
+
+      let outcomePromise!: Promise<boolean>;
+      act(() => {
+        outcomePromise = result.current.handleBulkRankOverrideSave([
+          { qualificationId: 'q1', rankOverride: 1 },
+          { qualificationId: 'q2', rankOverride: 2 },
+        ]);
+      });
+
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      rerender({ tournamentId: 'B' });
+
+      let outcome: boolean | undefined;
+      await act(async () => {
+        requestA.resolve({ ok: true } as Response);
+        outcome = await outcomePromise;
+      });
+
+      expect(outcome).toBe(false);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(refetchA).not.toHaveBeenCalled();
     });
   });
 
@@ -259,6 +362,32 @@ describe('useQualificationActions', () => {
         }),
       );
     });
+
+    it('does not surface or refetch a late TV failure after tournament navigation', async () => {
+      const requestA = deferred<Response>();
+      (global.fetch as jest.Mock).mockReturnValue(requestA.promise);
+      const refetchA = jest.fn();
+      const refetchB = jest.fn();
+      const { result, rerender } = renderHook(
+        ({ tournamentId, refetch }) => useQualificationActions({ tournamentId, mode: 'bm', refetch }),
+        { initialProps: { tournamentId: 'A', refetch: refetchA } },
+      );
+
+      act(() => {
+        result.current.handleTvAssign('match-a', 1);
+      });
+      rerender({ tournamentId: 'B', refetch: refetchB });
+
+      await act(async () => {
+        requestA.resolve({ ok: false, status: 500 } as Response);
+        await requestA.promise;
+        await Promise.resolve();
+      });
+
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(refetchA).not.toHaveBeenCalled();
+      expect(refetchB).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleBroadcastReflect', () => {
@@ -306,6 +435,32 @@ describe('useQualificationActions', () => {
 
       expect(toast.error).toHaveBeenCalledWith('broadcastError');
       expect(returnValue).toBe(false);
+    });
+
+    it('suppresses a late broadcast success after navigating to another tournament', async () => {
+      const requestA = deferred<Response>();
+      (global.fetch as jest.Mock).mockReturnValue(requestA.promise);
+      const refetch = jest.fn();
+      const { result, rerender } = renderHook(
+        ({ tournamentId }) => useQualificationActions({ tournamentId, mode: 'bm', refetch }),
+        { initialProps: { tournamentId: 'A' } },
+      );
+
+      let outcomePromise!: Promise<boolean>;
+      act(() => {
+        outcomePromise = result.current.handleBroadcastReflect('Alice', 'Bob');
+      });
+      rerender({ tournamentId: 'B' });
+
+      let outcome: boolean | undefined;
+      await act(async () => {
+        requestA.resolve({ ok: true } as Response);
+        outcome = await outcomePromise;
+      });
+
+      expect(outcome).toBe(false);
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
     });
   });
 });
