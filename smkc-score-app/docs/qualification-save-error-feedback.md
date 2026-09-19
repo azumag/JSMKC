@@ -4,11 +4,11 @@ BM / MR / GP の予選管理画面では、管理者が入力した試合結果�
 
 ## Error contract
 
-- API が non-2xx を返し、レスポンスに具体的な `error` がある場合はその文言を優先して表示する。
-- API が具体的な `error` を返さない場合と、`fetch()` 自体が reject した場合は `common.networkError` を表示する。
+- HTTP non-2xx では response body の raw `error` / `message` を user-facing feedback に使用せず、`common.networkError` を表示する。
+- `fetch()` 自体が reject した場合も `common.networkError` を表示し、raw exception は client logger のみに残す。
 - BM / GP は既存 UI に合わせて `alert()`、MR は `toast.error()` を使用する。
-- fetch/network failure は従来どおり client logger に診断情報を残す。
-- GP では race-detail score、manual score、qualification cup assignment の3経路を同じ契約に揃える。
+- HTTP failure の logger には status、tournamentId、matchId など安全な診断 context を残す。
+- GP では race-detail score、manual score、qualification cup assignment の3経路を同じ fail-closed 契約に揃える。
 
 ## State preservation
 
@@ -18,4 +18,4 @@ API endpoint、payload、score validation、version / cup resolution、成功時
 
 ## Regression guard
 
-`__tests__/static/qualification-save-error-feedback.test.ts` が BM / MR / GP の source contract を検証し、API-specific error の優先、`common.networkError` fallback、failure 時の state preservation が失われないようにする。
+`__tests__/static/qualification-save-error-feedback.test.ts` が BM / MR / GP の source contract を検証し、raw API detail の非表示、`common.networkError` fallback、safe diagnostics、failure 時の state preservation が失われないようにする。

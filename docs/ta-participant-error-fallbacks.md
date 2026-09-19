@@ -1,15 +1,16 @@
 # TA participant error fallback contract
 
-`/tournaments/[id]/ta/participant` のユーザー向けエラー表示は、可能な限り API が返す具体的な `error` を優先する。API が具体的なエラーを返さない場合、または client-side の fetch / network 例外が発生した場合は、next-intl の `common.networkError` を fallback として使用する。
+`/tournaments/[id]/ta/participant` の user-facing error handling は fail-closed とし、backend の raw `error` / `message` prose をそのまま表示しない。qualification time submit、partner time submit、participant registration の HTTP non-2xx と client-side fetch / network rejection は next-intl の `common.networkError` を表示する。
 
-この共有キーは英語・日本語の両メッセージカタログで管理し、participant page に locale 固有のエラー文字列を直接追加しない。これにより、通常の入力検証や成功通知と同様に、通信失敗時も現在の locale に従って表示される。
+Phase 3 report だけは API の stable machine-readable `code` を既知の localized message に mapping する。現在の既知 code は `NO_OPEN_ROUND`、`ROUND_ALREADY_SUBMITTED`、`ROUND_MISMATCH`、`PLAYER_REPORT_DISABLED`、`PLAYER_ELIMINATED` で、未知 code は `common.networkError` に fail closed する。response body の raw `error` prose は user-facing copy に使わない。
 
-## 優先順位
+この共有 fallback と code mapping は locale catalog で管理し、participant page に locale 固有の network error 文字列を直接追加しない。
 
-1. API response に具体的な `error` がある場合は、その内容を表示する。
-2. API response に具体的な `error` がない場合は `common.networkError` を表示する。
-3. client-side 例外が `Error` として具体的な message を持つ場合は既存どおりその message を表示し、message を取得できない場合は `common.networkError` を使用する。
+## 診断情報と UI の境界
 
-logger に送る診断用メッセージは user-facing text ではないため、この契約の対象外とする。
+- user-facing: localized validation / known Phase 3 code message / `common.networkError`
+- HTTP failure logger: status、operation、entry/player/round などの安全な context と、Phase 3 の stable `code`
+- transport failure logger: raw exception は診断用に保持するが UI には出さない
+- qualification submit / registration の HTTP failure body は user-facing message のために parse しない
 
-この契約は表示 fallback のみを対象とし、API の status code / error schema、認証、TA の時刻検証、DB、スコア計算、debugMode の挙動は変更しない。
+通常の入力検証、成功通知、API status code / error schema、認証、TA の時刻検証、DB、スコア計算、debugMode の挙動は変更しない。

@@ -1,16 +1,16 @@
 # Qualification confirmation error fallback contract
 
-BM / MR / GP の qualification confirmed 切り替えは、API が返す具体的なエラーを優先し、それがない場合は next-intl の共有キー `common.networkError` を使用する。
+BM / MR / GP の qualification confirmed 切り替えは fail-closed とし、HTTP non-2xx の response body に含まれる raw `error` / `message` を user-facing feedback に使用しない。HTTP failure と fetch / network rejection は next-intl の共有キー `common.networkError` を表示する。
 
-## 表示優先順位
+## 表示契約
 
-1. API response body に具体的な `error` がある場合は、その内容を表示する。
-2. non-2xx response に具体的な `error` がない場合は `common.networkError` を表示する。
-3. fetch / network rejection が発生した場合も logger へ記録したうえで `common.networkError` を表示する。
+1. HTTP non-2xx では response body の raw error prose を表示せず `common.networkError` を使用する。
+2. fetch / network rejection でも logger へ診断情報を記録したうえで `common.networkError` を表示する。
+3. HTTP failure の logger には status、tournamentId など安全な context を残し、transport exception の raw detail は logger のみに保持する。
 
 ## 既存 UI surface
 
-この変更では通知 UI 自体は変更しない。
+この契約では通知 UI 自体は変更しない。
 
 - BM: `alert`
 - MR: `toast.error`
@@ -23,6 +23,7 @@ success 時の `refetch()`、確認ダイアログ、mode ごとの `*Qualificat
 `__tests__/static/qualification-confirm-error-fallbacks.test.ts` で以下を固定する。
 
 - `Failed to update qualification status` の user-visible hardcode を再導入しない。
-- API の具体的な `error` が `common.networkError` より優先される。
-- fetch rejection でも mode ごとの既存 notifier から `common.networkError` を表示する。
+- API の raw `error` を notifier に渡さない。
+- HTTP failure と fetch rejection の両方で mode ごとの既存 notifier から `common.networkError` を表示する。
+- HTTP status を client logger に残す。
 - `messages/en.json` と `messages/ja.json` の両方に `common.networkError` が存在する。
