@@ -428,7 +428,7 @@ export default function BattleModePageClient({
           <div className="mt-2 flex items-center gap-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
             {qualificationConfirmed && (
-              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
                 {tc('qualificationConfirmed')}
               </span>
             )}
