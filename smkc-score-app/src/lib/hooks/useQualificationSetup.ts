@@ -55,10 +55,7 @@ export function useQualificationSetup({ tournamentId, mode, refetch }: UseQualif
     // them. A new tournament/mode must not inherit the old request lock or UI
     // state, and the old request should be cancelled whenever possible.
     const previousRequest = requestRef.current;
-    if (
-      previousRequest &&
-      (previousRequest.tournamentId !== tournamentId || previousRequest.mode !== mode)
-    ) {
+    if (previousRequest && (previousRequest.tournamentId !== tournamentId || previousRequest.mode !== mode)) {
       previousRequest.controller.abort();
       requestRef.current = null;
     }
@@ -79,8 +76,7 @@ export function useQualificationSetup({ tournamentId, mode, refetch }: UseQualif
   const submitSetup = useCallback(
     async (players: readonly SetupPlayer[]): Promise<SubmitSetupResult> => {
       const existingRequest = requestRef.current;
-      const existingRequestIsCurrent =
-        existingRequest?.tournamentId === tournamentId && existingRequest.mode === mode;
+      const existingRequestIsCurrent = existingRequest?.tournamentId === tournamentId && existingRequest.mode === mode;
       if (savingRef.current && existingRequestIsCurrent) {
         const error: QualificationSetupError = {
           kind: 'validation',
