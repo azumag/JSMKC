@@ -112,15 +112,19 @@ describe('TAEliminationPhase — loading', () => {
 /* ------------------------------------------------------------------ */
 
 describe('TAEliminationPhase — error', () => {
-  it('TC-2914: shows error message and Retry button after fetch failure', async () => {
+  it('TC-2914: shows generic error and Retry button after fetch failure without parsing the body', async () => {
+    const failureJson = jest.fn().mockResolvedValue({ error: 'Server unavailable' });
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
-      json: jest.fn().mockResolvedValue({ error: 'Server unavailable' }),
+      status: 503,
+      json: failureJson,
     });
     render(<TAEliminationPhase {...defaultProps} />);
     await waitFor(() => {
-      expect(screen.getByText('Server unavailable')).toBeInTheDocument();
+      expect(screen.getByText('Network error — please try again')).toBeInTheDocument();
     });
+    expect(screen.queryByText('Server unavailable')).not.toBeInTheDocument();
+    expect(failureJson).not.toHaveBeenCalled();
     // "retryLoad" key → "Retry" via en.json i18n mock
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
