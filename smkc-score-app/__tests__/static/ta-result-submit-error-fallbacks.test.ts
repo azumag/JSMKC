@@ -24,12 +24,16 @@ describe('TA result submit error fallback contract (issue #3590 / #3864)', () =>
     expect(submit).not.toContain("submitError instanceof Error ? submitError.message : 'Failed to submit results'");
   });
 
-  it('keeps the Phase 1/2 legacy contract visible until the remaining #3864 slice lands', () => {
+  it('fails closed for Phase 1/2 HTTP failures while preserving safe diagnostics', () => {
     const source = read('src', 'components', 'tournament', 'ta-elimination-phase.tsx');
-    expect(source).toContain("setSaveError(errorData.error || tCommon('networkError'));");
-    expect(source).toContain("logger.error('Failed to submit TA elimination results:'");
-    expect(source).toContain("setSaveError(tCommon('networkError'));");
-    expect(source).not.toContain("errorData.error || 'Failed to submit results'");
-    expect(source).not.toContain("err instanceof Error ? err.message : 'Failed to submit results'");
+    const submit = block(source, 'const handleSubmitResults', 'const {\n    pendingSuddenDeath');
+
+    expect(submit).toContain("logger.error('Failed to submit TA elimination results:'");
+    expect(submit).toContain('status: response.status');
+    expect(submit).toContain('roundNumber: currentRound.roundNumber');
+    expect(submit).toContain("setSaveError(tCommon('networkError'));");
+    expect(submit).not.toContain('errorData.error');
+    expect(submit).not.toContain('response.json().catch');
+    expect(submit).not.toContain("err instanceof Error ? err.message : 'Failed to submit results'");
   });
 });
