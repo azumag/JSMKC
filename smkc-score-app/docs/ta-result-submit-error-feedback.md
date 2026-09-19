@@ -1,14 +1,17 @@
 # TA result submit error feedback contract
 
-TA Phase 1/2 elimination と Phase 3 finals の round result 送信は、API 固有エラーと generic transport failure を分離する。
+TA round result submit では、ユーザー向けエラーと診断情報を分離する。Phase 3 finals は #3864 以降 fail-closed とし、HTTP failure の backend prose を UI に露出しない。
 
-## 表示契約
+## Phase 3
 
-- report API が具体的な `error` を返す non-2xx では、そのメッセージを優先する。
-- API error のない non-2xx と non-JSON error body は `common.networkError` を表示する。
-- `fetch()` rejection や success body の JSON parse failure は `common.networkError` を表示する。
-- raw runtime error は client logger に `tournamentId` と phase/action context とともに残す。
+- `submit_results` の non-2xx は response body の `error` / text を UI 用に解析せず `common.networkError` を表示する。
+- `fetch()` rejection や success body の JSON parse failureも `common.networkError` を表示する。
+- HTTP status、tournamentId、phase、roundNumber は client logger に残す。transport exception の detail も診断用 logger にのみ残す。
 - generic fallback として英語ハードコードや raw `Error.message` をユーザーへ露出しない。
+
+## Phase 1 / Phase 2
+
+`ta-elimination-phase.tsx` は #3864 の残りの実装単位で Phase 3 と同じ fail-closed 契約へ移行する。それまでは既存の concrete API error fallback が残る。
 
 ## 非変更事項
 
