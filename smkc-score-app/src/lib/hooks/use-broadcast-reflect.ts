@@ -25,12 +25,24 @@ interface BroadcastEntry {
 
 type BroadcastStatus = 'idle' | 'success' | 'error';
 
+interface BroadcastState {
+  tournamentId: string;
+  status: BroadcastStatus;
+}
+
 export function useBroadcastReflect(
   tournamentId: string,
   tvAssignments: Record<string, number | null>,
   entries: BroadcastEntry[],
 ) {
-  const [broadcastStatus, setBroadcastStatus] = useState<BroadcastStatus>('idle');
+  const [broadcastState, setBroadcastState] = useState<BroadcastState>({
+    tournamentId,
+    status: 'idle',
+  });
+  // Status belongs to the tournament that produced it. A route transition can
+  // reuse this hook instance before the previous request settles, so fail closed
+  // to idle instead of showing another tournament's result during that window.
+  const broadcastStatus = broadcastState.tournamentId === tournamentId ? broadcastState.status : 'idle';
   // The status reset is delayed for operator feedback, so keep the timer handle
   // to prevent stale setState work after unmount or after a newer reflect action.
   const idleResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,21 +55,34 @@ export function useBroadcastReflect(
     idleResetTimerRef.current = null;
   }, []);
 
-  const scheduleIdleReset = useCallback(() => {
-    clearIdleResetTimer();
-    idleResetTimerRef.current = setTimeout(() => {
-      idleResetTimerRef.current = null;
-      setBroadcastStatus('idle');
-    }, 3000);
-  }, [clearIdleResetTimer]);
+  const scheduleIdleReset = useCallback(
+    (ownerTournamentId: string, requestGeneration: number) => {
+      clearIdleResetTimer();
+      idleResetTimerRef.current = setTimeout(() => {
+        idleResetTimerRef.current = null;
+        if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
+        setBroadcastState({ tournamentId: ownerTournamentId, status: 'idle' });
+      }, 3000);
+    },
+    [clearIdleResetTimer],
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      requestGenerationRef.current += 1;
       clearIdleResetTimer();
     };
   }, [clearIdleResetTimer]);
+
+  // A tournament route transition reuses the same hook instance. Invalidate
+  // every in-flight request and delayed reset owned by the previous tournament
+  // without setting state from the effect; broadcastStatus is derived by owner.
+  useEffect(() => {
+    requestGenerationRef.current += 1;
+    clearIdleResetTimer();
+  }, [tournamentId, clearIdleResetTimer]);
 
   /** Push TV1→player1Name / TV2→player2Name to the broadcast overlay. */
   const handleBroadcastReflect = useCallback(async () => {
@@ -78,12 +103,12 @@ export function useBroadcastReflect(
         }),
       });
       if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
-      setBroadcastStatus(res.ok ? 'success' : 'error');
-      scheduleIdleReset();
+      setBroadcastState({ tournamentId, status: res.ok ? 'success' : 'error' });
+      scheduleIdleReset(tournamentId, requestGeneration);
     } catch {
       if (!isMountedRef.current || requestGeneration !== requestGenerationRef.current) return;
-      setBroadcastStatus('error');
-      scheduleIdleReset();
+      setBroadcastState({ tournamentId, status: 'error' });
+      scheduleIdleReset(tournamentId, requestGeneration);
     }
   }, [clearIdleResetTimer, entries, scheduleIdleReset, tournamentId, tvAssignments]);
 
@@ -91,8 +116,8 @@ export function useBroadcastReflect(
   const resetBroadcastStatus = useCallback(() => {
     requestGenerationRef.current += 1;
     clearIdleResetTimer();
-    setBroadcastStatus('idle');
-  }, [clearIdleResetTimer]);
+    setBroadcastState({ tournamentId, status: 'idle' });
+  }, [clearIdleResetTimer, tournamentId]);
 
   /**
    * True when any active player is assigned TV3 or TV4, which will NOT be
