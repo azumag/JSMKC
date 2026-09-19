@@ -53,8 +53,14 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
         }
         const json = await response.json();
         const tournament = json.data ?? json;
+        const loadedPublicModes = tournament?.publicModes;
+        if (!Array.isArray(loadedPublicModes) || !loadedPublicModes.every((value) => typeof value === 'string')) {
+          logger.error('Tournament publish state response has invalid publicModes', { tournamentId });
+          if (!cancelled) setError('load');
+          return;
+        }
         if (!cancelled) {
-          setPublicModes(Array.isArray(tournament?.publicModes) ? (tournament.publicModes as string[]) : []);
+          setPublicModes(loadedPublicModes);
           setError(null);
         }
       } catch (err) {

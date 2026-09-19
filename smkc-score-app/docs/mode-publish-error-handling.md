@@ -6,12 +6,20 @@ initial read failure must not be treated as an empty list.
 
 ## Initial load failures
 
-If the initial tournament summary request returns a non-success response or the
-request itself rejects, the hook reports an `error: "load"` state. The UI shows
+If the initial tournament summary request returns a non-success response, the
+request itself rejects, or a successful response does not contain a string-array
+`publicModes`, the hook reports an `error: "load"` state. The UI shows
 `common.networkError`, keeps the publish switch disabled, and exposes a
 `common.tryAgain` action. This prevents a PUT from being constructed from an
 unknown/default publish state and accidentally overwriting visibility for other
-modes.
+modes. A legitimate `publicModes: []` remains a valid known state; only a missing
+or malformed field is rejected.
+
+The summary API explicitly selects `publicModes`, so a missing field is treated as
+response-contract drift rather than backward-compatible "no public modes" data.
+Malformed payload contents are not copied into user-facing messages or logs; the
+client logger records only that the publish-state response contract was invalid
+and the tournament identifier needed to diagnose the request.
 
 The retry action only re-runs the tournament summary read through the existing
 `fetchWithRetry` path. It does not mutate tournament state. A successful retry
