@@ -25,8 +25,7 @@ export interface CreatePlayerFormData {
 }
 
 export type CreatePlayerResult =
-  | { ok: true; recovered: boolean; data: Record<string, unknown> }
-  | { ok: false; error: null; code: string | null };
+  { ok: true; recovered: boolean; data: Record<string, unknown> } | { ok: false; error: null; code: string | null };
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 800;
