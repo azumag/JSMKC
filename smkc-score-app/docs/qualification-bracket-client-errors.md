@@ -4,4 +4,4 @@ Qualification bracket reset/generate controls must not surface backend response-
 
 This keeps diagnostics available without turning upstream or backend error strings into UI content. Successful reset/generate behavior, request payloads, qualification rules, and loading-state cleanup are unchanged.
 
-As part of #3842, BM and GP follow this fail-closed contract. MR still has the legacy response-body fallback and remains tracked by the temporary raw-error debt guard until its follow-up migration is merged. TA page-local mutation debt is tracked separately by the same guard.
+As part of #3842, BM, MR, and GP follow this fail-closed contract. TA page-local mutation debt remains tracked separately by the temporary raw-error debt guard until its follow-up migration is merged.
