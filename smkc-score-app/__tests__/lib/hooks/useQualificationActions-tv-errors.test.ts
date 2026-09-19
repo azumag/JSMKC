@@ -51,10 +51,12 @@ describe('useQualificationActions TV assignment feedback', () => {
     expect(refetch).not.toHaveBeenCalled();
   });
 
-  it('shows the concrete API error and refetches after a non-ok response', async () => {
+  it('uses common.networkError without exposing API detail after a non-ok response', async () => {
+    const json = jest.fn(async () => ({ error: 'TV slot is unavailable' }));
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
-      json: async () => ({ error: 'TV slot is unavailable' }),
+      status: 409,
+      json,
     } as unknown as Response);
     const refetch = jest.fn();
     const { result } = makeHook(refetch);
@@ -63,23 +65,9 @@ describe('useQualificationActions TV assignment feedback', () => {
       result.current.handleTvAssign('match-1', 2);
     });
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('TV slot is unavailable'));
-    expect(refetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('uses common.networkError and refetches when a non-ok response has no API error', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: false,
-      json: async () => ({}),
-    } as unknown as Response);
-    const refetch = jest.fn();
-    const { result } = makeHook(refetch);
-
-    act(() => {
-      result.current.handleTvAssign('match-1', null);
-    });
-
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('networkError'));
+    expect(toast.error).not.toHaveBeenCalledWith('TV slot is unavailable');
+    expect(json).not.toHaveBeenCalled();
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 

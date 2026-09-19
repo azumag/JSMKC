@@ -53,10 +53,12 @@ describe('useQualificationActions single-rank result contract', () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('returns false after a non-ok rank override save', async () => {
+  it('returns false and hides API detail after a non-ok rank override save', async () => {
+    const json = jest.fn(async () => ({ error: 'Rank is locked' }));
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
-      json: async () => ({ error: 'Rank is locked' }),
+      status: 409,
+      json,
     } as unknown as Response);
     const refetch = jest.fn();
     const { result } = makeHook(refetch);
@@ -67,7 +69,9 @@ describe('useQualificationActions single-rank result contract', () => {
     });
 
     expect(saved).toBe(false);
-    expect(alertSpy).toHaveBeenCalledWith('Rank is locked');
+    expect(alertSpy).toHaveBeenCalledWith('networkError');
+    expect(alertSpy).not.toHaveBeenCalledWith('Rank is locked');
+    expect(json).not.toHaveBeenCalled();
     expect(refetch).not.toHaveBeenCalled();
   });
 
