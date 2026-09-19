@@ -17,7 +17,7 @@ export function extractArrayData<T>(payload: unknown): T[] {
     return payload as T[];
   }
 
-  if (!payload || typeof payload !== "object") {
+  if (!payload || typeof payload !== 'object') {
     return [];
   }
 
@@ -27,7 +27,7 @@ export function extractArrayData<T>(payload: unknown): T[] {
     return data as T[];
   }
 
-  if (!data || typeof data !== "object") {
+  if (!data || typeof data !== 'object') {
     return [];
   }
 
@@ -44,15 +44,15 @@ export interface PaginationMeta {
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 function isPositiveInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
 }
 
 function isPaginationMeta(value: unknown): value is PaginationMeta {
-  if (!value || typeof value !== "object") {
+  if (!value || typeof value !== 'object') {
     return false;
   }
 
@@ -74,7 +74,7 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
  * - { success: true, data: { data: T[], meta: ... } }
  */
 export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
-  if (!payload || typeof payload !== "object") {
+  if (!payload || typeof payload !== 'object') {
     return null;
   }
 
@@ -84,7 +84,7 @@ export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
   }
 
   const data = (payload as { data?: unknown }).data;
-  if (!data || typeof data !== "object") {
+  if (!data || typeof data !== 'object') {
     return null;
   }
 
