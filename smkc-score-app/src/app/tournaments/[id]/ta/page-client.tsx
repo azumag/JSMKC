@@ -257,9 +257,9 @@ export default function TimeAttackPageClient({
   const phaseActionInFlight = promotingPhase !== null || resettingPhase !== null;
 
   // === Data Fetching ===
-  // Fetch tournament data and player list in parallel. Concrete API
-  // errors remain user-facing; transport/client failures are logged
-  // here and normalized before usePolling can expose them to the UI.
+  // Fetch tournament data and player list in parallel. HTTP/transport failures
+  // are logged with request context and normalized before usePolling can expose
+  // them to the UI; response-body details are deliberately not user-facing.
   const fetchTournamentData = useCallback(async () => {
     let taResponse: Response;
     let playersResult: Player[] | null;
@@ -275,19 +275,7 @@ export default function TimeAttackPageClient({
     }
 
     if (!taResponse.ok) {
-      const errorData = await taResponse.json().catch((err) => {
-        const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
-        logger.error('Failed to parse TA qualification error response:', {
-          ...metadata,
-          status: taResponse.status,
-          tournamentId,
-        });
-        return {};
-      });
-      if (typeof errorData.error === 'string' && errorData.error.trim()) {
-        throw new Error(errorData.error);
-      }
-      logger.error('TA qualification fetch returned a generic error response:', {
+      logger.error('Failed to load TA qualification data:', {
         status: taResponse.status,
         tournamentId,
       });
@@ -409,10 +397,8 @@ export default function TimeAttackPageClient({
   const handleSaveSetup = async () => {
     if (saving) return;
 
-    const responseError = async (response: Response, operation: string) => {
-      const payload = await response.json().catch(() => ({}));
-      return new SetupSaveError(payload.error || tc('networkError'), response.status, operation);
-    };
+    const responseError = (response: Response, operation: string) =>
+      new SetupSaveError(tc('networkError'), response.status, operation);
 
     setSaving(true);
     setSaveError(null);
@@ -426,7 +412,7 @@ export default function TimeAttackPageClient({
         if (setupByPlayerId.has(e.playerId)) continue;
         const res = await fetch(`/api/tournaments/${tournamentId}/ta?entryId=${e.id}`, { method: 'DELETE' });
         if (!res.ok && res.status !== 404) {
-          throw await responseError(res, 'remove_player');
+          throw responseError(res, 'remove_player');
         }
       }
 
@@ -444,7 +430,7 @@ export default function TimeAttackPageClient({
           }),
         });
         if (!res.ok) {
-          throw await responseError(res, 'add_players');
+          throw responseError(res, 'add_players');
         }
       }
 
@@ -452,7 +438,7 @@ export default function TimeAttackPageClient({
        * reconcile seeding + partner per entry. */
       const refreshed = await fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`);
       if (!refreshed.ok) {
-        throw await responseError(refreshed, 'refetch_entries');
+        throw responseError(refreshed, 'refetch_entries');
       }
       const refreshedJson = await refreshed.json();
       const refreshedEntries: TTEntry[] = (refreshedJson.data ?? refreshedJson).entries ?? [];
@@ -474,7 +460,7 @@ export default function TimeAttackPageClient({
             body: JSON.stringify({ action: 'bulk_update_handicaps', updates: handicapUpdates }),
           });
           if (!handicapResponse.ok) {
-            throw await responseError(handicapResponse, 'update_handicaps');
+            throw responseError(handicapResponse, 'update_handicaps');
           }
         }
       }
@@ -497,7 +483,7 @@ export default function TimeAttackPageClient({
             }),
           });
           if (!res.ok) {
-            throw await responseError(res, 'update_seeding');
+            throw responseError(res, 'update_seeding');
           }
         }
 
@@ -513,7 +499,7 @@ export default function TimeAttackPageClient({
             }),
           });
           if (!res.ok) {
-            throw await responseError(res, 'update_partner');
+            throw responseError(res, 'update_partner');
           }
         }
       }
@@ -523,8 +509,12 @@ export default function TimeAttackPageClient({
       toast.success(t('pairsSaved'));
     } catch (err) {
       const isSetupSaveError = err instanceof SetupSaveError;
-      const userMessage = isSetupSaveError ? err.message : tc('networkError');
-      const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
+      const userMessage = tc('networkError');
+      const metadata = isSetupSaveError
+        ? {}
+        : err instanceof Error
+          ? { message: err.message, stack: err.stack }
+          : { error: err };
       logger.error('Failed to save TA qualification setup:', {
         ...metadata,
         status: isSetupSaveError ? err.status : undefined,
@@ -608,17 +598,16 @@ export default function TimeAttackPageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const json = await response.json().catch(() => ({}));
       if (!response.ok) {
         logger.error('Failed to promote TA phase:', {
           status: response.status,
-          error: json.error,
           action,
           tournamentId,
         });
-        alert(json.error || tc('networkError'));
+        alert(tc('networkError'));
         return;
       }
+      const json = await response.json().catch(() => ({}));
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, skipped } }
       const data = json.data ?? json;
       // Refresh phase status after promotion
@@ -657,15 +646,13 @@ export default function TimeAttackPageClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reset_phase', phase: stage }),
       });
-      const json = await response.json().catch(() => ({}));
       if (!response.ok) {
         logger.error('Failed to reset TA phase:', {
           status: response.status,
-          error: json.error,
           stage,
           tournamentId,
         });
-        alert(json.error || tc('networkError'));
+        alert(tc('networkError'));
         return;
       }
       // Refresh phase status so the reset stage's card and its promotion
@@ -696,13 +683,11 @@ export default function TimeAttackPageClient({
         body: JSON.stringify({ frozenStages: newFrozen }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         logger.error('Failed to update TA qualification freeze state:', {
           status: response.status,
-          error: errorData.error,
           tournamentId,
         });
-        toast.error(errorData.error || tc('networkError'));
+        toast.error(tc('networkError'));
         return;
       }
       refetch();
@@ -791,14 +776,12 @@ export default function TimeAttackPageClient({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         logger.error('Failed to save TA qualification times:', {
           status: response.status,
-          error: errorData.error,
           tournamentId,
           entryId: selectedEntry.id,
         });
-        setSaveError(errorData.error || tc('networkError'));
+        setSaveError(tc('networkError'));
         return;
       }
 
@@ -1647,7 +1630,7 @@ export default function TimeAttackPageClient({
                               {t('editTimes')}
                             </Button>
                           ) : (
-                            /* View button: read-only access for all other users */
+                            /* View button: read-only access for all other users */}
                             <Button size="sm" variant="outline" onClick={() => openViewTimesDialog(entry)}>
                               <Eye className="h-3 w-3 mr-1" />
                               {t('viewTimes')}
