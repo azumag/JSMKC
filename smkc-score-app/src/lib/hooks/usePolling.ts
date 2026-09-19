@@ -170,10 +170,7 @@ export interface UsePollingOptions {
  * @param options - Polling configuration (see UsePollingOptions)
  * @returns Object with data, loading state, error, and control functions
  */
-export function usePolling<T>(
-  fetchFn: () => Promise<T>,
-  options: UsePollingOptions = {}
-) {
+export function usePolling<T>(fetchFn: () => Promise<T>, options: UsePollingOptions = {}) {
   const {
     enabled = true,
     interval = POLLING_INTERVAL,
@@ -363,11 +360,7 @@ export function usePolling<T>(
      */
     const scheduleNext = () => {
       if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
-      if (
-        pauseWhenHidden &&
-        typeof document !== 'undefined' &&
-        document.hidden
-      ) {
+      if (pauseWhenHidden && typeof document !== 'undefined' && document.hidden) {
         // Hidden tab: do not schedule. visibilitychange handler resumes.
         return;
       }
