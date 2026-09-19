@@ -26,7 +26,9 @@ describe('TA qualification admin mutation error fallback contract', () => {
     expect(promoteBlock).toContain('message: err.message');
     expect(promoteBlock).toContain('stack: err.stack');
     expect(promoteBlock).toContain('await fetchPhaseStatus();');
-    expect(promoteBlock.indexOf('if (!response.ok)')).toBeLessThan(promoteBlock.indexOf('const json = await response.json()'));
+    expect(promoteBlock.indexOf('if (!response.ok)')).toBeLessThan(
+      promoteBlock.indexOf('const json = await response.json()'),
+    );
   });
 
   it('uses common.networkError for reset HTTP failures without parsing the response body', () => {
