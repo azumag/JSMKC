@@ -1,16 +1,17 @@
 # Overall ranking error feedback contract
 
-`/tournaments/[id]/overall-ranking` は、利用者向けエラーと診断情報を分離する。
+この文書は legacy 名を維持するための案内である。overall ranking の client-side error handling の正本は [`overall-ranking-client-errors.md`](./overall-ranking-client-errors.md) とする。
 
-## 表示契約
+## 現行契約
 
-- GET/POST API が具体的な `error` 文字列を返す場合は、そのメッセージを優先する。
-- GET の fetch rejection、API error のない non-2xx、error のない invalid response は `common.networkError` を表示する。
-- 200 response でも body が malformed JSON で parse できない場合は generic failure として `common.networkError` を表示する。
-- 再計算 POST の fetch rejection と API error のない non-2xx も `common.networkError` を表示する。
-- runtime の `Error.message` は generic fallback としてユーザーへ露出しない。
-- generic failure の raw error、HTTP status、`tournamentId` は client logger に残す。
+- GET / polling / recalculation POST の HTTP non-2xx response body は、user-facing error 文言を取り出す目的では解析しない。
+- backend の `error` / `message` prose や runtime の `Error.message` をそのまま UI に表示せず、generic failure は localized `common.networkError` に fail-closed する。
+- malformed JSON や structurally invalid な 2xx response も成功扱いせず、`common.networkError` を表示する。
+- client logger には `tournamentId`、HTTP status、failure stage など安全な診断情報を残せるが、server prose を UI contract として扱わない。
+- 将来 distinct な user-facing error が必要な場合は stable machine-readable code を追加し、localized copy へ明示的に map する。
 
 ## 非変更事項
 
 overall ranking の算出、API endpoint/schema、polling interval/cache key、再計算成功後の `refetch()`、admin 権限と画面構造は変更しない。
+
+詳細と read / polling / recalculation ごとの契約は canonical document を参照する。Follow-up: #3874 / #3871。
