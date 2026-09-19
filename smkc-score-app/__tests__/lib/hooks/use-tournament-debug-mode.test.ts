@@ -9,6 +9,7 @@
  * - TC-2606: Returns true when API response contains debugMode=true
  * - TC-2607: Returns false when response.ok=false (early return, no state update)
  * - TC-2608: Returns false on fetch failure without throwing (best-effort)
+ * - Tournament changes reset stale debugMode before/following a failed reload
  * - TC-2609: Unwraps json.data wrapper from createSuccessResponse format
  * - TC-2610: Cancels pending state update when hook unmounts (cleanup guard)
  */
@@ -68,6 +69,28 @@ describe('useTournamentDebugMode', () => {
     const { result } = renderHook(() => useTournamentDebugMode(TOURNAMENT_ID));
 
     await waitFor(() => expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1));
+    expect(result.current).toBe(false);
+  });
+
+  it('fails closed when the next tournament debugMode reload fails', async () => {
+    mockedFetchWithRetry
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ debugMode: true }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+
+    const { result, rerender } = renderHook(
+      ({ tournamentId }: { tournamentId: string }) => useTournamentDebugMode(tournamentId),
+      { initialProps: { tournamentId: 'tournament-old' } },
+    );
+
+    await waitFor(() => expect(result.current).toBe(true));
+
+    rerender({ tournamentId: 'tournament-new' });
+
+    await waitFor(() => expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2));
+    expect(mockedFetchWithRetry).toHaveBeenLastCalledWith('/api/tournaments/tournament-new?fields=summary');
     expect(result.current).toBe(false);
   });
 
