@@ -12,6 +12,8 @@ BM / MR / GP finals の管理 UI では、HTTP failure の backend prose をユ�
 
 ## Implementation status
 
-Issue #3889 の段階的な適用として、BM finals の TV number PATCH、starting course PATCH、score PUT はこの契約に移行済みで、non-2xx response body を parse しない回帰テストを持つ。
+Issue #3889 の適用として、以下の admin write path はこの契約に移行済みで、non-2xx response body を parse しない回帰テストを持つ。
 
-MR finals の TV number PATCH / match result PUT と GP finals の TV number PATCH / score PUT は #3889 の残件として同じ契約へ移行する。
+- BM finals: TV number PATCH、starting course PATCH、score PUT
+- MR finals: TV number PATCH、match result PUT
+- GP finals: TV number PATCH、score PUT
