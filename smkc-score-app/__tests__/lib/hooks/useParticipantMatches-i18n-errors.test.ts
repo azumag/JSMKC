@@ -53,7 +53,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('useParticipantMatches localized generic errors (issue #3638)', () => {
+describe('useParticipantMatches localized generic errors (issue #3866)', () => {
   it('surfaces generic initial non-2xx as the supplied localized network error', async () => {
     mockedFetchWithRetry.mockResolvedValue({
       ok: true,
@@ -76,16 +76,16 @@ describe('useParticipantMatches localized generic errors (issue #3638)', () => {
       mode: 'bm',
       source: 'matches',
       status: 503,
-      error: null,
     });
   });
 
-  it('preserves a concrete API error from the initial data request', async () => {
+  it('does not parse or display raw API error prose from the initial data request', async () => {
+    const errorJson = jest.fn(async () => ({ error: 'Tournament is unavailable: internal shard alpha' }));
     mockedFetchWithRetry.mockResolvedValue({
       ok: false,
       status: 409,
-      json: async () => ({ error: 'Tournament is unavailable' }),
-    } as Response);
+      json: errorJson,
+    } as unknown as Response);
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
       json: async () => ({ data: { matches: [] } }),
@@ -94,7 +94,15 @@ describe('useParticipantMatches localized generic errors (issue #3638)', () => {
     const { result } = renderParticipantHook();
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.error).toBe('Tournament is unavailable');
+    expect(result.current.error).toBe(localizedNetworkError);
+    expect(result.current.error).not.toContain('internal shard alpha');
+    expect(errorJson).not.toHaveBeenCalled();
+    expect(mockLoggerError).toHaveBeenCalledWith('Participant data fetch returned non-2xx:', {
+      tournamentId,
+      mode: 'bm',
+      source: 'tournament',
+      status: 409,
+    });
   });
 
   it('does not commit partial state when one successful response body cannot be parsed', async () => {
@@ -117,14 +125,15 @@ describe('useParticipantMatches localized generic errors (issue #3638)', () => {
     expect(result.current.matches).toEqual([]);
   });
 
-  it('uses the localized fallback for generic report non-2xx failures', async () => {
+  it('does not parse or display raw API error prose from report non-2xx failures', async () => {
     mockedFetchWithRetry.mockResolvedValue({
       ok: true,
       json: async () => ({ data: { id: tournamentId, name: 'Tournament' } }),
     } as Response);
+    const errorJson = jest.fn(async () => ({ error: 'Score invalid: internal validator detail' }));
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { matches: [] } }) })
-      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) });
+      .mockResolvedValueOnce({ ok: false, status: 422, json: errorJson });
 
     const { result } = renderParticipantHook();
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -134,6 +143,14 @@ describe('useParticipantMatches localized generic errors (issue #3638)', () => {
     });
 
     expect(result.current.error).toBe(localizedNetworkError);
+    expect(result.current.error).not.toContain('internal validator detail');
+    expect(errorJson).not.toHaveBeenCalled();
+    expect(mockLoggerError).toHaveBeenCalledWith('Report submission returned non-2xx:', {
+      tournamentId,
+      mode: 'bm',
+      matchId: 'match-1',
+      status: 422,
+    });
   });
 
   it('hides request-level report details while retaining them in the logger', async () => {
