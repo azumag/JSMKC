@@ -86,13 +86,15 @@ describe('ModePublishSwitch', () => {
     expect(screen.queryByText('Unpublished')).toBeNull();
   });
 
-  it('TC-2665: switch is disabled while loading', () => {
+  it('TC-2665: switch is disabled while loading and does not claim a publish state', () => {
     mockUseModePublish.mockReturnValue({ ...defaultPublishState, loading: true });
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
     const switchEl = screen.getByRole('switch');
     expect(switchEl).toBeDisabled();
+    expect(screen.queryByText('Published')).toBeNull();
+    expect(screen.queryByText('Unpublished')).toBeNull();
   });
 
   it('TC-2666: switch is disabled while updating', () => {
@@ -137,22 +139,25 @@ describe('ModePublishSwitch', () => {
     expect(screen.getByRole('switch', { name: 'バトルモードの公開設定' })).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('TC-2669: initial load failure shows network error and disables switch', () => {
+  it('TC-2669: initial load failure shows network error, disables switch, and keeps publish state unknown', () => {
     mockUseModePublish.mockReturnValue({ ...defaultPublishState, error: 'load' });
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Network error');
     expect(screen.getByRole('switch')).toBeDisabled();
+    expect(screen.queryByText('Published')).toBeNull();
+    expect(screen.queryByText('Unpublished')).toBeNull();
   });
 
-  it('TC-2670: update failure shows network error but allows retry', () => {
+  it('TC-2670: update failure shows network error but allows retry and preserves the known state', () => {
     mockUseModePublish.mockReturnValue({ ...defaultPublishState, error: 'update' });
 
     render(<ModePublishSwitch tournamentId="t-1" mode="BM" modeLabelKey="battleMode" />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('Network error');
     expect(screen.getByRole('switch')).toBeEnabled();
+    expect(screen.getByText('Unpublished')).toBeInTheDocument();
   });
 });
 
