@@ -14,6 +14,9 @@ export function useTournamentDebugMode(tournamentId: string): boolean {
   const [debugMode, setDebugMode] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    // Fail closed for each tournament identity. Without this reset, a failed
+    // fetch after navigation could keep the previous tournament's debug UI visible.
+    setDebugMode(false);
     (async () => {
       try {
         const res = await fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`);
@@ -22,7 +25,7 @@ export function useTournamentDebugMode(tournamentId: string): boolean {
         const data = json.data ?? json;
         if (!cancelled) setDebugMode(Boolean(data?.debugMode));
       } catch {
-        // Best-effort: a fetch failure just leaves debugMode = false (button hidden).
+        // Best-effort: a fetch failure leaves debugMode = false (button hidden).
       }
     })();
     return () => {
