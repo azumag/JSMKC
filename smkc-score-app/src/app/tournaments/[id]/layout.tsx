@@ -85,13 +85,7 @@ export default function TournamentLayout({
  * Keying the stateful content by id gives summary fetches, retry timers, event listeners,
  * and status mutations an explicit ownership boundary without render-phase ref mutation.
  */
-export function TournamentLayoutIdentityBoundary({
-  children,
-  id,
-}: {
-  children: React.ReactNode;
-  id: string;
-}) {
+function TournamentLayoutIdentityBoundary({ children, id }: { children: React.ReactNode; id: string }) {
   return (
     <TournamentLayoutContent key={id} id={id}>
       {children}
