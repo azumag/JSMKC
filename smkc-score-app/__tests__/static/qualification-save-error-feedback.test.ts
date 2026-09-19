@@ -54,33 +54,38 @@ describe('qualification save failure feedback', () => {
     expect(block.indexOf("toast.error(tc('networkError'))")).toBeLessThan(block.indexOf('setIsMatchDialogOpen(false)'));
   });
 
-  it('reports GP cup assignment API/network failures through alert', () => {
+  it('keeps GP cup assignment state on failure and hides API details behind common.networkError', () => {
     const block = sliceBetween(
       readPage(gpPagePath),
       'const saveQualificationCup = async () => {',
       'const getCurrentBroadcastPoints =',
     );
 
-    expect(block).toContain("alert(error.error || tc('networkError'));\n        return;");
+    expect(block).not.toContain('error.error');
+    expect(block).toContain("logger.error('Failed to update qualification cup', {");
+    expect(block).toContain('status: response.status');
+    expect(block).toContain('matchId: selectedMatch.id');
+    expect(block).toContain("alert(tc('networkError'));\n        return;");
     expect(block).toContain(
       "logger.error('Failed to update qualification cup', { error });\n      alert(tc('networkError'));",
     );
   });
 
-  it('keeps GP manual and race-detail score state on failure and reports API/network errors', () => {
+  it('keeps GP manual and race-detail score state on failure and hides API details', () => {
     const block = sliceBetween(
       readPage(gpPagePath),
       'const handleMatchSubmit = async () => {',
       '/* Extract unique groups from qualifications for tab display */',
     );
 
-    expect(block.split("alert(errorData.error || tc('networkError'));").length - 1).toBe(2);
+    expect(block).not.toContain('errorData.error');
+    expect(block.split('status: response.status').length - 1).toBe(2);
+    expect(block).toContain("logger.error('Failed to manually update GP score:', {");
+    expect(block).toContain("logger.error('Failed to update match:', {");
+    expect(block).toContain('matchId: selectedMatch.id');
     expect(block).toContain(
       "logger.error('Failed to manually update GP score:', metadata);\n        alert(tc('networkError'));",
     );
     expect(block).toContain("logger.error('Failed to update match:', metadata);\n      alert(tc('networkError'));");
-    expect(block.lastIndexOf("alert(errorData.error || tc('networkError'))")).toBeLessThan(
-      block.lastIndexOf('setIsMatchDialogOpen(false)'),
-    );
   });
 });

@@ -334,8 +334,11 @@ export default function GrandPrixPageClient({
       if (response.ok) {
         refetch();
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || tc('networkError'));
+        logger.error('Failed to toggle qualification confirmed', {
+          status: response.status,
+          tournamentId,
+        });
+        alert(tc('networkError'));
       }
     } catch (err) {
       logger.error('Failed to toggle qualification confirmed', { error: err, tournamentId });
@@ -430,8 +433,12 @@ export default function GrandPrixPageClient({
         }),
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || tc('networkError'));
+        logger.error('Failed to update qualification cup', {
+          status: response.status,
+          tournamentId,
+          matchId: selectedMatch.id,
+        });
+        alert(tc('networkError'));
         return;
       }
       const json = await response.json();
@@ -520,8 +527,12 @@ export default function GrandPrixPageClient({
           setManualScoreEnabled(false);
           refetch();
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          alert(errorData.error || tc('networkError'));
+          logger.error('Failed to manually update GP score:', {
+            status: response.status,
+            tournamentId,
+            matchId: selectedMatch.id,
+          });
+          alert(tc('networkError'));
         }
       } catch (err) {
         const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -563,8 +574,12 @@ export default function GrandPrixPageClient({
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.error || tc('networkError'));
+        logger.error('Failed to update match:', {
+          status: response.status,
+          tournamentId,
+          matchId: selectedMatch.id,
+        });
+        alert(tc('networkError'));
         return;
       }
 
@@ -653,8 +668,11 @@ export default function GrandPrixPageClient({
                     body: JSON.stringify({ reset: true }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedResetBracket'));
+                    logger.error('Failed to reset qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    alert(tc('networkError'));
                     return;
                   }
                   setFinalsExists(false);
@@ -692,8 +710,11 @@ export default function GrandPrixPageClient({
                     body: JSON.stringify({ topN }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedGenerateBracket'));
+                    logger.error('Failed to generate qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    alert(tc('networkError'));
                     return;
                   }
                   setFinalsExists(true);
