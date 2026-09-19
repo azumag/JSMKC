@@ -487,8 +487,11 @@ export default function MatchRacePageClient({
                     body: JSON.stringify({ reset: true }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    toast.error(err.error || tc('failedResetBracket'));
+                    logger.error('Failed to reset qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    toast.error(tc('networkError'));
                     return;
                   }
                   setFinalsExists(false);
@@ -526,8 +529,11 @@ export default function MatchRacePageClient({
                     body: JSON.stringify({ topN }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    toast.error(err.error || tc('failedGenerateBracket'));
+                    logger.error('Failed to generate qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    toast.error(tc('networkError'));
                     return;
                   }
                   setFinalsExists(true);
@@ -740,7 +746,7 @@ export default function MatchRacePageClient({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  /* Build player→group lookup for match filtering */
+                  /* Build player→group lookup for match filtering */}
                   const playerGroupMap = new Map<string, string>();
                   for (const q of qualifications) {
                     playerGroupMap.set(q.playerId, q.group);
