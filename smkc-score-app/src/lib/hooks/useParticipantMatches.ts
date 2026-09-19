@@ -123,7 +123,6 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   const reportSubmissionInFlightRef = useRef(false);
   const reportAbortRef = useRef<AbortController | null>(null);
   const reportIdentityRef = useRef({ tournamentId, mode });
-  reportIdentityRef.current = { tournamentId, mode };
 
   /* Initial data fetch on mount and whenever its access/context changes. */
   useEffect(() => {
@@ -211,6 +210,10 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   }, [tournamentId, sessionStatus, hasAccess, mode, logger, networkErrorMessage]);
 
   useEffect(() => {
+    // Keep the request identity aligned with the last committed context instead
+    // of mutating the ref during render. Old-context completions are aborted by
+    // the previous effect cleanup before this identity becomes current.
+    reportIdentityRef.current = { tournamentId, mode };
     // A report request belongs to the tournament/mode identity that created it.
     // Reset the per-context lock and abort the previous request so a late response
     // cannot overwrite state after client-side navigation reuses this hook.
