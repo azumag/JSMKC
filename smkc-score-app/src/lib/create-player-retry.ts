@@ -25,8 +25,7 @@ export interface CreatePlayerFormData {
 }
 
 export type CreatePlayerResult =
-  | { ok: true; recovered: boolean; data: Record<string, unknown> }
-  | { ok: false; error: string | null; code: string | null };
+  { ok: true; recovered: boolean; data: Record<string, unknown> } | { ok: false; error: null; code: string | null };
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 800;
@@ -71,8 +70,8 @@ export async function createPlayerWithRetry(formData: CreatePlayerFormData): Pro
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
         continue;
       }
-      // Keep raw network details out of the result/UI. The caller already
-      // maps this generic failure to the localized create-player error.
+      // Keep raw network details out of the result/UI. The caller maps this
+      // generic failure to the localized create-player error.
       return { ok: false, error: null, code: null };
     }
     if (response.ok) break;
@@ -101,7 +100,12 @@ export async function createPlayerWithRetry(formData: CreatePlayerFormData): Pro
   const text = await finalResponse.text();
   try {
     const parsed = JSON.parse(text);
-    return { ok: false, error: parsed?.error ?? null, code: parsed?.code ?? null };
+    const code = typeof parsed?.code === 'string' ? parsed.code : null;
+    // Keep backend-provided prose out of the return value because callers
+    // render this result directly in the player-management UI. Only the
+    // machine-readable code crosses this boundary so known cases can map to
+    // localized messages while everything else fails closed.
+    return { ok: false, error: null, code };
   } catch {
     return { ok: false, error: null, code: null };
   }
