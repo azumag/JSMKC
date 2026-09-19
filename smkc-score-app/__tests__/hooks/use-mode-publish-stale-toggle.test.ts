@@ -49,12 +49,9 @@ describe('useModePublish stale toggle protection', () => {
     const eventHandler = jest.fn();
     window.addEventListener('publicModesChanged', eventHandler);
 
-    const { result, rerender } = renderHook(
-      ({ tournamentId, mode }: HookProps) => useModePublish(tournamentId, mode),
-      {
-        initialProps: { tournamentId: 'tournament-old', mode: 'bm' } as HookProps,
-      },
-    );
+    const { result, rerender } = renderHook(({ tournamentId, mode }: HookProps) => useModePublish(tournamentId, mode), {
+      initialProps: { tournamentId: 'tournament-old', mode: 'bm' } as HookProps,
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
