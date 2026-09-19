@@ -29,9 +29,24 @@ type Preview = {
   modes: Record<'bm' | 'mr' | 'gp', ModeSummary>;
 };
 
+type ApplyResult = {
+  applied: boolean;
+  archiveGeneratedAt: string;
+};
+
 function unwrap<T>(value: unknown): T {
   const record = value as { data?: T };
   return record?.data ?? (value as T);
+}
+
+function isApplyResult(value: unknown): value is ApplyResult {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Partial<ApplyResult>;
+  return (
+    typeof record.applied === 'boolean' &&
+    typeof record.archiveGeneratedAt === 'string' &&
+    record.archiveGeneratedAt.trim().length > 0
+  );
 }
 
 function modeLine(mode: string, summary: ModeSummary, japanese: boolean): string {
@@ -111,7 +126,10 @@ export function CdmArchiveReconcileButton({
         return;
       }
       const applyJson = await applyResponse.json().catch(() => ({}));
-      const result = unwrap<{ applied: boolean; archiveGeneratedAt: string }>(applyJson);
+      const result = unwrap<ApplyResult>(applyJson);
+      if (!isApplyResult(result)) {
+        throw new Error('Invalid CDM archive reconciliation apply response');
+      }
       alert(
         japanese
           ? result.applied

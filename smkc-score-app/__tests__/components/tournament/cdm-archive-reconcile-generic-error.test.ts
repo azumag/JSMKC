@@ -116,6 +116,20 @@ describe('CDM archive reconcile generic error contract (issues #3570, #3872)', (
     expect(applyResponse.json).not.toHaveBeenCalled();
   });
 
+  it('fails closed when a successful apply response has an invalid body', async () => {
+    const previewResponse = jsonResponse(true, { data: preview });
+    const applyResponse = jsonResponse(true, {});
+    fetchMock.mockResolvedValueOnce(previewResponse).mockResolvedValueOnce(applyResponse);
+    window.prompt = jest.fn(() => 'Tournament One');
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reconcile CDM schedule / re-archive' }));
+
+    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('common.networkError'));
+    expect(applyResponse.json).toHaveBeenCalledTimes(1);
+    expect(window.alert).toHaveBeenCalledTimes(1);
+  });
+
   it('documents the fail-closed shared fallback contract', () => {
     const docs = fs.readFileSync(path.join(process.cwd(), 'docs/cdm-archive-reconcile-client-errors.md'), 'utf8');
 
