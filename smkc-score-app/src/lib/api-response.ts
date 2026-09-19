@@ -43,6 +43,14 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
 function isPaginationMeta(value: unknown): value is PaginationMeta {
   if (!value || typeof value !== "object") {
     return false;
@@ -51,10 +59,10 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
   const meta = value as Partial<PaginationMeta>;
 
   return (
-    Number.isFinite(meta.total) &&
-    Number.isFinite(meta.page) &&
-    Number.isFinite(meta.limit) &&
-    Number.isFinite(meta.totalPages)
+    isNonNegativeInteger(meta.total) &&
+    isPositiveInteger(meta.page) &&
+    isPositiveInteger(meta.limit) &&
+    isPositiveInteger(meta.totalPages)
   );
 }
 
