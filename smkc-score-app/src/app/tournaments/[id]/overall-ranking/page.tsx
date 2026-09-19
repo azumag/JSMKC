@@ -96,11 +96,7 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (typeof errorData.error === 'string' && errorData.error.trim()) {
-        throw new Error(errorData.error);
-      }
-      logger.error('Overall ranking fetch returned non-2xx without an API error', {
+      logger.error('Overall ranking fetch returned non-2xx', {
         tournamentId,
         status: response.status,
       });
@@ -116,9 +112,6 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
     }
     if (data.success && data.data) {
       return data.data;
-    }
-    if (typeof data.error === 'string' && data.error.trim()) {
-      throw new Error(data.error);
     }
     logger.error('Overall ranking fetch returned an invalid response', { tournamentId });
     throw new GenericOverallRankingError();
@@ -167,16 +160,11 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (typeof errorData.error === 'string' && errorData.error.trim()) {
-          setError(errorData.error);
-        } else {
-          logger.error('Overall ranking recalculation returned non-2xx without an API error', {
-            tournamentId,
-            status: response.status,
-          });
-          setError(tCommon('networkError'));
-        }
+        logger.error('Overall ranking recalculation returned non-2xx', {
+          tournamentId,
+          status: response.status,
+        });
+        setError(tCommon('networkError'));
         return;
       }
 
