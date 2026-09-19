@@ -428,7 +428,7 @@ export default function BattleModePageClient({
           <div className="mt-2 flex items-center gap-2">
             <UpdateIndicator lastUpdated={lastUpdated} isPolling={isPolling} />
             {qualificationConfirmed && (
-              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">
                 {tc('qualificationConfirmed')}
               </span>
             )}
@@ -470,8 +470,11 @@ export default function BattleModePageClient({
                     body: JSON.stringify({ reset: true }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedResetBracket'));
+                    logger.error('Failed to reset qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    alert(tc('networkError'));
                     return;
                   }
                   setFinalsExists(false);
@@ -509,8 +512,11 @@ export default function BattleModePageClient({
                     body: JSON.stringify({ topN }),
                   });
                   if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    alert(err.error || tc('failedGenerateBracket'));
+                    logger.error('Failed to generate qualification bracket', {
+                      status: res.status,
+                      tournamentId,
+                    });
+                    alert(tc('networkError'));
                     return;
                   }
                   setFinalsExists(true);
