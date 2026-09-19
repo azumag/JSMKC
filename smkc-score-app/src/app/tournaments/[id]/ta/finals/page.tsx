@@ -275,14 +275,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
       // Use the new phases API with phase3 parameter
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/phases?phase=phase3`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         logger.error('Failed to fetch data:', {
           status: response.status,
-          error: errorData.error,
           tournamentId,
           phase: 'phase3',
         });
-        setError(errorData.error || tCommon('networkError'));
+        setError(tCommon('networkError'));
         return;
       }
       const json = await response.json();
@@ -434,8 +432,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to start TA phase3 round:', {
+          status: response.status,
+          tournamentId,
+          phase: 'phase3',
+        });
+        setSaveError(tCommon('networkError'));
         return;
       }
       const json = await response.json();
@@ -492,8 +494,13 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to cancel TA phase3 round:', {
+          status: response.status,
+          tournamentId,
+          phase: 'phase3',
+          roundNumber: currentRound.roundNumber,
+        });
+        setSaveError(tCommon('networkError'));
         setShowCancelConfirm(false);
         return;
       }
@@ -528,8 +535,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         body: JSON.stringify({ action: 'undo_round', phase: 'phase3' }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to undo TA phase3 round:', {
+          status: response.status,
+          tournamentId,
+          phase: 'phase3',
+        });
+        setSaveError(tCommon('networkError'));
         setShowUndoConfirm(false);
         return;
       }
@@ -567,8 +578,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         body: JSON.stringify({ action: 'cancel_last_round', phase: 'phase3' }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to cancel the last TA phase3 round:', {
+          status: response.status,
+          tournamentId,
+          phase: 'phase3',
+        });
+        setSaveError(tCommon('networkError'));
         setShowCancelLastRoundConfirm(false);
         return;
       }
@@ -730,8 +745,13 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        setSaveError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to submit TA phase3 results:', {
+          status: response.status,
+          tournamentId,
+          phase: 'phase3',
+          roundNumber: currentRound.roundNumber,
+        });
+        setSaveError(tCommon('networkError'));
         return;
       }
       const json = await response.json();
@@ -797,11 +817,15 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         setEntryToEliminate(null);
         fetchData();
       } else {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || tCommon('networkError'));
+        logger.error('Failed to eliminate player:', {
+          status: response.status,
+          tournamentId,
+          entryId: entryToEliminate.id,
+        });
+        alert(tCommon('networkError'));
       }
     } catch (err) {
-      logger.error('Failed to eliminate player:', { error: err, tournamentId });
+      logger.error('Failed to eliminate player:', { error: err, tournamentId, entryId: entryToEliminate.id });
       alert(tCommon('networkError'));
     }
   };
@@ -831,8 +855,12 @@ export default function TimeAttackFinals({ params }: { params: Promise<{ id: str
         }),
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        alert(error.error || tTaFinals('livesUpdateFailed'));
+        logger.error('Failed to set player lives:', {
+          status: response.status,
+          tournamentId,
+          entryId: entry.id,
+        });
+        alert(tTaFinals('livesUpdateFailed'));
         return;
       }
       setLifeInputs((current) => {
