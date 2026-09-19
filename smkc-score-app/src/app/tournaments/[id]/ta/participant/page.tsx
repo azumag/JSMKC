@@ -345,8 +345,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to submit TA qualification times:', {
+          status: response.status,
+          tournamentId,
+          operation: 'submit_qualification_times',
+          entryId: myEntry.id,
+        });
+        setError(tCommon('networkError'));
         return;
       }
 
@@ -359,7 +364,12 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       alert(tPart('timesSubmittedSuccess'));
     } catch (err) {
       /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
-      logger.error('Failed to submit TA qualification times:', { error: err });
+      logger.error('Failed to submit TA qualification times:', {
+        error: err,
+        tournamentId,
+        operation: 'submit_qualification_times',
+        entryId: myEntry.id,
+      });
       setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
@@ -399,8 +409,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
         body: JSON.stringify({ entryId: partnerEntry.id, times: validTimes }),
       });
       if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to submit partner TA qualification times:', {
+          status: response.status,
+          tournamentId,
+          operation: 'submit_partner_qualification_times',
+          entryId: partnerEntry.id,
+        });
+        setError(tCommon('networkError'));
         return;
       }
       const json = await response.json();
@@ -410,7 +425,12 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       alert(tPart('partnerTimesSubmittedSuccess'));
     } catch (err) {
       /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
-      logger.error('Failed to submit partner TA qualification times:', { error: err });
+      logger.error('Failed to submit partner TA qualification times:', {
+        error: err,
+        tournamentId,
+        operation: 'submit_partner_qualification_times',
+        entryId: partnerEntry.id,
+      });
       setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
@@ -441,20 +461,34 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       });
       const json = await response.json();
       if (!response.ok) {
-        const code = json.code as string | undefined;
+        const code = typeof json.code === 'string' ? json.code : undefined;
+        logger.error('Failed to report TA Phase 3 time:', {
+          status: response.status,
+          tournamentId,
+          phase: 'phase3',
+          operation: 'report_time',
+          roundNumber: round.roundNumber,
+          code,
+        });
         if (code === 'NO_OPEN_ROUND') setReportError(tTa('noOpenRound'));
         else if (code === 'ROUND_ALREADY_SUBMITTED') setReportError(tTa('roundAlreadySubmitted'));
         else if (code === 'ROUND_MISMATCH') setReportError(tTa('roundMismatch'));
         else if (code === 'PLAYER_REPORT_DISABLED') setReportError(tTa('reportDisabled'));
         else if (code === 'PLAYER_ELIMINATED') setReportError(tTa('eliminatedCannotReport'));
-        else setReportError(json.error || tCommon('networkError'));
+        else setReportError(tCommon('networkError'));
         return;
       }
       setReportTimeInput('');
       alert(hadPrevious ? tTa('reportUpdateSuccess') : tTa('reportSuccess'));
     } catch (err) {
       /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
-      logger.error('Failed to report TA Phase 3 time:', { error: err });
+      logger.error('Failed to report TA Phase 3 time:', {
+        error: err,
+        tournamentId,
+        phase: 'phase3',
+        operation: 'report_time',
+        roundNumber: round.roundNumber,
+      });
       setReportError(tCommon('networkError'));
     } finally {
       setReporting(false);
@@ -474,8 +508,13 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        setError(errorData.error || tCommon('networkError'));
+        logger.error('Failed to add participant to TA:', {
+          status: response.status,
+          tournamentId,
+          operation: 'register_participant',
+          playerId,
+        });
+        setError(tCommon('networkError'));
         return;
       }
 
@@ -487,7 +526,12 @@ export default function TimeAttackParticipantPage({ params }: { params: Promise<
       alert(tPart('addedToTASuccess'));
     } catch (err) {
       /** Request rejection (network failure, JSON parse failure, etc.): keep raw detail in the logger only */
-      logger.error('Failed to add participant to TA:', { error: err });
+      logger.error('Failed to add participant to TA:', {
+        error: err,
+        tournamentId,
+        operation: 'register_participant',
+        playerId,
+      });
       setError(tCommon('networkError'));
     } finally {
       setSubmitting(false);
