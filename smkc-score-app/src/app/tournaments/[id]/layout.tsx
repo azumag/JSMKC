@@ -77,6 +77,23 @@ export default function TournamentLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  return <TournamentLayoutIdentityBoundary id={id}>{children}</TournamentLayoutIdentityBoundary>;
+}
+
+/**
+ * Tournament-scoped state must never survive a route transition to another tournament.
+ * Keying the stateful content by id gives summary fetches, retry timers, event listeners,
+ * and status mutations an explicit ownership boundary without render-phase ref mutation.
+ */
+function TournamentLayoutIdentityBoundary({ children, id }: { children: React.ReactNode; id: string }) {
+  return (
+    <TournamentLayoutContent key={id} id={id}>
+      {children}
+    </TournamentLayoutContent>
+  );
+}
+
+function TournamentLayoutContent({ children, id }: { children: React.ReactNode; id: string }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const t = useTranslations('tournaments');
