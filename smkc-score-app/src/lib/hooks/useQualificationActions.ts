@@ -38,15 +38,15 @@ export function useQualificationActions({ tournamentId, mode, refetch }: UseQual
   // Memoize logger so useCallback deps stay referentially stable
   const logger = useMemo(() => createLogger({ serviceName: `tournaments-${mode}` }), [mode]);
   const identityRef = useRef({ tournamentId, mode });
-  const mountedRef = useRef(true);
-  identityRef.current = { tournamentId, mode };
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    identityRef.current = { tournamentId, mode };
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [mode, tournamentId]);
 
   const isCurrentIdentity = useCallback(
     (requestTournamentId: string, requestMode: Mode) =>
