@@ -348,6 +348,7 @@ export function usePolling<T>(
    */
   useEffect(() => {
     lifecycleGenerationRef.current += 1;
+    const lifecycleGeneration = lifecycleGenerationRef.current;
     isMountedRef.current = true;
 
     if (!enabled) {
@@ -357,10 +358,11 @@ export function usePolling<T>(
 
     /**
      * Schedule the next poll. No-op if the tab is hidden (we resume via
-     * the visibilitychange listener) or if the component has unmounted.
+     * the visibilitychange listener), if the component has unmounted, or
+     * if this scheduler belongs to an invalidated polling lifecycle.
      */
     const scheduleNext = () => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
       if (
         pauseWhenHidden &&
         typeof document !== 'undefined' &&
@@ -373,7 +375,7 @@ export function usePolling<T>(
         clearTimeout(pollingRef.current);
       }
       pollingRef.current = setTimeout(() => {
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
         const fn = pollRef.current;
         if (!fn) return;
         // Run the poll, then chain the next schedule. Errors inside the
@@ -391,7 +393,7 @@ export function usePolling<T>(
      * Used for `immediate`, `visibilitychange → visible`, and `refetch`.
      */
     const runNow = () => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
       // Cancel any pending timer so we don't double-fire.
       if (pollingRef.current) {
         clearTimeout(pollingRef.current);
@@ -421,7 +423,7 @@ export function usePolling<T>(
      * the tab is visible again.
      */
     const onVisibilityChange = () => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
       if (typeof document === 'undefined') return;
       if (document.hidden) {
         if (pollingRef.current) {
