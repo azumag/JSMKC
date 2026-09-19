@@ -192,8 +192,10 @@ export default function TournamentsPage() {
           setCurrentPage(1);
         }
       } else {
-        const data = await response.json();
-        setError(data.error || t('failedToCreate'));
+        logger.error('Tournament create API returned error status', {
+          status: response.status,
+        });
+        setError(t('failedToCreate'));
       }
     } catch (err) {
       logger.error('Failed to create tournament:', { error: err });
@@ -233,8 +235,11 @@ export default function TournamentsPage() {
       if (response.ok) {
         fetchTournaments();
       } else {
-        const data = await response.json().catch(() => null);
-        alert(response.status === 409 ? t('cannotDeleteStartedTournament') : data?.error || t('failedToDelete'));
+        logger.error('Tournament delete API returned error status', {
+          status: response.status,
+          tournamentId: id,
+        });
+        alert(response.status === 409 ? t('cannotDeleteStartedTournament') : t('failedToDelete'));
       }
     } catch (err) {
       logger.error('Failed to delete tournament:', { error: err, tournamentId: id });
