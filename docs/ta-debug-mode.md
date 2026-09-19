@@ -8,6 +8,7 @@ Time Attack の debug 補助 UI は、通常大会での誤操作を避けるた
 - 管理者であっても `debugMode=false` の通常大会では表示しない。
 - player には `debugMode` に関係なく管理者向け debug UI を表示しない。
 - `NODE_ENV` による独自判定は追加せず、既存の `useTournamentDebugMode(tournamentId)` を利用する。
+- tournament 切替時や `debugMode` の読み込み失敗時は fail-closed とし、前大会の `true` を持ち越さず debug UI を非表示にする。
 
 ## TA participant page
 
