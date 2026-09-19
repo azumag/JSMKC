@@ -17,7 +17,8 @@ function getFetchDataBlock(source: string): string {
 }
 
 describe('TA finals fetch error fallback contract (issue #3632 / #3864)', () => {
-  it('Phase 3 fails closed without parsing or exposing backend error prose', () => {
+  // Keep this title stable because the E2E documentation drift guard registers it by name.
+  it('preserves concrete API errors and localizes transport and parse failures', () => {
     const fetchData = getFetchDataBlock(phase3Source);
 
     expect(fetchData).toContain("setError(tCommon('networkError'));");
