@@ -22,6 +22,14 @@ production participant page のレポート送信失敗時は次の契約とす�
 
 ブラウザ・通信層由来の raw `Error.message` や backend response detail は UI に表示しない。
 
+## report request の context isolation
+
+report request は開始時点の `tournamentId` / `mode` identity に所属する。client-side navigation で hook が別の大会または mode に再利用された場合、旧 identity の request は abort し、abort を無視する mock / transport などから late completion が返っても新しい context の `matches`、`error`、`submitting` を更新しない。
+
+旧 context の request が保留中でも、新しい `tournamentId` / `mode` では submission lock を引き継がず report を開始できる。一方、同じ context 内の同時二重 submit は従来どおり ref lock で拒否する。旧 request の `finally` は identity と AbortController ownership が一致する場合だけ lock / `submitting` を解除し、新しい request の進行状態を消さない。
+
+この isolation は endpoint、payload、authorization、成功 response の local match update semantics を変更しない。
+
 ## MR / GP shared match の report 送信
 
 MR / GP の shared match detail page (`/mr/match/[matchId]` / `/gp/match/[matchId]`) は上記 participant hook とは独立した submit path を持つ。この経路でも HTTP non-2xx と `fetch()` rejection のどちらもユーザー向けには `common.networkError` のみを表示し、response body の `error` やブラウザ由来の raw error detail を UI に露出しない。
@@ -44,7 +52,7 @@ MR の shared match page は全レースの勝者が選択されてから score 
 
 ## 状態保持
 
-report 失敗時は `submitReport()` が `null` を返し、呼び出し側が保持している入力値を勝手に消さない。`submitting` state は `finally` で必ず解除する。成功時のみ返却された match を local state に反映する。
+report 失敗時は `submitReport()` が `null` を返し、呼び出し側が保持している入力値を勝手に消さない。`submitting` state は current request の `finally` で解除する。成功時のみ返却された match を local state に反映する。
 
 ## 互換性
 
@@ -60,5 +68,7 @@ report 失敗時は `submitReport()` が `null` を返し、呼び出し側が�
 - request rejection が supplied localized fallback を使い、raw transport detail は UI に漏れず logger に残ること
 - production HTTP failure の logger には status / source / mode / tournamentId / matchId など安全な context が残ること
 - `networkErrorMessage` 未指定の低レベル互換 path では従来の API-specific / status fallback が維持されること
+
+`smkc-score-app/__tests__/lib/hooks/useParticipantMatches-context.test.ts` では、A大会の report が保留されたまま B大会へ遷移したケースを使い、旧 request の abort、B大会での即時 submit、A大会の late success / transport failure が B大会の `matches` / `error` / `submitting` を変更しないことを固定する。
 
 加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR / GP shared match submit の HTTP non-2xx と transport failure が `common.networkError` に統一され、raw API error を UI fallback に使わないことを固定する。同じ static test で MR shared match の identity validation が `match.selectPlayer` を使うこと、および race-winner validation が `match.selectAllRaceWinners` に `TOTAL_MR_RACES` を渡すことも確認する。race-winner validation の EN/JA split catalog は同一キー集合であることと、`src/i18n/request.ts` が `match` namespace に merge することも同テストで確認する。

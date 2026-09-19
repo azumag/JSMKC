@@ -121,6 +121,9 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
   // React state does not synchronously serialize calls made within one render.
   // This ref is the actual submit lock; `submitting` remains the UI-facing state.
   const reportSubmissionInFlightRef = useRef(false);
+  const reportAbortRef = useRef<AbortController | null>(null);
+  const reportIdentityRef = useRef({ tournamentId, mode });
+  reportIdentityRef.current = { tournamentId, mode };
 
   /* Initial data fetch on mount and whenever its access/context changes. */
   useEffect(() => {
@@ -207,6 +210,19 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
     };
   }, [tournamentId, sessionStatus, hasAccess, mode, logger, networkErrorMessage]);
 
+  useEffect(() => {
+    // A report request belongs to the tournament/mode identity that created it.
+    // Reset the per-context lock and abort the previous request so a late response
+    // cannot overwrite state after client-side navigation reuses this hook.
+    reportSubmissionInFlightRef.current = false;
+    setSubmitting(null);
+
+    return () => {
+      reportAbortRef.current?.abort();
+      reportAbortRef.current = null;
+    };
+  }, [mode, tournamentId]);
+
   /* Polling for real-time match updates */
   const fetchMatchesPoll = useCallback(async () => {
     if (!hasAccess) return { matches: [] };
@@ -269,17 +285,31 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
       if (reportSubmissionInFlightRef.current) return null;
       reportSubmissionInFlightRef.current = true;
       setSubmitting(matchId);
+
+      const controller = new AbortController();
+      reportAbortRef.current = controller;
+      const requestIdentity = { tournamentId, mode };
+      const isCurrentRequest = () =>
+        !controller.signal.aborted &&
+        reportAbortRef.current === controller &&
+        reportIdentityRef.current.tournamentId === requestIdentity.tournamentId &&
+        reportIdentityRef.current.mode === requestIdentity.mode;
+
       try {
         const response = await fetch(`/api/tournaments/${tournamentId}/${mode}/match/${matchId}/report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
+
+        if (!isCurrentRequest()) return null;
 
         if (!response.ok) {
           let apiError: string | null = null;
           if (!networkErrorMessage) {
             const json = await response.json().catch(() => ({}));
+            if (!isCurrentRequest()) return null;
             const data = json.data ?? json;
             apiError =
               (typeof data.error === 'string' && data.error.trim() ? data.error : null) ??
@@ -296,6 +326,7 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
         }
 
         const json = await response.json().catch(() => ({}));
+        if (!isCurrentRequest()) return null;
         /* Unwrap createSuccessResponse wrapper */
         const data = json.data ?? json;
 
@@ -309,12 +340,16 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
 
         return data;
       } catch (err) {
+        if (!isCurrentRequest()) return null;
         logger.error('Report submission error:', { error: err, tournamentId, matchId });
         setError(networkErrorMessage || 'Failed to submit report. Please check your connection.');
         return null;
       } finally {
-        reportSubmissionInFlightRef.current = false;
-        setSubmitting(null);
+        if (isCurrentRequest()) {
+          reportAbortRef.current = null;
+          reportSubmissionInFlightRef.current = false;
+          setSubmitting(null);
+        }
       }
     },
     [tournamentId, mode, logger, networkErrorMessage],
