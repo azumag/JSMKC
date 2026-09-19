@@ -1630,7 +1630,7 @@ export default function TimeAttackPageClient({
                               {t('editTimes')}
                             </Button>
                           ) : (
-                            /* View button: read-only access for all other users */}
+                            /* View button: read-only access for all other users */
                             <Button size="sm" variant="outline" onClick={() => openViewTimesDialog(entry)}>
                               <Eye className="h-3 w-3 mr-1" />
                               {t('viewTimes')}
