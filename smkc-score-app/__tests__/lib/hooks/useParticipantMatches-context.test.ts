@@ -110,10 +110,9 @@ describe('useParticipantMatches report context isolation', () => {
       });
     });
 
-    const { result, rerender } = renderHook(
-      ({ tournamentId }) => useParticipantMatches({ tournamentId, mode: 'bm' }),
-      { initialProps: { tournamentId: 'A' } },
-    );
+    const { result, rerender } = renderHook(({ tournamentId }) => useParticipantMatches({ tournamentId, mode: 'bm' }), {
+      initialProps: { tournamentId: 'A' },
+    });
 
     await waitFor(() => expect(result.current.tournament?.id).toBe('A'));
 
@@ -141,9 +140,7 @@ describe('useParticipantMatches report context isolation', () => {
       newReportPromise = result.current.submitReport('match-B', { score1: 4, score2: 2 });
     });
     await waitFor(() => expect(result.current.submitting).toBe('match-B'));
-    expect(
-      (global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'POST'),
-    ).toHaveLength(2);
+    expect((global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2);
 
     await act(async () => {
       reportA.resolve(reportResponse('A', reportAJson));
@@ -179,10 +176,9 @@ describe('useParticipantMatches report context isolation', () => {
       });
     });
 
-    const { result, rerender } = renderHook(
-      ({ tournamentId }) => useParticipantMatches({ tournamentId, mode: 'bm' }),
-      { initialProps: { tournamentId: 'A' } },
-    );
+    const { result, rerender } = renderHook(({ tournamentId }) => useParticipantMatches({ tournamentId, mode: 'bm' }), {
+      initialProps: { tournamentId: 'A' },
+    });
 
     await waitFor(() => expect(result.current.tournament?.id).toBe('A'));
 
