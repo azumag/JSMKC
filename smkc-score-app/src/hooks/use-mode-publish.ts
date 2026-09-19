@@ -36,6 +36,9 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const [error, setError] = useState<ModePublishError | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const updatingRef = useRef(false);
+  const toggleAbortRef = useRef<AbortController | null>(null);
+  const identityRef = useRef({ tournamentId, mode });
+  identityRef.current = { tournamentId, mode };
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +79,20 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
     };
   }, [loadAttempt, tournamentId]);
 
+  useEffect(() => {
+    // A publish PUT belongs to the tournament/mode identity that created it.
+    // When that identity changes, reset the local update lock and abort the
+    // previous request so a late completion cannot overwrite the new state.
+    updatingRef.current = false;
+    setUpdating(false);
+    setError((current) => (current === 'update' ? null : current));
+
+    return () => {
+      toggleAbortRef.current?.abort();
+      toggleAbortRef.current = null;
+    };
+  }, [mode, tournamentId]);
+
   const retryLoad = useCallback(() => {
     if (loading || error !== 'load') return;
     setLoadAttempt((attempt) => attempt + 1);
@@ -92,13 +109,27 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
     updatingRef.current = true;
     setUpdating(true);
     setError(null);
+
+    const controller = new AbortController();
+    toggleAbortRef.current = controller;
+    const requestIdentity = { tournamentId, mode };
+    const isCurrentRequest = () =>
+      !controller.signal.aborted &&
+      toggleAbortRef.current === controller &&
+      identityRef.current.tournamentId === requestIdentity.tournamentId &&
+      identityRef.current.mode === requestIdentity.mode;
+
     try {
       const next = isPublic ? removePublicMode(publicModes, mode) : addPublicMode(publicModes, mode);
       const response = await fetch(`/api/tournaments/${tournamentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publicModes: next }),
+        signal: controller.signal,
       });
+
+      if (!isCurrentRequest()) return;
+
       if (response.ok) {
         setPublicModes(next);
         setError(null);
@@ -112,12 +143,16 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
         });
       }
     } catch (err) {
+      if (!isCurrentRequest()) return;
       setError('update');
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to update mode visibility:', metadata);
     } finally {
-      updatingRef.current = false;
-      setUpdating(false);
+      if (isCurrentRequest()) {
+        toggleAbortRef.current = null;
+        updatingRef.current = false;
+        setUpdating(false);
+      }
     }
   }, [error, isPublic, loading, mode, publicModes, tournamentId]);
 
