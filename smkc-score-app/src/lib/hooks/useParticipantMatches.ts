@@ -165,17 +165,19 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
         if (!tournamentResponse.ok || !matchesResponse.ok) {
           const source = !tournamentResponse.ok ? 'tournament' : 'matches';
           const failedResponse = !tournamentResponse.ok ? tournamentResponse : matchesResponse;
-          const errorData = await failedResponse.json().catch(() => ({}));
+          let apiError: string | null = null;
+          if (!networkErrorMessage) {
+            const errorData = await failedResponse.json().catch(() => ({}));
+            apiError = typeof errorData.error === 'string' && errorData.error.trim() ? errorData.error : null;
+          }
           if (cancelled) return;
-          const apiError = typeof errorData.error === 'string' && errorData.error.trim() ? errorData.error : null;
           logger.error('Participant data fetch returned non-2xx:', {
             tournamentId,
             mode,
             source,
             status: failedResponse.status,
-            error: apiError,
           });
-          setError(apiError || networkErrorMessage || 'Failed to load tournament data. Please check your connection.');
+          setError(networkErrorMessage || apiError || 'Failed to load tournament data. Please check your connection.');
           return;
         }
 
@@ -274,17 +276,28 @@ export function useParticipantMatches<TMatch extends BaseMatch>(
           body: JSON.stringify(body),
         });
 
+        if (!response.ok) {
+          let apiError: string | null = null;
+          if (!networkErrorMessage) {
+            const json = await response.json().catch(() => ({}));
+            const data = json.data ?? json;
+            apiError =
+              (typeof data.error === 'string' && data.error.trim() ? data.error : null) ??
+              (typeof json.error === 'string' && json.error.trim() ? json.error : null);
+          }
+          logger.error('Report submission returned non-2xx:', {
+            tournamentId,
+            mode,
+            matchId,
+            status: response.status,
+          });
+          setError(networkErrorMessage || apiError || `Report failed (${response.status})`);
+          return null;
+        }
+
         const json = await response.json().catch(() => ({}));
         /* Unwrap createSuccessResponse wrapper */
         const data = json.data ?? json;
-
-        if (!response.ok) {
-          const apiError =
-            (typeof data.error === 'string' && data.error.trim() ? data.error : null) ??
-            (typeof json.error === 'string' && json.error.trim() ? json.error : null);
-          setError(apiError || networkErrorMessage || `Report failed (${response.status})`);
-          return null;
-        }
 
         // Only clear a previous failure after the retry actually succeeds, so
         // the existing error remains visible while a new submission is pending.
