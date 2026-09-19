@@ -4,10 +4,10 @@ This note records small client-side invariants that should not regress while the
 
 ## Setup-save error handling
 
-`src/app/tournaments/[id]/ta/page-client.tsx` uses `SetupSaveError` to preserve API response metadata for the setup dialog.
+`src/app/tournaments/[id]/ta/page-client.tsx` uses `SetupSaveError` to preserve safe API response metadata for the setup dialog.
 
 - `SetupSaveError` stays at **module scope**. React Compiler does not support an inline class declaration inside a component callback and otherwise skips optimizing the component.
-- API non-2xx failures prefer the API `payload.error` and fall back to `common.networkError`.
+- API non-2xx failures do not parse backend `error` / `message` prose for user-facing feedback; they use localized `common.networkError` while preserving HTTP status and failed operation metadata.
 - Transport/request rejection shows `common.networkError`; the raw `Error.message` and stack remain logger-only details.
 - The mutation order remains delete → batch add → qualification refetch → handicap/seeding/partner reconciliation.
 - A delete that returns 404 remains tolerated because the desired end state is already satisfied.
