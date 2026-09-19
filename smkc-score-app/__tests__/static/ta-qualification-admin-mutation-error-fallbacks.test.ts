@@ -17,32 +17,32 @@ describe('TA qualification admin mutation error fallback contract', () => {
   const resetBlock = extractBlock(source, 'const handleResetPhase = async', 'const handleToggleFreeze = async');
   const saveTimesBlock = extractBlock(source, 'const handleSaveTimes = async', '// === Helper Functions ===');
 
-  it('uses API errors first and common.networkError for promote failures', () => {
-    expect(promoteBlock).toContain('const json = await response.json().catch(() => ({}));');
-    expect(promoteBlock).toContain("alert(json.error || tc('networkError'));");
+  it('uses common.networkError for promote HTTP failures without logging raw response details', () => {
     expect(promoteBlock).toContain("alert(tc('networkError'));");
-    expect(promoteBlock).not.toContain('Failed to promote players');
-    expect(promoteBlock).not.toContain("const errorMessage = err instanceof Error ? err.message : 'Failed to promote'");
+    expect(promoteBlock).not.toContain('json.error');
+    expect(promoteBlock).not.toContain("alert(json.error || tc('networkError'));");
     expect(promoteBlock).toContain("logger.error('Failed to promote TA phase:', {");
     expect(promoteBlock).toContain('status: response.status');
     expect(promoteBlock).toContain('message: err.message');
     expect(promoteBlock).toContain('stack: err.stack');
     expect(promoteBlock).toContain('await fetchPhaseStatus();');
+    expect(promoteBlock.indexOf('if (!response.ok)')).toBeLessThan(promoteBlock.indexOf('const json = await response.json()'));
   });
 
-  it('uses API errors first and common.networkError for reset failures', () => {
-    expect(resetBlock).toContain('const json = await response.json().catch(() => ({}));');
-    expect(resetBlock).toContain("alert(json.error || tc('networkError'));");
+  it('uses common.networkError for reset HTTP failures without parsing the response body', () => {
     expect(resetBlock).toContain("alert(tc('networkError'));");
-    expect(resetBlock).not.toContain('const errorMessage = err instanceof Error ? err.message');
+    expect(resetBlock).not.toContain('response.json()');
+    expect(resetBlock).not.toContain('json.error');
     expect(resetBlock).toContain("logger.error('Failed to reset TA phase:', {");
+    expect(resetBlock).toContain('status: response.status');
     expect(resetBlock).toContain("body: JSON.stringify({ action: 'reset_phase', phase: stage })");
     expect(resetBlock).toContain('await fetchPhaseStatus();');
   });
 
-  it('uses API errors first and common.networkError for qualification time save failures', () => {
-    expect(saveTimesBlock).toContain("setSaveError(errorData.error || tc('networkError'));");
+  it('uses common.networkError for qualification time-save HTTP failures without parsing response details', () => {
     expect(saveTimesBlock).toContain("setSaveError(tc('networkError'));");
+    expect(saveTimesBlock).not.toContain('response.json()');
+    expect(saveTimesBlock).not.toContain('errorData.error');
     expect(saveTimesBlock).not.toContain("throw new Error(errorData.error || 'Failed to save times')");
     expect(saveTimesBlock).not.toContain(
       "const errorMessage = err instanceof Error ? err.message : 'Failed to save times'",
