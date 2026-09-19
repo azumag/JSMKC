@@ -51,6 +51,7 @@ import { extractArrayData, extractPaginationMeta, type PaginationMeta } from '@/
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { createPlayerWithRetry } from '@/lib/create-player-retry';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
+import { classifyPlayerUpdateFailure } from '@/lib/player-mutation-error';
 import { createLogger } from '@/lib/client-logger';
 
 /**
@@ -311,21 +312,13 @@ export default function PlayersPage() {
         setEditingPlayerId(null);
         setFormData({ name: '', nickname: '', country: '', noCamera: false });
       } else {
-        const text = await response!.text();
-        let code: unknown;
-        try {
-          const data = JSON.parse(text) as { code?: unknown };
-          code = data.code;
-        } catch {
-          // Non-JSON failures remain generic and do not affect the UI contract.
-        }
-
+        const failure = await classifyPlayerUpdateFailure(response!);
         logger.error('Player update API returned error status', {
           status: response!.status,
           playerId: editingPlayerId,
-          code: typeof code === 'string' ? code : undefined,
+          kind: failure,
         });
-        setError(code === PLAYER_ERROR_CODES.DUPLICATE_NICKNAME ? t('duplicateNickname') : t('failedToUpdate'));
+        setError(failure === 'duplicateNickname' ? t('duplicateNickname') : t('failedToUpdate'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
