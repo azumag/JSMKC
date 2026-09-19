@@ -38,7 +38,6 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const updatingRef = useRef(false);
   const toggleAbortRef = useRef<AbortController | null>(null);
   const identityRef = useRef({ tournamentId, mode });
-  identityRef.current = { tournamentId, mode };
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +83,9 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   }, [loadAttempt, tournamentId]);
 
   useEffect(() => {
+    // Keep request ownership aligned with the last committed tournament/mode
+    // instead of mutating the identity ref during render.
+    identityRef.current = { tournamentId, mode };
     // A publish PUT belongs to the tournament/mode identity that created it.
     // When that identity changes, reset the local update lock and abort the
     // previous request so a late completion cannot overwrite the new state.
