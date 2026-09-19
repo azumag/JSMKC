@@ -19,16 +19,18 @@ describe('TA qualification setup error fallback contract', () => {
     expect(block).not.toContain('class SetupSaveError extends Error');
   });
 
-  it('separates API response errors from request rejection messages', () => {
-    expect(block).toContain("payload.error || tc('networkError')");
-    expect(block).toContain("const userMessage = isSetupSaveError ? err.message : tc('networkError');");
+  it('normalizes HTTP response errors without parsing backend error details', () => {
+    expect(block).toContain("new SetupSaveError(tc('networkError'), response.status, operation)");
+    expect(block).toContain("const userMessage = tc('networkError');");
+    expect(block).not.toContain('response.json()');
+    expect(block).not.toContain('payload.error');
     expect(block).not.toContain("const msg = err instanceof Error ? err.message : 'Save failed'");
     expect(block).not.toContain('Failed to add players');
     expect(block).not.toContain('Failed to refetch TA entries');
     expect(block).not.toContain('Failed to update TA handicaps');
   });
 
-  it('logs low-level details with response status and failed operation', () => {
+  it('logs response status and failed operation while keeping transport diagnostics', () => {
     expect(block).toContain("logger.error('Failed to save TA qualification setup:', {");
     expect(block).toContain('message: err.message');
     expect(block).toContain('stack: err.stack');
