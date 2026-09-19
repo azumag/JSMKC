@@ -170,10 +170,7 @@ export interface UsePollingOptions {
  * @param options - Polling configuration (see UsePollingOptions)
  * @returns Object with data, loading state, error, and control functions
  */
-export function usePolling<T>(
-  fetchFn: () => Promise<T>,
-  options: UsePollingOptions = {}
-) {
+export function usePolling<T>(fetchFn: () => Promise<T>, options: UsePollingOptions = {}) {
   const {
     enabled = true,
     interval = POLLING_INTERVAL,
@@ -219,6 +216,10 @@ export function usePolling<T>(
   // isMountedRef prevents state updates on unmounted components, which
   // would cause React warnings and potential memory leaks
   const isMountedRef = useRef(true);
+  // Monotonic polling lifecycle generation. A cleanup invalidates every
+  // in-flight poll started by the previous lifecycle, even if this same
+  // hook instance is enabled again and isMountedRef becomes true later.
+  const lifecycleGenerationRef = useRef(0);
   // pollRef holds the latest poll function to avoid stale closures
   // in the setTimeout callback. We invoke poll via this ref instead of
   // including it in the effect's deps, so the effect runs only when
@@ -241,10 +242,12 @@ export function usePolling<T>(
   const poll = useCallback(async () => {
     // Guard against polling after component unmount
     if (!isMountedRef.current) return;
+    const lifecycleGeneration = lifecycleGenerationRef.current;
 
     try {
       setIsLoading(true);
       const response = await fetchFn();
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
 
       // Attempt to extract ETag from the response headers (if present).
       // This works with fetch() Response objects or any object that exposes
@@ -282,6 +285,8 @@ export function usePolling<T>(
       // Clear any previous error on successful fetch
       setError(null);
     } catch (err) {
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
+
       // Normalize the error to an Error instance
       const error = err instanceof Error ? err : new Error('Polling failed');
       setError(error);
@@ -291,7 +296,9 @@ export function usePolling<T>(
         onError(error);
       }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current && lifecycleGeneration === lifecycleGenerationRef.current) {
+        setIsLoading(false);
+      }
     }
     // Note: lastETag is intentionally NOT in this dep list. We read the
     // current ETag via lastETagRef so that the poll callback identity
@@ -337,6 +344,8 @@ export function usePolling<T>(
    * fresh poll the moment the tab returns to the foreground.
    */
   useEffect(() => {
+    lifecycleGenerationRef.current += 1;
+    const lifecycleGeneration = lifecycleGenerationRef.current;
     isMountedRef.current = true;
 
     if (!enabled) {
@@ -346,15 +355,12 @@ export function usePolling<T>(
 
     /**
      * Schedule the next poll. No-op if the tab is hidden (we resume via
-     * the visibilitychange listener) or if the component has unmounted.
+     * the visibilitychange listener), if the component has unmounted, or
+     * if this scheduler belongs to an invalidated polling lifecycle.
      */
     const scheduleNext = () => {
-      if (!isMountedRef.current) return;
-      if (
-        pauseWhenHidden &&
-        typeof document !== 'undefined' &&
-        document.hidden
-      ) {
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
+      if (pauseWhenHidden && typeof document !== 'undefined' && document.hidden) {
         // Hidden tab: do not schedule. visibilitychange handler resumes.
         return;
       }
@@ -362,7 +368,7 @@ export function usePolling<T>(
         clearTimeout(pollingRef.current);
       }
       pollingRef.current = setTimeout(() => {
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
         const fn = pollRef.current;
         if (!fn) return;
         // Run the poll, then chain the next schedule. Errors inside the
@@ -380,7 +386,7 @@ export function usePolling<T>(
      * Used for `immediate`, `visibilitychange → visible`, and `refetch`.
      */
     const runNow = () => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
       // Cancel any pending timer so we don't double-fire.
       if (pollingRef.current) {
         clearTimeout(pollingRef.current);
@@ -410,7 +416,7 @@ export function usePolling<T>(
      * the tab is visible again.
      */
     const onVisibilityChange = () => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || lifecycleGeneration !== lifecycleGenerationRef.current) return;
       if (typeof document === 'undefined') return;
       if (document.hidden) {
         if (pollingRef.current) {
@@ -428,6 +434,7 @@ export function usePolling<T>(
 
     // Cleanup function: cancel timer, drop listeners, and reset state on unmount
     return () => {
+      lifecycleGenerationRef.current += 1;
       if (pauseWhenHidden && typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }
