@@ -14,7 +14,7 @@ jest.mock('react', () => {
   const actual = jest.requireActual('react');
   return {
     ...actual,
-    use: () => ({ id: 'tournament-1' }),
+    use: jest.fn(() => ({ id: 'tournament-1' })),
   };
 });
 
@@ -23,6 +23,7 @@ jest.mock('next-auth/react', () => ({
 }));
 
 const mockUseSession = useSession as jest.MockedFunction<typeof useSession>;
+const mockReactUse = (jest.requireMock('react') as { use: jest.Mock }).use;
 
 jest.mock('next/navigation', () => ({
   usePathname: () => '/tournaments/tournament-1',
@@ -56,6 +57,12 @@ const summaryTournament = {
   taBattleRoyaleMode: false,
 };
 
+const summaryTournamentB = {
+  ...summaryTournament,
+  id: 'tournament-2',
+  name: 'Second Tournament',
+};
+
 const summaryResponse = {
   ok: true,
   json: jest.fn().mockResolvedValue({ data: summaryTournament }),
@@ -74,7 +81,9 @@ const errorResponse = {
 
 describe('TournamentLayout lifecycle controls (issue #2895)', () => {
   beforeEach(() => {
+    mockReactUse.mockReturnValue({ id: 'tournament-1' });
     mockUseSession.mockReturnValue({ data: { user: { role: 'admin' } } } as ReturnType<typeof useSession>);
+    mockFetchWithRetry.mockReset();
     mockFetchWithRetry.mockResolvedValue(summaryResponse as never);
     global.fetch = jest.fn() as unknown as typeof fetch;
     mockLoggerError.mockClear();
@@ -210,5 +219,111 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('does not show tournament A while tournament B summary is loading', async () => {
+    let resolveSecondSummary!: (value: unknown) => void;
+    mockFetchWithRetry
+      .mockResolvedValueOnce(summaryResponse as never)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecondSummary = resolve;
+          }) as never,
+      );
+
+    const { rerender } = render(
+      <TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>,
+    );
+    await screen.findByText('Test Tournament');
+
+    mockReactUse.mockReturnValue({ id: 'tournament-2' });
+    rerender(<TournamentLayout params={Promise.resolve({ id: 'tournament-2' })}>content</TournamentLayout>);
+
+    expect(screen.queryByText('Test Tournament')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveSecondSummary({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ data: summaryTournamentB }),
+      });
+      await Promise.resolve();
+    });
+    await screen.findByText('Second Tournament');
+  });
+
+  it('ignores a late summary completion from tournament A after tournament B succeeds', async () => {
+    let resolveFirstSummary!: (value: unknown) => void;
+    mockFetchWithRetry.mockImplementation((url) => {
+      if (String(url).includes('/tournament-1?')) {
+        return new Promise((resolve) => {
+          resolveFirstSummary = resolve;
+        }) as never;
+      }
+      return Promise.resolve({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ data: summaryTournamentB }),
+      }) as never;
+    });
+
+    const { rerender } = render(
+      <TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>,
+    );
+    await waitFor(() => {
+      expect(mockFetchWithRetry).toHaveBeenCalledWith('/api/tournaments/tournament-1?fields=summary', {
+        cache: 'no-store',
+      });
+    });
+
+    mockReactUse.mockReturnValue({ id: 'tournament-2' });
+    rerender(<TournamentLayout params={Promise.resolve({ id: 'tournament-2' })}>content</TournamentLayout>);
+    await screen.findByText('Second Tournament');
+
+    await act(async () => {
+      resolveFirstSummary({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ data: summaryTournament }),
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Second Tournament')).toBeInTheDocument();
+    expect(screen.queryByText('Test Tournament')).not.toBeInTheDocument();
+  });
+
+  it('ignores a late status PUT completion from tournament A after moving to tournament B', async () => {
+    let resolveStatusUpdate!: (value: unknown) => void;
+    (global.fetch as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStatusUpdate = resolve;
+        }),
+    );
+
+    const { rerender } = render(
+      <TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>,
+    );
+    await screen.findByText('Test Tournament');
+    fireEvent.click(screen.getByRole('button', { name: 'startTournament' }));
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+
+    mockFetchWithRetry.mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ data: summaryTournamentB }),
+    } as never);
+    mockReactUse.mockReturnValue({ id: 'tournament-2' });
+    rerender(<TournamentLayout params={Promise.resolve({ id: 'tournament-2' })}>content</TournamentLayout>);
+
+    await screen.findByText('Second Tournament');
+    expect(screen.getByRole('button', { name: 'startTournament' })).not.toBeDisabled();
+
+    await act(async () => {
+      resolveStatusUpdate(updatedResponse);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Second Tournament')).toBeInTheDocument();
+    expect(screen.queryByText('Test Tournament')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'startTournament' })).not.toBeDisabled();
   });
 });
