@@ -15,12 +15,14 @@ describe('qualification raw HTTP error debt guard (issue #3842)', () => {
   const gp = readAppFile('src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx');
   const ta = readAppFile('src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
 
-  it.each([
-    ['bm', bm, 'alert'],
-    ['mr', mr, 'toast.error'],
-  ] as const)('%s keeps raw bracket error debt bounded to reset/generate only', (_mode, source, notifier) => {
-    expect(countOccurrences(source, `${notifier}(err.error || tc('failedResetBracket'));`)).toBe(1);
-    expect(countOccurrences(source, `${notifier}(err.error || tc('failedGenerateBracket'));`)).toBe(1);
+  it('keeps the migrated BM bracket path fail-closed', () => {
+    expect(bm).not.toContain("err.error || tc('failedResetBracket')");
+    expect(bm).not.toContain("err.error || tc('failedGenerateBracket')");
+  });
+
+  it('keeps remaining MR raw bracket error debt bounded to reset/generate only', () => {
+    expect(countOccurrences(mr, "toast.error(err.error || tc('failedResetBracket'));" )).toBe(1);
+    expect(countOccurrences(mr, "toast.error(err.error || tc('failedGenerateBracket'));" )).toBe(1);
   });
 
   it('keeps the already-migrated GP bracket path fail-closed', () => {
