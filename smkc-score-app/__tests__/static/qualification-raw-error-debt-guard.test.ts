@@ -5,29 +5,17 @@ function readAppFile(...parts: string[]) {
   return fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 }
 
-function countOccurrences(source: string, needle: string) {
-  return source.split(needle).length - 1;
-}
-
 describe('qualification raw HTTP error debt guard (issue #3842)', () => {
   const bm = readAppFile('src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
   const mr = readAppFile('src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
   const gp = readAppFile('src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx');
   const ta = readAppFile('src', 'app', 'tournaments', '[id]', 'ta', 'page-client.tsx');
 
-  it('keeps the migrated BM bracket path fail-closed', () => {
-    expect(bm).not.toContain("err.error || tc('failedResetBracket')");
-    expect(bm).not.toContain("err.error || tc('failedGenerateBracket')");
-  });
-
-  it('keeps remaining MR raw bracket error debt bounded to reset/generate only', () => {
-    expect(countOccurrences(mr, `toast.error(err.error || tc('failedResetBracket'));`)).toBe(1);
-    expect(countOccurrences(mr, `toast.error(err.error || tc('failedGenerateBracket'));`)).toBe(1);
-  });
-
-  it('keeps the already-migrated GP bracket path fail-closed', () => {
-    expect(gp).not.toContain("err.error || tc('failedResetBracket')");
-    expect(gp).not.toContain("err.error || tc('failedGenerateBracket')");
+  it('keeps BM/MR/GP bracket paths fail-closed', () => {
+    for (const source of [bm, mr, gp]) {
+      expect(source).not.toContain("err.error || tc('failedResetBracket')");
+      expect(source).not.toContain("err.error || tc('failedGenerateBracket')");
+    }
   });
 
   it('keeps migrated BM/MR/GP qualification mutations free of the old raw network-error fallback', () => {
