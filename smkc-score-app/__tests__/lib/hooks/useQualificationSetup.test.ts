@@ -53,7 +53,7 @@ describe('useQualificationSetup', () => {
     expect(result.current.setupSaving).toBe(false);
   });
 
-  it('keeps a 4xx response as a validation error without refreshing', async () => {
+  it('uses a localized validation fallback for 4xx while preserving the machine-readable code', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
       status: 400,
@@ -73,15 +73,37 @@ describe('useQualificationSetup', () => {
         kind: 'validation',
         status: 400,
         code: 'INVALID_SEEDING',
-        message: 'Invalid seeding',
+        message: 'setupValidationError',
       },
     });
     expect(result.current.setupError).toEqual(expect.objectContaining({ kind: 'validation' }));
+    expect(result.current.setupError?.message).not.toBe('Invalid seeding');
     expect(refetch).not.toHaveBeenCalled();
     expect(mockLogger.warn).toHaveBeenCalledWith(
       'Qualification setup rejected',
       expect.objectContaining({ status: 400, code: 'INVALID_SEEDING' }),
     );
+  });
+
+  it('uses a localized server fallback for a JSON 5xx response without exposing raw detail', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Database connection failed', code: 'INTERNAL_ERROR' }),
+    } as unknown as Response);
+    const { result } = makeHook();
+
+    await act(async () => {
+      await result.current.submitSetup(players);
+    });
+
+    expect(result.current.setupError).toEqual({
+      kind: 'server',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'setupServerError',
+    });
+    expect(result.current.setupError?.message).not.toBe('Database connection failed');
   });
 
   it('uses a localized server fallback for a non-JSON 5xx response', async () => {

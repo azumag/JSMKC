@@ -24,7 +24,6 @@ export interface SubmitSetupResult {
 }
 
 interface SetupErrorPayload {
-  error?: unknown;
   code?: unknown;
 }
 
@@ -95,15 +94,11 @@ export function useQualificationSetup({ tournamentId, mode, refetch }: UseQualif
           const payload = (await response.json().catch(() => null)) as SetupErrorPayload | null;
           const isValidation = response.status < 500;
           const code = typeof payload?.code === 'string' ? payload.code : undefined;
-          const serverMessage = typeof payload?.error === 'string' ? payload.error : undefined;
           const error: QualificationSetupError = {
             kind: isValidation ? 'validation' : 'server',
             status: response.status,
             code,
-            message:
-              isValidation && serverMessage
-                ? serverMessage
-                : tc(isValidation ? 'setupValidationError' : 'setupServerError'),
+            message: tc(isValidation ? 'setupValidationError' : 'setupServerError'),
           };
           setSetupError(error);
           logger.warn('Qualification setup rejected', {
