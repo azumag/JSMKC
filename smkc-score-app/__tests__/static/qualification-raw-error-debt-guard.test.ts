@@ -21,8 +21,8 @@ describe('qualification raw HTTP error debt guard (issue #3842)', () => {
   });
 
   it('keeps remaining MR raw bracket error debt bounded to reset/generate only', () => {
-    expect(countOccurrences(mr, "toast.error(err.error || tc('failedResetBracket'));" )).toBe(1);
-    expect(countOccurrences(mr, "toast.error(err.error || tc('failedGenerateBracket'));" )).toBe(1);
+    expect(countOccurrences(mr, `toast.error(err.error || tc('failedResetBracket'));`)).toBe(1);
+    expect(countOccurrences(mr, `toast.error(err.error || tc('failedGenerateBracket'));`)).toBe(1);
   });
 
   it('keeps the already-migrated GP bracket path fail-closed', () => {
