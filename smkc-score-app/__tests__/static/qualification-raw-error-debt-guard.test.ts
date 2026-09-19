@@ -5,7 +5,7 @@ function readAppFile(...parts: string[]) {
   return fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 }
 
-describe('qualification raw HTTP error debt guard (issue #3842)', () => {
+describe('qualification raw HTTP error guard (issue #3842)', () => {
   const bm = readAppFile('src', 'app', 'tournaments', '[id]', 'bm', 'page-client.tsx');
   const mr = readAppFile('src', 'app', 'tournaments', '[id]', 'mr', 'page-client.tsx');
   const gp = readAppFile('src', 'app', 'tournaments', '[id]', 'gp', 'page-client.tsx');
@@ -18,15 +18,16 @@ describe('qualification raw HTTP error debt guard (issue #3842)', () => {
     }
   });
 
-  it('keeps migrated BM/MR/GP qualification mutations free of the old raw network-error fallback', () => {
+  it('keeps BM/MR/GP qualification mutations free of the old raw network-error fallback', () => {
     for (const source of [bm, mr, gp]) {
       expect(source).not.toContain("errorData.error || tc('networkError')");
     }
   });
 
-  it('bounds the remaining TA page-local raw-error debt to the currently tracked fallback shapes', () => {
-    expect(ta).toContain("errorData.error || tc('networkError')");
-    expect(ta).toContain("payload.error || tc('networkError')");
-    expect(ta).toContain("json.error || tc('networkError')");
+  it('keeps TA page-local qualification paths free of tracked raw network-error fallbacks', () => {
+    expect(ta).not.toContain("errorData.error || tc('networkError')");
+    expect(ta).not.toContain("payload.error || tc('networkError')");
+    expect(ta).not.toContain("json.error || tc('networkError')");
+    expect(ta).not.toContain('throw new Error(errorData.error)');
   });
 });
