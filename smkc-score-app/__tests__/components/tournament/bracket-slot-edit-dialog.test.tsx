@@ -266,8 +266,9 @@ describe('BracketSlotEditDialog', () => {
     });
   });
 
-  it('shows an error toast and keeps the dialog open when the save fails', async () => {
-    fetchMock.mockResolvedValue({ ok: false, json: async () => ({ error: 'Version conflict' }) });
+  it('redacts raw API detail and keeps the dialog open when the save returns non-2xx', async () => {
+    const json = jest.fn(async () => ({ error: 'internal version row=42' }));
+    fetchMock.mockResolvedValue({ ok: false, status: 409, json });
     const onOpenChange = jest.fn();
     const onSaved = jest.fn();
     renderDialog({ onOpenChange, onSaved });
@@ -275,7 +276,24 @@ describe('BracketSlotEditDialog', () => {
     fireEvent.click(screen.getByTestId('slot-edit-swap-confirm'));
     fireEvent.click(await screen.findByTestId('slot-edit-confirm-final'));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Version conflict'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to update slot'));
+    expect(json).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining('internal version row=42'));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('uses the same localized fallback for transport failures', async () => {
+    fetchMock.mockRejectedValue(new TypeError('network transport detail'));
+    const onOpenChange = jest.fn();
+    const onSaved = jest.fn();
+    renderDialog({ onOpenChange, onSaved });
+
+    fireEvent.click(screen.getByTestId('slot-edit-swap-confirm'));
+    fireEvent.click(await screen.findByTestId('slot-edit-confirm-final'));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to update slot'));
+    expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining('network transport detail'));
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(onSaved).not.toHaveBeenCalled();
   });

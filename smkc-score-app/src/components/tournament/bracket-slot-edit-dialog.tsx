@@ -208,14 +208,27 @@ export function BracketSlotEditDialog({
         body: JSON.stringify({ matchId: match.id, slotEdit }),
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        toast.error(error?.error || tf('slotEditFailed'));
+        logger.error('Bracket slot edit request failed:', {
+          operation: 'slot_edit',
+          finalsApiPath,
+          matchId: match.id,
+          status: response.status,
+        });
+        toast.error(tf('slotEditFailed'));
         return;
       }
       toast.success(tf('slotEditSuccess'));
       onOpenChange(false);
       onSaved();
-    } catch {
+    } catch (error) {
+      logger.error('Bracket slot edit request failed:', {
+        operation: 'slot_edit',
+        finalsApiPath,
+        matchId: match.id,
+        ...(error instanceof Error
+          ? { errorName: error.name, message: error.message, stack: error.stack }
+          : { errorType: typeof error }),
+      });
       toast.error(tf('slotEditFailed'));
     } finally {
       savingRef.current = false;
