@@ -19,15 +19,14 @@ describe('qualification bracket network error contract (issue #3584)', () => {
 
       expect(source).not.toContain(`${notifier}(err.error || tc('failedResetBracket'));`);
       expect(source).not.toContain(`${notifier}(err.error || tc('failedGenerateBracket'));`);
+      expect(source).not.toContain('const err = await res.json().catch(() => ({}));');
+
       expect(source).toContain("logger.error('Failed to reset qualification bracket', {");
       expect(source).toContain("logger.error('Failed to generate qualification bracket', {");
       expect(source).toContain('status: res.status');
-      expect(source).toContain(
-        `logger.error('Failed to reset qualification bracket', { error, tournamentId });\n                  ${notifier}(tc('networkError'));`,
-      );
-      expect(source).toContain(
-        `logger.error('Failed to generate qualification bracket', { error, tournamentId });\n                  ${notifier}(tc('networkError'));`,
-      );
+      expect(source).toContain("logger.error('Failed to reset qualification bracket', { error, tournamentId });");
+      expect(source).toContain("logger.error('Failed to generate qualification bracket', { error, tournamentId });");
+      expect(source).toContain(`${notifier}(tc('networkError'));`);
       expect(source).toContain('setResettingBracket(false);');
       expect(source).toContain('setGeneratingBracket(false);');
     },
