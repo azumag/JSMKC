@@ -1,31 +1,30 @@
 # Participant report error contract
 
-BM / MR / GP の participant page は `smkc-score-app/src/lib/hooks/useParticipantMatches.ts` を共通利用する。各 page は `common.networkError` の翻訳済み文言を `networkErrorMessage` として hook に渡し、初期データ取得と report 送信の generic failure を同じローカライズ済み fallback に統一する。
+BM / MR / GP の participant page は `smkc-score-app/src/lib/hooks/useParticipantMatches.ts` を共通利用する。各 production page は `common.networkError` の翻訳済み文言を `networkErrorMessage` として hook に渡し、初期データ取得と report 送信の HTTP / transport failure を同じローカライズ済み fallback に統一する。
 
 ## 初期データ取得
 
 `tournament summary` と mode-specific match data は同時に取得する。
 
 1. 両 response が成功した場合のみ tournament / matches state を更新する。
-2. どちらかが non-2xx で具体的な API `error` を返した場合は、その内容を表示する。
-3. non-2xx だが具体的な API error がない場合は `common.networkError` を表示する。
-4. `fetch()` rejection や JSON parse failure など client-side 例外でも `common.networkError` を表示する。
+2. production page でどちらかが non-2xx の場合、response body の `error` prose は UI 用に解析せず `common.networkError` を表示する。
+3. `fetch()` rejection や JSON parse failure など client-side 例外でも `common.networkError` を表示する。
 
-初期取得が失敗した場合、片方だけ成功した response を partial state として表示しない。HTTP status、失敗した source、low-level exception は logger に残す。
+初期取得が失敗した場合、片方だけ成功した response を partial state として表示しない。HTTP status、失敗した source、mode、tournamentId は logger に残すが、backend response の raw error prose は production failure log / UI fallback に使わない。
 
 ## report 送信
 
-レポート送信失敗時は次の優先順位で表示する。
+production participant page のレポート送信失敗時は次の契約とする。
 
-1. API が non-2xx で具体的な `error` を返した場合、その内容を表示する。
-2. non-2xx だが具体的な API error がない場合、`common.networkError` を表示する。
-3. `fetch()` rejection など request-level failure の場合も `common.networkError` を表示する。
+1. API が non-2xx の場合、response body の raw `error` prose は UI 用に解析せず `common.networkError` を表示する。
+2. `fetch()` rejection など request-level failure の場合も `common.networkError` を表示する。
+3. HTTP failure は status / tournamentId / mode / matchId、transport failure は元の exception と識別子を client logger に記録し、診断可能性を維持する。
 
-ブラウザ・通信層由来の raw `Error.message` は UI に表示しない。元の例外は client logger に記録し、診断可能性を維持する。
+ブラウザ・通信層由来の raw `Error.message` や backend response detail は UI に表示しない。
 
 ## MR / GP shared match の report 送信
 
-MR / GP の shared match detail page (`/mr/match/[matchId]` / `/gp/match/[matchId]`) は上記 participant hook とは独立した submit path を持つ。この経路では HTTP non-2xx と `fetch()` rejection のどちらもユーザー向けには `common.networkError` のみを表示し、response body の `error` やブラウザ由来の raw error detail を UI に露出しない。
+MR / GP の shared match detail page (`/mr/match/[matchId]` / `/gp/match/[matchId]`) は上記 participant hook とは独立した submit path を持つ。この経路でも HTTP non-2xx と `fetch()` rejection のどちらもユーザー向けには `common.networkError` のみを表示し、response body の `error` やブラウザ由来の raw error detail を UI に露出しない。
 
 成功時の submitted state、`refetch()`、request payload、client-side validation は変更しない。transport-level exception は引き続き client logger に記録し、失敗後は `finally` で submitting state を解除して再試行可能な状態へ戻す。
 
@@ -49,16 +48,17 @@ report 失敗時は `submitReport()` が `null` を返し、呼び出し側が�
 
 ## 互換性
 
-`networkErrorMessage` は hook の低レベルな単体利用との互換性のため optional とするが、BM / MR / GP の production participant page はすべて `common.networkError` を渡す。endpoint、payload、polling interval、participant access-control の契約は変更しない。
+`networkErrorMessage` は hook の低レベルな単体利用との互換性のため optional とする。未指定時は従来どおり API-specific error / HTTP status fallback を返せるが、BM / MR / GP の production participant page はすべて `common.networkError` を渡すため raw response detail を UI に流さない。endpoint、payload、polling interval、participant access-control の契約は変更しない。
 
 ## 回帰保護
 
 `smkc-score-app/__tests__/lib/hooks/useParticipantMatches.test.ts` と `useParticipantMatches-i18n-errors.test.ts` で以下を確認する。
 
-- API-specific error がそのまま保持されること
+- production path の initial non-2xx が response body を UI fallback 用に解析せず localized network error を使うこと
+- production path の report non-2xx が response body を UI fallback 用に解析せず localized network error を使うこと
 - initial non-2xx が silent failure / partial state にならないこと
-- generic non-2xx と request rejection が supplied localized fallback を使うこと
-- request rejection の raw detail が UI に漏れず logger に残ること
-- non-JSON error response が JSON parse error を UI に漏らさないこと
+- request rejection が supplied localized fallback を使い、raw transport detail は UI に漏れず logger に残ること
+- production HTTP failure の logger には status / source / mode / tournamentId / matchId など安全な context が残ること
+- `networkErrorMessage` 未指定の低レベル互換 path では従来の API-specific / status fallback が維持されること
 
 加えて `smkc-score-app/__tests__/static/match-report-error-fallbacks.test.ts` で MR / GP shared match submit の HTTP non-2xx と transport failure が `common.networkError` に統一され、raw API error を UI fallback に使わないことを固定する。同じ static test で MR shared match の identity validation が `match.selectPlayer` を使うこと、および race-winner validation が `match.selectAllRaceWinners` に `TOTAL_MR_RACES` を渡すことも確認する。race-winner validation の EN/JA split catalog は同一キー集合であることと、`src/i18n/request.ts` が `match` namespace に merge することも同テストで確認する。
