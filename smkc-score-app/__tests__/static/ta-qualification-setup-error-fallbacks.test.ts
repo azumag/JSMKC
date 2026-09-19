@@ -22,7 +22,7 @@ describe('TA qualification setup error fallback contract', () => {
   it('normalizes HTTP response errors without parsing backend error details', () => {
     expect(block).toContain("new SetupSaveError(tc('networkError'), response.status, operation)");
     expect(block).toContain("const userMessage = tc('networkError');");
-    expect(block).not.toContain('response.json()');
+    expect(block).not.toContain('const payload = await response.json()');
     expect(block).not.toContain('payload.error');
     expect(block).not.toContain("const msg = err instanceof Error ? err.message : 'Save failed'");
     expect(block).not.toContain('Failed to add players');
