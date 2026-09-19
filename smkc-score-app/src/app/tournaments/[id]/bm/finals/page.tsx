@@ -430,9 +430,8 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
   /**
    * Persist a TV# selection from the bracket card immediately.
    * Uses PATCH so admins don't have to enter the score dialog just to assign
-   * a broadcast slot — the dropdown saves on change. On success, refetch and
-   * surface a toast; on failure, surface a toast with the server error so the
-   * admin notices (the bracket card otherwise looks identical).
+   * a broadcast slot — the dropdown saves on change. HTTP failures use a
+   * localized fallback while safe response metadata is retained for diagnosis.
    */
   const handleBracketTvNumberChange = async (match: BMMatch, tvNumber: number | null) => {
     /* Cancel any in-flight TV# PATCH so a slower earlier response cannot
@@ -448,8 +447,14 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
         signal: controller.signal,
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        toast.error(error?.error || tFinals('failedAssignTv'));
+        logger.error('Failed to assign TV number from bracket:', {
+          operation: 'assign_tv',
+          mode: 'bm',
+          tournamentId,
+          matchId: match.id,
+          status: response.status,
+        });
+        toast.error(tFinals('failedAssignTv'));
         return;
       }
       if (tvNumber === null) {
@@ -491,8 +496,14 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
         signal: controller.signal,
       });
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        toast.error(error?.error || tFinals('failedAssignCourse'));
+        logger.error('Failed to assign starting course:', {
+          operation: 'assign_starting_course',
+          mode: 'bm',
+          tournamentId,
+          matchId: match.id,
+          status: response.status,
+        });
+        toast.error(tFinals('failedAssignCourse'));
         return;
       }
       if (startingCourseNumber === null) {
@@ -568,8 +579,14 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
           }
         }
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedUpdateScore'));
+        logger.error('Failed to update score:', {
+          operation: 'update_score',
+          mode: 'bm',
+          tournamentId,
+          matchId: selectedMatch.id,
+          status: response.status,
+        });
+        alert(tFinals('failedUpdateScore'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
