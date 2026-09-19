@@ -15,12 +15,19 @@
 
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
 
 interface MatchForAuth {
   player1Id: string;
   player2Id: string;
+}
+
+type SelectedPlayer = 1 | 2 | null;
+
+interface ManualSelection {
+  matchKey: string | null;
+  player: SelectedPlayer;
 }
 
 interface UseMatchReportAuthResult {
@@ -31,29 +38,52 @@ interface UseMatchReportAuthResult {
   /** Whether the session is still loading (avoid showing "not authorized" flash) */
   isSessionLoading: boolean;
   /** Auto-selected player identity (1 or 2), or null if not auto-selectable */
-  selectedPlayer: 1 | 2 | null;
+  selectedPlayer: SelectedPlayer;
   /** Setter to allow manual player selection (e.g., admin choosing a side) */
-  setSelectedPlayer: (player: 1 | 2 | null) => void;
+  setSelectedPlayer: (player: SelectedPlayer) => void;
+}
+
+function getMatchKey(match: MatchForAuth | null): string | null {
+  if (!match) return null;
+  return `${match.player1Id}\u0000${match.player2Id}`;
 }
 
 export function useMatchReportAuth(
   match: MatchForAuth | null
 ): UseMatchReportAuthResult {
   const { data: session, status } = useSession();
-  const [selectedPlayer, setSelectedPlayer] = useState<1 | 2 | null>(null);
+  const matchKey = getMatchKey(match);
+  const [manualSelection, setManualSelection] = useState<ManualSelection>(() => ({
+    matchKey,
+    player: null,
+  }));
 
   const isAdmin = session?.user?.role === "admin";
   const currentPlayerId = session?.user?.playerId;
   const isPlayer1 = !!(currentPlayerId && match && currentPlayerId === match.player1Id);
   const isPlayer2 = !!(currentPlayerId && match && currentPlayerId === match.player2Id);
   const canReport = isAdmin || isPlayer1 || isPlayer2;
-  const autoSelectedPlayer = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
+  const autoSelectedPlayer: SelectedPlayer = isPlayer1 ? 1 : isPlayer2 ? 2 : null;
+
+  // A route transition can reuse the same hook instance for a different match.
+  // Manual selection belongs only to the ordered player pair that produced it;
+  // otherwise fall back synchronously to the new match's auto-selection.
+  const selectedPlayer = manualSelection.matchKey === matchKey
+    ? manualSelection.player ?? autoSelectedPlayer
+    : autoSelectedPlayer;
+
+  const setSelectedPlayer = useCallback(
+    (player: SelectedPlayer) => {
+      setManualSelection({ matchKey, player });
+    },
+    [matchKey]
+  );
 
   return {
     canReport,
     isAdmin,
     isSessionLoading: status === "loading",
-    selectedPlayer: selectedPlayer ?? autoSelectedPlayer,
+    selectedPlayer,
     setSelectedPlayer,
   };
 }
