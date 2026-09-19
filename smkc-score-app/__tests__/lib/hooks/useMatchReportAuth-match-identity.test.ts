@@ -31,10 +31,9 @@ describe('useMatchReportAuth match identity', () => {
       status: 'authenticated',
     });
 
-    const { result, rerender } = renderHook(
-      ({ match }) => useMatchReportAuth(match),
-      { initialProps: { match: MATCH_A } },
-    );
+    const { result, rerender } = renderHook(({ match }) => useMatchReportAuth(match), {
+      initialProps: { match: MATCH_A },
+    });
 
     expect(result.current.selectedPlayer).toBe(1);
     act(() => {
@@ -53,10 +52,9 @@ describe('useMatchReportAuth match identity', () => {
       status: 'authenticated',
     });
 
-    const { result, rerender } = renderHook(
-      ({ match }) => useMatchReportAuth(match),
-      { initialProps: { match: MATCH_A } },
-    );
+    const { result, rerender } = renderHook(({ match }) => useMatchReportAuth(match), {
+      initialProps: { match: MATCH_A },
+    });
 
     act(() => {
       result.current.setSelectedPlayer(2);
