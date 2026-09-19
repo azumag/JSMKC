@@ -1,0 +1,32 @@
+# Qualification setup client contract
+
+BM / MR / GP の qualification setup は `smkc-score-app/src/lib/hooks/useQualificationSetup.ts` が共通して所有する。hook は GroupSetupDialog の open/close や入力 state を所有せず、POST transport、重複送信防止、失敗分類、成功後の refetch を担当する。
+
+## Non-idempotent request ownership
+
+qualification setup POST は non-idempotent mutation であり、request を開始した `{tournamentId, mode}` identity にだけ所属する。
+
+- 同じ identity で setup POST が進行中の場合、2回目の submit は `common.operationInProgress` の validation error で拒否する。
+- tournament または mode が変わった場合、旧 request は `AbortController` で中断し、submit lock と UI saving/error state を新しい context へ持ち越さない。
+- transport/mock が abort を無視して旧 response を返した場合も、request ownership と現在の identity を再確認し、旧 completion は `setupError` / `setupSaving` を更新しない。
+- stale response は旧 `refetch` を呼ばず、caller へ `{ ok: false }` を返す。これにより、旧 page handler が新しい context の dialog を成功扱いで閉じることも防ぐ。
+- 旧 request の `finally` は controller ownership と identity が一致する場合だけ lock / saving state を解除し、新しい request の進行状態を消さない。
+
+## Error contract
+
+4xx は localized `common.setupValidationError`、5xx は localized `common.setupServerError`、transport failure は localized `common.networkError` を表示する。4xx/5xx の machine-readable `code` は診断・分岐用に保持できるが、backend の raw error prose は UI に表示しない。
+
+成功した POST の後に `refetch()` だけが失敗した場合、POST 自体を failure 扱いに戻さない。同じ non-idempotent mutation の再実行を促すと重複生成につながり得るため、refresh failure は logger に記録し、setup result は成功として扱う。ただし identity が変わった後の stale completion は成功として caller に返さない。
+
+## Regression coverage
+
+`smkc-score-app/__tests__/lib/hooks/useQualificationSetup.test.ts` で次を固定する。
+
+- request payload は submit 開始時に snapshot される
+- same-context concurrent submit は1 request に直列化される
+- validation/server/network failure は localized fallback を使う
+- successful POST 後の refresh failure は non-idempotent retry を誘発しない
+- A大会の request が pending のまま B大会へ移動しても B大会が即座に submit できる
+- abort を無視して返る A大会の late success / transport failure が B大会の state、refetch、submit lock を変更しない
+
+API endpoint、payload、authorization、qualification grouping semantics はこの client-side isolation 契約では変更しない。

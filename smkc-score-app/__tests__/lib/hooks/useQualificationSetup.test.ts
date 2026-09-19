@@ -22,6 +22,22 @@ jest.mock('next-intl', () => ({
 const tournamentId = 'tournament-abc';
 const players: SetupPlayer[] = [{ playerId: 'p1', group: 'A', seeding: 1 }];
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+};
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function makeHook(refetch = jest.fn()) {
   return renderHook(() => useQualificationSetup({ tournamentId, mode: 'bm', refetch }));
 }
@@ -42,11 +58,15 @@ describe('useQualificationSetup', () => {
       outcome = await result.current.submitSetup(players);
     });
 
-    expect(global.fetch).toHaveBeenCalledWith(`/api/tournaments/${tournamentId}/bm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ players }),
-    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      `/api/tournaments/${tournamentId}/bm`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ players }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
     expect(refetch).toHaveBeenCalledTimes(1);
     expect(outcome).toEqual({ ok: true });
     expect(result.current.setupError).toBeNull();
@@ -243,5 +263,95 @@ describe('useQualificationSetup', () => {
     act(() => result.current.clearSetupError());
 
     expect(result.current.setupError).toBeNull();
+  });
+
+  it('allows a new tournament to submit and ignores an old late success', async () => {
+    const requestA = deferred<Response>();
+    const requestB = deferred<Response>();
+    const refetchA = jest.fn();
+    const refetchB = jest.fn();
+    (global.fetch as jest.Mock).mockReturnValueOnce(requestA.promise).mockReturnValueOnce(requestB.promise);
+
+    const { result, rerender } = renderHook(
+      ({ currentTournamentId, refetch }) =>
+        useQualificationSetup({ tournamentId: currentTournamentId, mode: 'bm', refetch }),
+      { initialProps: { currentTournamentId: 'A', refetch: refetchA } },
+    );
+
+    let outcomeA!: Promise<unknown>;
+    act(() => {
+      outcomeA = result.current.submitSetup(players);
+    });
+    expect(result.current.setupSaving).toBe(true);
+    const signalA = (global.fetch as jest.Mock).mock.calls[0][1].signal as AbortSignal;
+    expect(signalA.aborted).toBe(false);
+
+    rerender({ currentTournamentId: 'B', refetch: refetchB });
+    expect(signalA.aborted).toBe(true);
+    expect(result.current.setupSaving).toBe(false);
+    expect(result.current.setupError).toBeNull();
+
+    let outcomeB!: Promise<unknown>;
+    act(() => {
+      outcomeB = result.current.submitSetup(players);
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(result.current.setupSaving).toBe(true);
+
+    let staleResult;
+    await act(async () => {
+      requestA.resolve({ ok: true, status: 200 } as Response);
+      staleResult = await outcomeA;
+    });
+
+    expect(staleResult).toEqual({ ok: false });
+    expect(refetchA).not.toHaveBeenCalled();
+    expect(result.current.setupSaving).toBe(true);
+    expect(result.current.setupError).toBeNull();
+
+    let currentResult;
+    await act(async () => {
+      requestB.resolve({ ok: true, status: 200 } as Response);
+      currentResult = await outcomeB;
+    });
+
+    expect(currentResult).toEqual({ ok: true });
+    expect(refetchB).toHaveBeenCalledTimes(1);
+    expect(result.current.setupSaving).toBe(false);
+  });
+
+  it('ignores an old-context transport failure after tournament navigation', async () => {
+    const requestA = deferred<Response>();
+    const refetchA = jest.fn();
+    const refetchB = jest.fn();
+    (global.fetch as jest.Mock).mockReturnValue(requestA.promise);
+
+    const { result, rerender } = renderHook(
+      ({ currentTournamentId, refetch }) =>
+        useQualificationSetup({ tournamentId: currentTournamentId, mode: 'bm', refetch }),
+      { initialProps: { currentTournamentId: 'A', refetch: refetchA } },
+    );
+
+    let outcomeA!: Promise<unknown>;
+    act(() => {
+      outcomeA = result.current.submitSetup(players);
+    });
+
+    rerender({ currentTournamentId: 'B', refetch: refetchB });
+
+    let staleResult;
+    await act(async () => {
+      requestA.reject(new Error('old transport detail'));
+      staleResult = await outcomeA;
+    });
+
+    expect(staleResult).toEqual({ ok: false });
+    expect(result.current.setupError).toBeNull();
+    expect(result.current.setupSaving).toBe(false);
+    expect(refetchA).not.toHaveBeenCalled();
+    expect(mockLogger.error).not.toHaveBeenCalledWith(
+      'Qualification setup request failed',
+      expect.objectContaining({ tournamentId: 'A' }),
+    );
   });
 });
