@@ -48,11 +48,11 @@ function renderButton() {
   );
 }
 
-function jsonResponse(ok: boolean, body: unknown) {
-  return { ok, json: async () => body };
+function jsonResponse(ok: boolean, body: unknown, status = ok ? 200 : 500) {
+  return { ok, status, json: jest.fn(async () => body) };
 }
 
-describe('CDM archive reconcile generic error contract (issue #3570)', () => {
+describe('CDM archive reconcile generic error contract (issues #3570, #3872)', () => {
   let fetchMock: jest.Mock;
 
   beforeEach(() => {
@@ -63,28 +63,33 @@ describe('CDM archive reconcile generic error contract (issue #3570)', () => {
   });
 
   it('uses common.networkError when preview fails without an API-specific error', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(false, {}));
+    const response = jsonResponse(false, {});
+    fetchMock.mockResolvedValueOnce(response);
     renderButton();
 
     fireEvent.click(screen.getByRole('button', { name: 'Reconcile CDM schedule / re-archive' }));
 
     await waitFor(() => expect(window.alert).toHaveBeenCalledWith('common.networkError'));
+    expect(response.json).not.toHaveBeenCalled();
     expect(window.prompt).not.toHaveBeenCalled();
   });
 
-  it('keeps an API-specific preview error ahead of the shared fallback', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(false, { error: 'preview-specific-error' }));
+  it('redacts API-specific preview error prose without parsing the failure body', async () => {
+    const response = jsonResponse(false, { error: 'preview-specific-error' }, 502);
+    fetchMock.mockResolvedValueOnce(response);
     renderButton();
 
     fireEvent.click(screen.getByRole('button', { name: 'Reconcile CDM schedule / re-archive' }));
 
-    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('preview-specific-error'));
+    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('common.networkError'));
+    expect(window.alert).not.toHaveBeenCalledWith('preview-specific-error');
+    expect(response.json).not.toHaveBeenCalled();
   });
 
   it('uses common.networkError when apply fails without an API-specific error', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse(true, { data: preview }))
-      .mockResolvedValueOnce(jsonResponse(false, {}));
+    const previewResponse = jsonResponse(true, { data: preview });
+    const applyResponse = jsonResponse(false, {});
+    fetchMock.mockResolvedValueOnce(previewResponse).mockResolvedValueOnce(applyResponse);
     window.prompt = jest.fn(() => 'Tournament One');
     renderButton();
 
@@ -92,25 +97,44 @@ describe('CDM archive reconcile generic error contract (issue #3570)', () => {
 
     await waitFor(() => expect(window.prompt).toHaveBeenCalled());
     await waitFor(() => expect(window.alert).toHaveBeenCalledWith('common.networkError'));
+    expect(previewResponse.json).toHaveBeenCalledTimes(1);
+    expect(applyResponse.json).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps an API-specific apply error ahead of the shared fallback', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse(true, { data: preview }))
-      .mockResolvedValueOnce(jsonResponse(false, { data: { error: 'apply-specific-error' } }));
+  it('redacts API-specific apply error prose without parsing the failure body', async () => {
+    const previewResponse = jsonResponse(true, { data: preview });
+    const applyResponse = jsonResponse(false, { data: { error: 'apply-specific-error' } }, 409);
+    fetchMock.mockResolvedValueOnce(previewResponse).mockResolvedValueOnce(applyResponse);
     window.prompt = jest.fn(() => 'Tournament One');
     renderButton();
 
     fireEvent.click(screen.getByRole('button', { name: 'Reconcile CDM schedule / re-archive' }));
 
-    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('apply-specific-error'));
+    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('common.networkError'));
+    expect(window.alert).not.toHaveBeenCalledWith('apply-specific-error');
+    expect(applyResponse.json).not.toHaveBeenCalled();
   });
 
-  it('documents the shared fallback contract', () => {
+  it('fails closed when a successful apply response has an invalid body', async () => {
+    const previewResponse = jsonResponse(true, { data: preview });
+    const applyResponse = jsonResponse(true, {});
+    fetchMock.mockResolvedValueOnce(previewResponse).mockResolvedValueOnce(applyResponse);
+    window.prompt = jest.fn(() => 'Tournament One');
+    renderButton();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reconcile CDM schedule / re-archive' }));
+
+    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('common.networkError'));
+    expect(applyResponse.json).toHaveBeenCalledTimes(1);
+    expect(window.alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('documents the fail-closed shared fallback contract', () => {
     const docs = fs.readFileSync(path.join(process.cwd(), 'docs/cdm-archive-reconcile-client-errors.md'), 'utf8');
 
-    expect(docs).toContain('API response の `error` / `data.error` / `message`');
-    expect(docs).toContain('preview/apply failure は `common.networkError`');
+    expect(docs).toContain('HTTP non-2xx response body は UI 用に解析しない');
+    expect(docs).toContain('`common.networkError`');
+    expect(docs).toContain('HTTP status');
   });
 });

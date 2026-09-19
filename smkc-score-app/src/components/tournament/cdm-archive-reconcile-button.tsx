@@ -29,18 +29,24 @@ type Preview = {
   modes: Record<'bm' | 'mr' | 'gp', ModeSummary>;
 };
 
+type ApplyResult = {
+  applied: boolean;
+  archiveGeneratedAt: string;
+};
+
 function unwrap<T>(value: unknown): T {
   const record = value as { data?: T };
   return record?.data ?? (value as T);
 }
 
-function errorMessage(value: unknown, fallback: string): string {
-  if (!value || typeof value !== 'object') return fallback;
-  const record = value as { error?: unknown; message?: unknown; data?: { error?: unknown } };
-  if (typeof record.error === 'string') return record.error;
-  if (typeof record.data?.error === 'string') return record.data.error;
-  if (typeof record.message === 'string') return record.message;
-  return fallback;
+function isApplyResult(value: unknown): value is ApplyResult {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Partial<ApplyResult>;
+  return (
+    typeof record.applied === 'boolean' &&
+    typeof record.archiveGeneratedAt === 'string' &&
+    record.archiveGeneratedAt.trim().length > 0
+  );
 }
 
 function modeLine(mode: string, summary: ModeSummary, japanese: boolean): string {
@@ -81,11 +87,15 @@ export function CdmArchiveReconcileButton({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'preview' }),
       });
-      const previewJson = await previewResponse.json().catch(() => ({}));
       if (!previewResponse.ok) {
-        alert(errorMessage(previewJson, tCommon('networkError')));
+        logger.error('CDM archive reconciliation preview failed', {
+          tournamentId,
+          status: previewResponse.status,
+        });
+        alert(tCommon('networkError'));
         return;
       }
+      const previewJson = await previewResponse.json().catch(() => ({}));
       const preview = unwrap<Preview>(previewJson);
       const details = (['bm', 'mr', 'gp'] as const)
         .map((mode) => modeLine(mode, preview.modes[mode], japanese))
@@ -107,12 +117,19 @@ export function CdmArchiveReconcileButton({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'apply', digest: preview.digest }),
       });
-      const applyJson = await applyResponse.json().catch(() => ({}));
       if (!applyResponse.ok) {
-        alert(errorMessage(applyJson, tCommon('networkError')));
+        logger.error('CDM archive reconciliation apply failed', {
+          tournamentId,
+          status: applyResponse.status,
+        });
+        alert(tCommon('networkError'));
         return;
       }
-      const result = unwrap<{ applied: boolean; archiveGeneratedAt: string }>(applyJson);
+      const applyJson = await applyResponse.json().catch(() => ({}));
+      const result = unwrap<ApplyResult>(applyJson);
+      if (!isApplyResult(result)) {
+        throw new Error('Invalid CDM archive reconciliation apply response');
+      }
       alert(
         japanese
           ? result.applied
