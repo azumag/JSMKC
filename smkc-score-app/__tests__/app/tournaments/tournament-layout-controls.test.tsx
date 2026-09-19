@@ -223,14 +223,12 @@ describe('TournamentLayout lifecycle controls (issue #2895)', () => {
 
   it('does not show tournament A while tournament B summary is loading', async () => {
     let resolveSecondSummary!: (value: unknown) => void;
-    mockFetchWithRetry
-      .mockResolvedValueOnce(summaryResponse as never)
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveSecondSummary = resolve;
-          }) as never,
-      );
+    mockFetchWithRetry.mockResolvedValueOnce(summaryResponse as never).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecondSummary = resolve;
+        }) as never,
+    );
 
     const { rerender } = render(
       <TournamentLayout params={Promise.resolve({ id: 'tournament-1' })}>content</TournamentLayout>,
