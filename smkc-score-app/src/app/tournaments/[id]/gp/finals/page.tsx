@@ -387,8 +387,13 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
         setChampion(null);
         refetch();
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedCreateBracket'));
+        logger.error('Failed to create bracket:', {
+          operation: 'create_bracket',
+          mode: 'gp',
+          tournamentId,
+          status: response.status,
+        });
+        alert(tFinals('failedCreateBracket'));
       }
     } catch (err) {
       logger.error('Failed to create bracket:', { error: err, tournamentId });
@@ -423,8 +428,13 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
         setSeededPlayers(data.seededPlayers || []);
         refetch();
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedCreateBracket'));
+        logger.error('Failed to create upper bracket:', {
+          operation: 'create_upper_bracket',
+          mode: 'gp',
+          tournamentId,
+          status: response.status,
+        });
+        alert(tFinals('failedCreateBracket'));
       }
     } catch (err) {
       logger.error('Failed to create upper bracket:', { error: err, tournamentId });

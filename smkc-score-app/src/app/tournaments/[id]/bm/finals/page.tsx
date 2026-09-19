@@ -363,8 +363,13 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
         setChampion(null);
         refetch();
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedCreateBracket'));
+        logger.error('Failed to create bracket:', {
+          operation: 'create_bracket',
+          mode: 'bm',
+          tournamentId,
+          status: response.status,
+        });
+        alert(tFinals('failedCreateBracket'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
@@ -405,8 +410,13 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
         setSeededPlayers(data.seededPlayers || []);
         refetch();
       } else {
-        const error = await response.json();
-        alert(error.error || tFinals('failedCreateBracket'));
+        logger.error('Failed to create upper bracket:', {
+          operation: 'create_upper_bracket',
+          mode: 'bm',
+          tournamentId,
+          status: response.status,
+        });
+        alert(tFinals('failedCreateBracket'));
       }
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
