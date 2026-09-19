@@ -80,6 +80,26 @@ describe('useModePublish stale toggle protection', () => {
     window.removeEventListener('publicModesChanged', eventHandler);
   });
 
+  it('clears the previous tournament publish state when the next tournament load fails', async () => {
+    mockedFetchWithRetry
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ publicModes: ['bm'] }) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+
+    const { result, rerender } = renderHook(({ tournamentId, mode }: HookProps) => useModePublish(tournamentId, mode), {
+      initialProps: { tournamentId: 'tournament-old', mode: 'bm' } as HookProps,
+    });
+
+    await waitFor(() => expect(result.current.isPublic).toBe(true));
+    expect(result.current.error).toBeNull();
+
+    rerender({ tournamentId: 'tournament-new', mode: 'bm' });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBe('load');
+    expect(result.current.isPublic).toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('aborts a pending PUT on unmount and suppresses a late success event', async () => {
     mockedFetchWithRetry.mockResolvedValue({ ok: true, json: async () => ({ publicModes: [] }) } as Response);
 

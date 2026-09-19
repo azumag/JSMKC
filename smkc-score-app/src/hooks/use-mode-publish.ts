@@ -44,6 +44,10 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
     let cancelled = false;
     setLoading(true);
     setError(null);
+    // `publicModes` belongs to the tournament identity that loaded it. Clear
+    // cached state before reading a different/current tournament so a failed
+    // load cannot leave the previous tournament's publish badge visible.
+    setPublicModes([]);
     (async () => {
       try {
         const response = await fetchWithRetry(`/api/tournaments/${tournamentId}?fields=summary`);
