@@ -21,8 +21,8 @@ describe('TA finals fetch fallback i18n', () => {
     for (const source of [eliminationPhase, finalsPage]) {
       expect(source).toContain("setError(tCommon('networkError'));");
       expect(source).not.toContain("err instanceof Error ? err.message : tCommon('networkError')");
+      expect(source).not.toMatch(/errorData\.error\s*\|\|\s*tCommon\('networkError'\)/);
     }
-    expect(finalsPage).not.toMatch(/errorData\.error\s*\|\|\s*tCommon\('networkError'\)/);
   });
 
   it('removes the user-visible English fetch fallbacks without changing logger diagnostics', () => {
