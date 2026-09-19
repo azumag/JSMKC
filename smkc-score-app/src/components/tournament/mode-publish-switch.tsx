@@ -30,6 +30,7 @@ export function ModePublishSwitch({ tournamentId, mode, modeLabelKey }: ModePubl
   const stateLabel = isPublic ? t('published') : t('unpublished');
   const ariaLabel = t('toggleLabel', { mode: tc(modeLabelKey) });
   const initialStateUnknown = error === 'load';
+  const publishStateKnown = !loading && !initialStateUnknown;
 
   return (
     <div className="space-y-1">
@@ -40,9 +41,11 @@ export function ModePublishSwitch({ tournamentId, mode, modeLabelKey }: ModePubl
           disabled={updating || loading || initialStateUnknown}
           aria-label={ariaLabel}
         />
-        <Badge variant={isPublic ? 'default' : 'secondary'} className="text-xs">
-          {stateLabel}
-        </Badge>
+        {publishStateKnown && (
+          <Badge variant={isPublic ? 'default' : 'secondary'} className="text-xs">
+            {stateLabel}
+          </Badge>
+        )}
       </div>
       {error && (
         <div className="space-y-1">
