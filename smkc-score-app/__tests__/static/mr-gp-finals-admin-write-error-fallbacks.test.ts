@@ -39,13 +39,21 @@ describe('MR/GP finals admin write error fallbacks (issue #3889)', () => {
     'const handleBracketTvNumberChange = async',
     'const openMatchDialog =',
   );
-  const mrSubmitHandler = getHandlerBlock(sources.mr, 'const handleMatchSubmit = async', 'const qualificationConfirmed');
+  const mrSubmitHandler = getHandlerBlock(
+    sources.mr,
+    'const handleMatchSubmit = async',
+    'const qualificationConfirmed',
+  );
   const gpTvHandler = getHandlerBlock(
     sources.gp,
     'const handleBracketTvNumberChange = async',
     'const openScoreDialog =',
   );
-  const gpScoreHandler = getHandlerBlock(sources.gp, 'const handleScoreSubmit = async', 'const qualificationConfirmed');
+  const gpScoreHandler = getHandlerBlock(
+    sources.gp,
+    'const handleScoreSubmit = async',
+    'const qualificationConfirmed',
+  );
 
   it.each([
     ['MR TV assignment', getNonOkReturnBranch(mrTvHandler), 'assign_tv', 'mr', 'failedAssignTv'],
