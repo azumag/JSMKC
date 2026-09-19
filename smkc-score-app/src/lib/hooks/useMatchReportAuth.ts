@@ -67,7 +67,7 @@ export function useMatchReportAuth(match: MatchForAuth | null): UseMatchReportAu
   // Manual selection belongs only to the ordered player pair that produced it;
   // otherwise fall back synchronously to the new match's auto-selection.
   const selectedPlayer =
-    manualSelection.matchKey === matchKey ? manualSelection.player ?? autoSelectedPlayer : autoSelectedPlayer;
+    manualSelection.matchKey === matchKey ? (manualSelection.player ?? autoSelectedPlayer) : autoSelectedPlayer;
 
   const setSelectedPlayer = useCallback(
     (player: SelectedPlayer) => {
