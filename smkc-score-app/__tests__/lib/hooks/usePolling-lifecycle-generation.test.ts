@@ -26,24 +26,24 @@ describe('usePolling lifecycle generation', () => {
     jest.useRealTimers();
   });
 
-  it('ignores a late success from the lifecycle that was disabled before a new lifecycle started', async () => {
+  it('ignores a late success and scheduler from the lifecycle that was disabled before a new lifecycle started', async () => {
     const staleRequest = deferred<{ value: string }>();
     const currentRequest = deferred<{ value: string }>();
     const onSuccess = jest.fn();
     const fetchFn = jest
-      .fn<Promise<{ value: string }>, []>()
+      .fn()
       .mockImplementationOnce(() => staleRequest.promise)
       .mockImplementationOnce(() => currentRequest.promise);
 
     const { result, rerender, unmount } = renderHook(
-      ({ enabled }) => usePolling(fetchFn, { enabled, interval: 60_000, onSuccess }),
-      { initialProps: { enabled: true } },
+      ({ enabled, interval }) => usePolling(fetchFn, { enabled, interval, onSuccess }),
+      { initialProps: { enabled: true, interval: 1_000 } },
     );
 
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
 
-    rerender({ enabled: false });
-    rerender({ enabled: true });
+    rerender({ enabled: false, interval: 1_000 });
+    rerender({ enabled: true, interval: 60_000 });
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2));
 
     await act(async () => {
@@ -53,6 +53,13 @@ describe('usePolling lifecycle generation', () => {
 
     expect(result.current.data).toBeNull();
     expect(onSuccess).not.toHaveBeenCalled();
+
+    // The old lifecycle used a 1s interval. Its late completion must not
+    // replace the new lifecycle's cadence or start a third poll.
+    act(() => {
+      jest.advanceTimersByTime(1_000);
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
 
     await act(async () => {
       currentRequest.resolve({ value: 'fresh' });
@@ -71,7 +78,7 @@ describe('usePolling lifecycle generation', () => {
     const currentRequest = deferred<{ value: string }>();
     const onError = jest.fn();
     const fetchFn = jest
-      .fn<Promise<{ value: string }>, []>()
+      .fn()
       .mockImplementationOnce(() => staleRequest.promise)
       .mockImplementationOnce(() => currentRequest.promise);
 
