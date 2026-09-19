@@ -4,27 +4,23 @@ TA finals の round control では、ユーザー向けエラーと診断用エ�
 
 ## Phase 1 / Phase 2
 
-`smkc-score-app/src/components/tournament/ta-elimination-phase.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` は次の契約に従う。
+`smkc-score-app/src/components/tournament/ta-elimination-phase.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` は #3864 の残りの実装単位で fail-closed 化する。それまでは既存の concrete API error fallback が残る。
 
-1. API が具体的な `error` を返した場合は、そのメッセージをユーザーへ表示する。
-2. API が具体的なエラーを返さない non-2xx response は `common.networkError` を表示する。
-3. `fetch()` rejection など request 自体が失敗した場合も `common.networkError` を表示し、ブラウザ由来の raw `Error.message` は UI に出さない。
-4. request rejection の詳細は client logger に残す。
-5. request payload、成功時の state reset / refetch、confirmation dialog、loading state cleanup は変更しない。
+移行後は Phase 3 と同じく、HTTP non-2xx の response body を UI 用に解析せず `common.networkError` を表示し、status / tournamentId / phase / operation など安全な context のみを logger に残す。
 
 ## Phase 3
 
-`smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` も Phase 1 / 2 と同じ契約に従う。
+`smkc-score-app/src/app/tournaments/[id]/ta/finals/page.tsx` の `start_round`、`cancel_round`、`undo_round`、`cancel_last_round` は fail-closed とする。
 
-- API の具体的な `error` はユーザーへそのまま表示する。
-- generic non-2xx と `fetch()` rejection は `common.networkError` を表示する。
-- request rejection の raw detail は client logger のみに残す。
-- confirmation dialog と loading state は、成功・失敗のどちらでも従来どおり操作可能な状態へ戻す。
+- HTTP non-2xx は response body の `error` / text を解析せず `common.networkError` を表示する。
+- `fetch()` rejection も `common.networkError` を表示し、raw exception detail は client logger のみに残す。
+- HTTP failure の logger には status、tournamentId、phase、必要な roundNumber など安全な context を残す。
+- request payload、成功時の state reset / refetch、confirmation dialog、loading state cleanup は変更しない。
 
 ## Phase 3 manual elimination
 
-Phase 3 の manual elimination も同じ user-facing error policy に従う。API 固有 `error` は優先し、generic non-2xx と request rejection は `common.networkError` を表示する。request rejection の raw detail は client logger のみに残す。
+manual elimination の HTTP failure も response body を解析せず `common.networkError` を表示する。status、tournamentId、entryId は client logger に残す。成功時の dialog cleanup と refetch は維持する。
 
 ## Phase 3 life adjustment
 
-Phase 3 の残機変更では、API 固有 `error` を優先し、generic non-2xx は既存の翻訳済み `taFinals.livesUpdateFailed` を使う。`fetch()` rejection は `common.networkError` を表示し、raw browser/network detail は client logger のみに残す。stale-write protection (`expectedVersion` / `expectedLives`) と成功時 cleanup は維持する。
+残機変更の HTTP failure は response body を解析せず、既存の翻訳済み `taFinals.livesUpdateFailed` を表示する。`fetch()` rejection は `common.networkError` を表示する。status、tournamentId、entryId は client logger に残し、stale-write protection (`expectedVersion` / `expectedLives`) と成功時 cleanup は維持する。
