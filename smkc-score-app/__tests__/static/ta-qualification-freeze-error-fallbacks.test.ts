@@ -11,16 +11,16 @@ describe('TA qualification freeze error fallback contract', () => {
   const end = source.indexOf('\n  // === Event Handlers ===', start);
   const block = source.slice(start, end);
 
-  it('keeps API errors first and uses common.networkError for generic failures', () => {
-    expect(block).toContain('const errorData = await response.json().catch(() => ({}));');
-    expect(block).toContain("toast.error(errorData.error || tc('networkError'));");
+  it('uses common.networkError for HTTP and transport failures without parsing response details', () => {
     expect(block).toContain("toast.error(tc('networkError'));");
+    expect(block).not.toContain('response.json()');
+    expect(block).not.toContain('errorData.error');
     expect(block).not.toContain('Failed to update freeze state');
     expect(block).not.toContain('Failed to toggle freeze');
-    expect(block).not.toContain('err instanceof Error ? err.message :');
+    expect(block).not.toContain('err instanceof Error ? err.message : tc(');
   });
 
-  it('keeps low-level response and rejection details in the client logger', () => {
+  it('keeps response status and transport rejection details in the client logger', () => {
     expect(block).toContain("logger.error('Failed to update TA qualification freeze state:', {");
     expect(block).toContain('status: response.status');
     expect(block).toContain('message: err.message');

@@ -12,16 +12,16 @@ function getFetchTournamentDataBlock(): string {
   return source.slice(start, end);
 }
 
-describe('TA qualification fetch error fallback contract (issue #3645)', () => {
-  it('preserves concrete API errors while localizing generic load failures', () => {
+describe('TA qualification fetch error fallback contract (issue #3645/#3842)', () => {
+  it('localizes HTTP and transport load failures without parsing backend error details', () => {
     const fetchBlock = getFetchTournamentDataBlock();
 
-    expect(fetchBlock).toContain("if (typeof errorData.error === 'string' && errorData.error.trim())");
-    expect(fetchBlock).toContain('throw new Error(errorData.error);');
     expect(fetchBlock).toContain("throw new Error(tc('networkError'));");
     expect(fetchBlock).toContain("logger.error('Failed to load TA qualification data:'");
-    expect(fetchBlock).toContain("logger.error('Failed to parse TA qualification error response:'");
-    expect(fetchBlock).toContain("logger.error('TA qualification fetch returned a generic error response:'");
+    expect(fetchBlock).toContain('status: taResponse.status');
+    expect(fetchBlock).not.toContain('errorData.error');
+    expect(fetchBlock).not.toContain('Failed to parse TA qualification error response:');
+    expect(fetchBlock).not.toContain('TA qualification fetch returned a generic error response:');
     expect(fetchBlock).toContain("logger.error('Failed to parse TA qualification response:'");
     expect(fetchBlock).not.toContain('Failed to fetch TA data:');
     expect(fetchBlock).toContain('fetchAllPlayersForSetup<Player>()');
