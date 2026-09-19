@@ -1,5 +1,5 @@
 /**
- * Hook to fetch a tournament's debugMode flag once on mount.
+ * Hook to fetch a tournament's debugMode flag on mount and tournament changes.
  *
  * Returns `true` only when the tournament was created with the "debug mode"
  * checkbox enabled. Used by qualification pages to conditionally render the
