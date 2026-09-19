@@ -46,9 +46,7 @@ describe('useTournamentDebugMode', () => {
     const { result } = renderHook(() => useTournamentDebugMode(TOURNAMENT_ID));
 
     await waitFor(() => expect(result.current).toBe(true));
-    expect(mockedFetchWithRetry).toHaveBeenCalledWith(
-      `/api/tournaments/${TOURNAMENT_ID}?fields=summary`,
-    );
+    expect(mockedFetchWithRetry).toHaveBeenCalledWith(`/api/tournaments/${TOURNAMENT_ID}?fields=summary`);
   });
 
   it('TC-2607: returns false when response.ok=false (early return, no state update)', async () => {
@@ -107,7 +105,9 @@ describe('useTournamentDebugMode', () => {
 
   it('TC-2610: cancels state update when unmounted before fetch resolves', async () => {
     let resolvePromise!: (v: unknown) => void;
-    const deferred = new Promise((res) => { resolvePromise = res; });
+    const deferred = new Promise((res) => {
+      resolvePromise = res;
+    });
     mockedFetchWithRetry.mockReturnValue(deferred as Promise<Response>);
 
     const { result, unmount } = renderHook(() => useTournamentDebugMode(TOURNAMENT_ID));
