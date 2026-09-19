@@ -11,6 +11,7 @@
  * - TC-2631: response.ok=false → loading=false, isPublic stays false (early return, finally runs)
  * - TC-2632: fetchWithRetry throws → loading=false, isPublic stays false (best-effort)
  * - TC-2633: Unwraps json.data wrapper from createSuccessResponse format
+ * - Malformed 200 summary responses keep publish state unknown and block mutation
  * - TC-2634: toggle() when not public → PUT with addPublicMode result, isPublic becomes true
  * - TC-2635: toggle() when public → PUT with removePublicMode result, isPublic becomes false
  * - TC-2636: toggle() on non-ok PUT → no state change, updating resets to false
@@ -135,6 +136,32 @@ describe('useModePublish', () => {
       const { result } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
 
       await waitFor(() => expect(result.current.isPublic).toBe(true));
+    });
+  });
+
+  describe('malformed successful summary response', () => {
+    it.each([
+      ['missing publicModes', {}],
+      ['missing wrapped publicModes', { data: {} }],
+      ['non-string publicModes member', { publicModes: ['ta', 1] }],
+    ])('keeps publish state unknown and blocks PUT when %s', async (_case, payload) => {
+      mockedFetchWithRetry.mockResolvedValue({
+        ok: true,
+        json: async () => payload,
+      } as Response);
+
+      const { result } = renderHook(() => useModePublish(TOURNAMENT_ID, MODE));
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+      expect(result.current.error).toBe('load');
+      expect(result.current.isPublic).toBe(false);
+
+      await act(async () => {
+        await result.current.toggle();
+      });
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(result.current.updating).toBe(false);
     });
   });
 
