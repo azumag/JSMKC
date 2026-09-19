@@ -37,6 +37,8 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
   const [loadAttempt, setLoadAttempt] = useState(0);
   const updatingRef = useRef(false);
   const toggleAbortRef = useRef<AbortController | null>(null);
+  const identityRef = useRef({ tournamentId, mode });
+  identityRef.current = { tournamentId, mode };
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +112,12 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
 
     const controller = new AbortController();
     toggleAbortRef.current = controller;
+    const requestIdentity = { tournamentId, mode };
+    const isCurrentRequest = () =>
+      !controller.signal.aborted &&
+      toggleAbortRef.current === controller &&
+      identityRef.current.tournamentId === requestIdentity.tournamentId &&
+      identityRef.current.mode === requestIdentity.mode;
 
     try {
       const next = isPublic ? removePublicMode(publicModes, mode) : addPublicMode(publicModes, mode);
@@ -120,7 +128,7 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
         signal: controller.signal,
       });
 
-      if (controller.signal.aborted || toggleAbortRef.current !== controller) return;
+      if (!isCurrentRequest()) return;
 
       if (response.ok) {
         setPublicModes(next);
@@ -135,12 +143,12 @@ export function useModePublish(tournamentId: string, mode: RevealableMode): UseM
         });
       }
     } catch (err) {
-      if (controller.signal.aborted || toggleAbortRef.current !== controller) return;
+      if (!isCurrentRequest()) return;
       setError('update');
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to update mode visibility:', metadata);
     } finally {
-      if (toggleAbortRef.current === controller) {
+      if (isCurrentRequest()) {
         toggleAbortRef.current = null;
         updatingRef.current = false;
         setUpdating(false);
