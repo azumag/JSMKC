@@ -7,13 +7,15 @@ describe('qualification page i18n errors', () => {
     'utf8',
   );
 
-  it('keeps setup error fallbacks in the typed common message catalog', () => {
+  it('keeps setup error fallbacks in the typed common message catalog without exposing raw API detail', () => {
     const networkErrorTranslation = /message:\s*tc\s*\(\s*(['"])networkError\1\s*\)/;
     const setupFallbackTranslation =
       /tc\s*\(\s*isValidation\s*\?\s*(['"])setupValidationError\1\s*:\s*(['"])setupServerError\2\s*\)/;
 
     expect(setupHook).toMatch(networkErrorTranslation);
     expect(setupHook).toMatch(setupFallbackTranslation);
+    expect(setupHook).not.toContain('payload?.error');
+    expect(setupHook).not.toContain('serverMessage');
     expect(setupHook).not.toContain('Network error — please try again');
   });
 
