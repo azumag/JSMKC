@@ -21,17 +21,11 @@ import {
 import { TaHandicapSelect } from '@/components/tournament/ta-handicap-select';
 import { TaModeBadge } from '@/components/tournament/ta-mode-badge';
 import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
-import { fetchAllPlayersForSetup } from '@/lib/qualification-page-data';
+import { usePlayerSearch } from '@/hooks/use-player-search';
 import type { TaHandicapSeconds } from '@/lib/ta/battle-royale';
 import { createLogger } from '@/lib/client-logger';
 
 const logger = createLogger({ serviceName: 'ta-battle-royale-setup' });
-
-interface Player {
-  id: string;
-  name: string;
-  nickname: string;
-}
 
 interface SelectedPlayer {
   playerId: string;
@@ -44,36 +38,19 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
   const tc = useTranslations('common');
   const isAdmin = session?.user?.role === 'admin';
 
-  const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const {
+    results: searchResults,
+    knownPlayers,
+    loading: playerSearchLoading,
+    error: playerSearchError,
+  } = usePlayerSearch(searchQuery, isAdmin);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const startAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchAllPlayersForSetup<Player>()
-      .then((result) => {
-        if (!cancelled) setPlayers(result ?? []);
-      })
-      .catch((fetchError) => {
-        logger.error('Failed to fetch players for battle royale setup', {
-          error: fetchError,
-          tournamentId,
-        });
-        if (!cancelled) setError(tc('networkError'));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [tc, tournamentId]);
 
   useEffect(
     () => () => {
@@ -89,23 +66,28 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
     () => new Map(selectedPlayers.map((entry) => [entry.playerId, entry])),
     [selectedPlayers],
   );
+  const knownPlayersById = useMemo(() => new Map(knownPlayers.map((player) => [player.id, player])), [knownPlayers]);
 
-  const filteredPlayers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return players;
-    return players.filter(
-      (player) => player.nickname.toLowerCase().includes(query) || player.name.toLowerCase().includes(query),
-    );
-  }, [players, searchQuery]);
+  // Keep previously selected players visible even when the active search no
+  // longer returns them. Search-result-only actions (Select All) still operate
+  // strictly on the current server result page.
+  const visiblePlayers = useMemo(() => {
+    const byId = new Map(searchResults.map((player) => [player.id, player]));
+    for (const selected of selectedPlayers) {
+      const knownPlayer = knownPlayersById.get(selected.playerId);
+      if (knownPlayer) byId.set(knownPlayer.id, knownPlayer);
+    }
+    return [...byId.values()];
+  }, [knownPlayersById, searchResults, selectedPlayers]);
 
   const allFilteredSelected =
-    filteredPlayers.length > 0 && filteredPlayers.every((player) => selectedByPlayerId.has(player.id));
+    searchResults.length > 0 && searchResults.every((player) => selectedByPlayerId.has(player.id));
 
   // New selections always start at handicap 0 — Player no longer carries a
   // default (that field only ever seeded new entries and never affected an
   // already-entered player). Admins set the real per-player value below via
   // TaHandicapSelect before starting the battle royale.
-  const togglePlayer = (player: Player, checked: boolean) => {
+  const togglePlayer = (player: (typeof visiblePlayers)[number], checked: boolean) => {
     setSelectedPlayers((current) => {
       if (!checked) return current.filter((entry) => entry.playerId !== player.id);
       if (current.some((entry) => entry.playerId === player.id)) return current;
@@ -114,13 +96,13 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
   };
 
   const toggleAllFiltered = (checked: boolean) => {
-    const visibleIds = new Set(filteredPlayers.map((player) => player.id));
+    const searchResultIds = new Set(searchResults.map((player) => player.id));
     setSelectedPlayers((current) => {
-      if (!checked) return current.filter((entry) => !visibleIds.has(entry.playerId));
+      if (!checked) return current.filter((entry) => !searchResultIds.has(entry.playerId));
       const selectedIds = new Set(current.map((entry) => entry.playerId));
       return [
         ...current,
-        ...filteredPlayers
+        ...searchResults
           .filter((player) => !selectedIds.has(player.id))
           .map((player) => ({ playerId: player.id, taHandicapSeconds: 0 as TaHandicapSeconds })),
       ];
@@ -204,13 +186,13 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
         <CardContent className="space-y-4">
           {!isAdmin ? (
             <p className="py-6 text-center text-muted-foreground">{tc('notStarted')}</p>
-          ) : loading ? (
+          ) : playerSearchLoading && searchResults.length === 0 && knownPlayers.length === 0 ? (
             <div className="h-40 animate-pulse rounded-md bg-muted" />
           ) : (
             <>
-              {error && (
+              {(error || playerSearchError) && (
                 <p role="alert" className="text-sm text-destructive">
-                  {error}
+                  {error ?? tc('networkError')}
                 </p>
               )}
               <Input
@@ -232,10 +214,10 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
               </div>
 
               <div className="max-h-[55vh] divide-y overflow-y-auto rounded-md border">
-                {filteredPlayers.length === 0 ? (
+                {visiblePlayers.length === 0 ? (
                   <p className="p-6 text-center text-sm text-muted-foreground">{tc('noPlayersSelected')}</p>
                 ) : (
-                  filteredPlayers.map((player) => {
+                  visiblePlayers.map((player) => {
                     const selected = selectedByPlayerId.get(player.id);
                     return (
                       <div key={player.id} className="flex min-h-14 items-center gap-3 px-3 py-2">
