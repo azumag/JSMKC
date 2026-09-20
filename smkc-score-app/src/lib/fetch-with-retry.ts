@@ -30,6 +30,17 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   return (init?.method ?? (isRequestInput(input) ? input.method : 'GET')).toUpperCase();
 }
 
+function requestSignal(input: RequestInfo | URL, init?: RequestInit): AbortSignal | null {
+  if (init && Object.prototype.hasOwnProperty.call(init, 'signal')) {
+    return init.signal ?? null;
+  }
+  return isRequestInput(input) ? input.signal : null;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
 function isRetrySafeRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
   const method = requestMethod(input, init);
   return method === 'GET' || method === 'HEAD';
@@ -91,6 +102,8 @@ async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
  * Fetch with automatic retry on 500+ status codes for safe read methods.
  * Mutating methods are attempted exactly once because an error response or
  * connection loss does not prove that the server failed to commit the write.
+ * Explicitly aborted reads also fail immediately: cancellation is caller intent,
+ * not a transient transport failure to replay after a delay.
  * Returns the last response (successful or final failure).
  */
 export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -129,6 +142,11 @@ async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): 
         return lastResponse;
       }
     } catch (err) {
+      // Caller cancellation is intentional and must never be replayed. Prefer
+      // the effective signal (RequestInit overrides Request.signal), while also
+      // recognizing the standard AbortError when no signal state is available.
+      if (requestSignal(input, init)?.aborted || isAbortError(err)) throw err;
+
       // Network error — retry safe reads unless this is the last attempt.
       // Mutations have maxAttempts=1, so they always re-throw immediately.
       if (attempt === maxAttempts - 1) throw err;
