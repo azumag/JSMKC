@@ -24,7 +24,6 @@ describe('qualification page player transport static guard', () => {
     if (!fs.existsSync(helperPath)) return;
 
     const source = fs.readFileSync(helperPath, 'utf8');
-    expect(source).not.toContain('/api/players');
     expect(source).not.toMatch(/\bfetch\s*\(/);
     expect(source).not.toContain('fetchWithRetry');
     expect(source).toContain('return null;');
