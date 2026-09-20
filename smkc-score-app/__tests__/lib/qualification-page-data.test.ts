@@ -104,15 +104,13 @@ describe('qualification page data helpers', () => {
 
   it('fails closed when a subsequent page is an explicit failed wrapper', async () => {
     const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
-    mockedFetchWithRetry
-      .mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2))
-      .mockResolvedValueOnce(
-        Response.json({
-          success: false,
-          data: [{ id: 'p101' }],
-          meta: { total: 101, page: 2, limit: 100, totalPages: 2 },
-        }) as never,
-      );
+    mockedFetchWithRetry.mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2)).mockResolvedValueOnce(
+      Response.json({
+        success: false,
+        data: [{ id: 'p101' }],
+        meta: { total: 101, page: 2, limit: 100, totalPages: 2 },
+      }) as never,
+    );
 
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
