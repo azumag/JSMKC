@@ -1,6 +1,6 @@
 import { extractArrayDataOrNull, extractPaginationMeta } from '@/lib/api-response';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
-import { PLAYER_LIST_EXCLUDED_ID } from '@/lib/player-search';
+import { isSelectablePlayerId } from '@/lib/player-search';
 
 // The players API caps pages at 100 records. Setup/Edit Players is polled by the
 // qualification pages, so keep pagination deliberately bounded rather than
@@ -41,7 +41,7 @@ function hasValidUniqueSetupPlayerIds(players: unknown[]): boolean {
     if (!value || typeof value !== 'object') return false;
 
     const id = (value as { id?: unknown }).id;
-    if (typeof id !== 'string' || id.trim().length === 0 || id === PLAYER_LIST_EXCLUDED_ID || ids.has(id)) {
+    if (!isSelectablePlayerId(id) || ids.has(id)) {
       return false;
     }
     ids.add(id);
