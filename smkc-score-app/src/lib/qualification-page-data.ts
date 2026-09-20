@@ -1,5 +1,6 @@
 import { extractArrayDataOrNull, extractPaginationMeta } from '@/lib/api-response';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
+import { PLAYER_LIST_EXCLUDED_ID } from '@/lib/player-search';
 
 // The players API caps pages at 100 records. Setup/Edit Players is polled by the
 // qualification pages, so keep pagination deliberately bounded rather than
@@ -27,6 +28,22 @@ function setupPlayersPageUrl(page: number): string {
   return page === 1 ? SETUP_PLAYERS_URL : `${SETUP_PLAYERS_URL}&page=${page}`;
 }
 
+function hasValidUniqueSetupPlayerIds(players: unknown[]): boolean {
+  const ids = new Set<string>();
+
+  for (const value of players) {
+    if (!value || typeof value !== 'object') return false;
+
+    const id = (value as { id?: unknown }).id;
+    if (typeof id !== 'string' || id.trim().length === 0 || id === PLAYER_LIST_EXCLUDED_ID || ids.has(id)) {
+      return false;
+    }
+    ids.add(id);
+  }
+
+  return true;
+}
+
 async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
   try {
     const firstResponse = await fetchWithRetry(setupPlayersPageUrl(1));
@@ -41,7 +58,9 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
     // contain fewer records than the API page cap. Exactly 100 rows without
     // metadata is ambiguous, so fail closed rather than silently truncating.
     if (!firstMeta) {
-      return firstPlayers.length < SETUP_PLAYERS_PAGE_SIZE ? firstPlayers : null;
+      return firstPlayers.length < SETUP_PLAYERS_PAGE_SIZE && hasValidUniqueSetupPlayerIds(firstPlayers)
+        ? firstPlayers
+        : null;
     }
 
     if (firstMeta.page !== 1 || firstMeta.limit !== SETUP_PLAYERS_PAGE_SIZE) {
@@ -80,7 +99,7 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
       players.push(...pagePlayers);
     }
 
-    return players.length === firstMeta.total ? players : null;
+    return players.length === firstMeta.total && hasValidUniqueSetupPlayerIds(players) ? players : null;
   } catch {
     return null;
   }
