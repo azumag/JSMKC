@@ -1,13 +1,7 @@
 import { readRepoFile } from '../helpers/e2e-cases';
 
 describe('GroupSetupDialog player search contract', () => {
-  const source = readRepoFile(
-    'smkc-score-app',
-    'src',
-    'components',
-    'tournament',
-    'group-setup-dialog.tsx',
-  );
+  const source = readRepoFile('smkc-score-app', 'src', 'components', 'tournament', 'group-setup-dialog.tsx');
 
   it('uses the shared bounded server-side player search while the dialog is open', () => {
     expect(source).toContain("import { usePlayerSearch } from '@/hooks/use-player-search'");
