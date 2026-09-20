@@ -66,10 +66,10 @@ import {
   type TaPhaseStage,
   type TaPhaseStatus,
 } from '@/lib/ta/phase-controls';
-import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
 import { autoFormatTime, generateRandomTimeString, msToDisplayTime, timeToMs } from '@/lib/ta/time-utils';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { useBroadcastReflect } from '@/lib/hooks/use-broadcast-reflect';
+import { usePlayerSearch } from '@/hooks/use-player-search';
 import type { TaInitialData } from '@/lib/ta/initial-data';
 import { QualificationClientLoadingState } from '@/components/ui/loading-skeleton';
 import { Dice5, ChevronDown, ChevronRight, Eye, Lock, Unlock } from 'lucide-react';
@@ -216,8 +216,16 @@ export default function TimeAttackPageClient({
   // the selected TV slots are immediately reflected to the broadcast endpoint.
   const [qualificationTvAssignments, setQualificationTvAssignments] = useState<Record<string, number | null>>({});
 
-  // Search query used inside the unified setup dialog
+  // Search query used inside the unified setup dialog. Keep the bounded search
+  // disabled while the dialog is closed so normal qualification polling never
+  // fetches the player list as a side effect.
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const {
+    results: playerSearchResults,
+    knownPlayers: searchedKnownPlayers,
+    loading: playerSearchLoading,
+    error: playerSearchError,
+  } = usePlayerSearch(playerSearchQuery, isAdmin && isSetupDialogOpen);
 
   // Tournament-level debug flag controls auto-fill availability.
   // Replaces the previous NODE_ENV gate so debug tournaments can also be
@@ -257,17 +265,12 @@ export default function TimeAttackPageClient({
   const phaseActionInFlight = promotingPhase !== null || resettingPhase !== null;
 
   // === Data Fetching ===
-  // Fetch tournament data and player list in parallel. HTTP/transport failures
-  // are logged with request context and normalized before usePolling can expose
-  // them to the UI; response-body details are deliberately not user-facing.
+  // Poll only tournament qualification data. Player discovery is intentionally
+  // isolated to the setup dialog's bounded server-side search above.
   const fetchTournamentData = useCallback(async () => {
     let taResponse: Response;
-    let playersResult: Player[] | null;
     try {
-      [taResponse, playersResult] = await Promise.all([
-        fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`),
-        fetchAllPlayersForSetup<Player>(),
-      ]);
+      taResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/ta?stage=qualification`);
     } catch (err) {
       const metadata = err instanceof Error ? { message: err.message, stack: err.stack } : { error: err };
       logger.error('Failed to load TA qualification data:', { ...metadata, tournamentId });
@@ -287,11 +290,9 @@ export default function TimeAttackPageClient({
 
       // Unwrap createSuccessResponse wrapper: { success, data: { entries, ... } }
       const taData = taJson.data ?? taJson;
-      const allPlayers = resolveAllPlayers(playersResult, taData.allPlayers);
 
       return {
         entries: taData.entries || [],
-        allPlayers,
         qualificationRegistrationLocked: taData.qualificationRegistrationLocked || false,
         frozenStages: taData.frozenStages || [],
         taPlayerSelfEdit: taData.taPlayerSelfEdit ?? true,
@@ -323,7 +324,6 @@ export default function TimeAttackPageClient({
    * Avoids redundant local state and provides instant display from cache.
    */
   const entries: TTEntry[] = useMemo(() => pollData?.entries ?? [], [pollData?.entries]);
-  const allPlayers: Player[] = useMemo(() => pollData?.allPlayers ?? [], [pollData?.allPlayers]);
   const qualificationRegistrationLocked: boolean = pollData?.qualificationRegistrationLocked ?? false;
   /** Frozen stages from the tournament - stages in this array cannot be edited */
   const frozenStages: string[] = pollData?.frozenStages ?? [];
@@ -810,18 +810,42 @@ export default function TimeAttackPageClient({
     return Object.values(entry.times).filter((t) => t && t !== '').length;
   };
 
-  /** Players filtered by search query for the setup dialog (case-insensitive partial match) */
-  const filteredPlayers = allPlayers.filter((p) => {
-    if (!playerSearchQuery) return true;
-    const q = playerSearchQuery.toLowerCase();
-    return p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
-  });
+  /**
+   * Current qualification entries provide identities for the existing roster,
+   * while the search hook remembers every result observed in this dialog
+   * session. This is sufficient to keep selected players renderable without a
+   * separately-polled global player list.
+   */
+  const knownPlayersById = useMemo(() => {
+    const byId = new Map<string, Player>();
+    for (const entry of entries) byId.set(entry.player.id, entry.player);
+    for (const player of searchedKnownPlayers) byId.set(player.id, player);
+    return byId;
+  }, [entries, searchedKnownPlayers]);
+
+  /** Current bounded server result page. Bulk actions must stay scoped here. */
+  const candidatePlayers = playerSearchResults;
+
+  /**
+   * Keep selected players visible when the active search no longer returns
+   * them. This mirrors BM/MR/GP and TA Battle Royale behavior and prevents an
+   * edit-mode assignment from disappearing merely because the query changed.
+   */
+  const visiblePlayers = useMemo(() => {
+    const byId = new Map(candidatePlayers.map((player) => [player.id, player]));
+    for (const selected of setupEntries) {
+      const knownPlayer = knownPlayersById.get(selected.playerId);
+      if (knownPlayer) byId.set(knownPlayer.id, knownPlayer);
+    }
+    return [...byId.values()];
+  }, [candidatePlayers, knownPlayersById, setupEntries]);
 
   /** Set of playerIds currently included in the setup (drives checkbox state) */
   const setupPlayerIdSet = new Set(setupEntries.map((s) => s.playerId));
 
-  /** Whether all currently visible (filtered) players are already in the setup */
-  const allFilteredSelected = filteredPlayers.length > 0 && filteredPlayers.every((p) => setupPlayerIdSet.has(p.id));
+  /** Whether all players on the current server result page are already selected. */
+  const allFilteredSelected =
+    candidatePlayers.length > 0 && candidatePlayers.every((player) => setupPlayerIdSet.has(player.id));
 
   /**
    * Seeded entries with no partner assigned yet. Since seeding edits no
@@ -961,7 +985,7 @@ export default function TimeAttackPageClient({
 
                 <div className="flex-1 overflow-y-auto md:overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:h-full">
-                    {/* Left column: all players checklist */}
+                    {/* Left column: bounded server-side player search */}
                     <div className="flex flex-col min-h-0">
                       <h4 className="font-medium mb-2">{tc('player')}</h4>
                       <Input
@@ -970,14 +994,19 @@ export default function TimeAttackPageClient({
                         onChange={(e) => setPlayerSearchQuery(e.target.value)}
                         className="mb-2"
                       />
-                      {filteredPlayers.length > 0 && (
+                      {playerSearchError && (
+                        <p role="alert" className="text-destructive text-sm pb-2">
+                          {tc('networkError')}
+                        </p>
+                      )}
+                      {candidatePlayers.length > 0 && (
                         <div className="flex items-center gap-2 py-1 border-b mb-1">
                           <Checkbox
                             id="setup-select-all"
                             checked={allFilteredSelected}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                const toAdd = filteredPlayers
+                                const toAdd = candidatePlayers
                                   .filter((p) => !setupPlayerIdSet.has(p.id))
                                   .map((p) => ({
                                     playerId: p.id,
@@ -989,8 +1018,8 @@ export default function TimeAttackPageClient({
                                   }));
                                 setSetupEntries((prev) => [...prev, ...toAdd]);
                               } else {
-                                const visibleIds = new Set(filteredPlayers.map((p) => p.id));
-                                setSetupEntries((prev) => prev.filter((s) => !visibleIds.has(s.playerId)));
+                                const resultIds = new Set(candidatePlayers.map((p) => p.id));
+                                setSetupEntries((prev) => prev.filter((s) => !resultIds.has(s.playerId)));
                               }
                             }}
                             className="h-11 w-11 sm:h-10 sm:w-10 md:h-5 md:w-5"
@@ -1000,11 +1029,13 @@ export default function TimeAttackPageClient({
                           </Label>
                         </div>
                       )}
-                      <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
-                        {filteredPlayers.length === 0 ? (
-                          <p className="text-muted-foreground text-sm py-2">{tc('noPlayersSelected')}</p>
+                      <div className="flex-1 min-h-0 overflow-y-auto space-y-1" aria-busy={playerSearchLoading}>
+                        {visiblePlayers.length === 0 ? (
+                          <p className="text-muted-foreground text-sm py-2">
+                            {playerSearchLoading ? tc('loading') : tc('noPlayersSelected')}
+                          </p>
                         ) : (
-                          filteredPlayers.map((player) => (
+                          visiblePlayers.map((player) => (
                             <div
                               key={player.id}
                               className="flex items-center gap-2 py-2 sm:py-1 px-2 sm:px-1 rounded hover:bg-muted/50"
@@ -1075,7 +1106,7 @@ export default function TimeAttackPageClient({
                         ) : (
                           <div className="divide-y">
                             {setupEntries.map((s) => {
-                              const player = allPlayers.find((p) => p.id === s.playerId);
+                              const player = knownPlayersById.get(s.playerId);
                               return (
                                 <div key={s.playerId} className="flex items-center gap-2 px-3 py-2">
                                   <Input
@@ -1151,7 +1182,7 @@ export default function TimeAttackPageClient({
                                     {setupEntries
                                       .filter((e) => e.playerId !== s.playerId)
                                       .map((e) => {
-                                        const ep = allPlayers.find((p) => p.id === e.playerId);
+                                        const ep = knownPlayersById.get(e.playerId);
                                         return (
                                           <option key={e.playerId} value={e.playerId}>
                                             {ep?.nickname ?? e.playerId}
