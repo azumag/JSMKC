@@ -81,10 +81,13 @@ describe('extractPaginationMeta', () => {
     ).toEqual(meta);
   });
 
-  it.each([false, null, 'true', 1, undefined])('rejects pagination wrappers with malformed success flag: %p', (success) => {
-    expect(extractPaginationMeta({ success, data: [], meta })).toBeNull();
-    expect(extractPaginationMeta({ success, data: { data: [], meta } })).toBeNull();
-  });
+  it.each([false, null, 'true', 1, undefined])(
+    'rejects pagination wrappers with malformed success flag: %p',
+    (success) => {
+      expect(extractPaginationMeta({ success, data: [], meta })).toBeNull();
+      expect(extractPaginationMeta({ success, data: { data: [], meta } })).toBeNull();
+    },
+  );
 
   it('falls back to null when pagination metadata is missing', () => {
     expect(extractPaginationMeta([{ id: '1' }])).toBeNull();
