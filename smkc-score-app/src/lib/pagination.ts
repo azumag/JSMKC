@@ -118,7 +118,9 @@ export function getPaginationParams(
 
   // Fail closed to the documented defaults for non-finite values before
   // flooring/clamping. This prevents Infinity from reaching Prisma as skip/take.
-  const normalizedPage = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  const normalizedPage = Number.isFinite(parsedPage)
+    ? Math.max(1, Math.floor(parsedPage))
+    : 1;
   const limit = Number.isFinite(parsedLimit)
     ? Math.min(100, Math.max(1, Math.floor(parsedLimit)))
     : 50;
