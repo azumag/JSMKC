@@ -9,6 +9,9 @@ describe('player search', () => {
     expect(isSelectablePlayerId('   ')).toBe(false);
     expect(isSelectablePlayerId(' p1')).toBe(false);
     expect(isSelectablePlayerId('p1 ')).toBe(false);
+    expect(isSelectablePlayerId('p 1')).toBe(false);
+    expect(isSelectablePlayerId('p\t1')).toBe(false);
+    expect(isSelectablePlayerId('p\n1')).toBe(false);
     expect(isSelectablePlayerId('__BREAK__')).toBe(false);
     expect(isSelectablePlayerId(1)).toBe(false);
   });
