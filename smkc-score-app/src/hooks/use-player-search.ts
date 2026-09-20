@@ -31,10 +31,20 @@ function isPlayerSearchPlayer(value: unknown): value is PlayerSearchPlayer {
   const player = value as Partial<PlayerSearchPlayer>;
   return (
     typeof player.id === 'string' &&
+    player.id.trim().length > 0 &&
     typeof player.name === 'string' &&
     typeof player.nickname === 'string' &&
     (player.country === undefined || player.country === null || typeof player.country === 'string')
   );
+}
+
+function hasUniquePlayerIds(players: PlayerSearchPlayer[]): boolean {
+  const ids = new Set<string>();
+  for (const player of players) {
+    if (ids.has(player.id)) return false;
+    ids.add(player.id);
+  }
+  return true;
 }
 
 function mergeKnownPlayers(current: PlayerSearchPlayer[], incoming: PlayerSearchPlayer[]): PlayerSearchPlayer[] {
@@ -95,7 +105,7 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
           if (!response.ok) throw new Error('player-search-request-failed');
           const payload = await response.json();
           const players = extractArrayDataOrNull<unknown>(payload);
-          if (players === null || !players.every(isPlayerSearchPlayer)) {
+          if (players === null || !players.every(isPlayerSearchPlayer) || !hasUniquePlayerIds(players)) {
             throw new Error('player-search-response-invalid');
           }
           return players;
