@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { extractArrayData } from '@/lib/api-response';
+import { extractArrayDataOrNull } from '@/lib/api-response';
 import { normalizePlayerSearchQuery } from '@/lib/player-search';
 
 const PLAYER_SEARCH_PAGE_SIZE = 50;
@@ -82,7 +82,9 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
         .then(async (response) => {
           if (!response.ok) throw new Error('player-search-request-failed');
           const payload = await response.json();
-          return extractArrayData<PlayerSearchPlayer>(payload);
+          const players = extractArrayDataOrNull<PlayerSearchPlayer>(payload);
+          if (players === null) throw new Error('player-search-response-invalid');
+          return players;
         })
         .then((players) => {
           if (controller.signal.aborted || generationRef.current !== generation) return;
