@@ -11,10 +11,34 @@ jest.mock('@/lib/fetch-with-retry', () => ({
 
 const mockedFetchWithRetry = fetchWithRetry as jest.MockedFunction<typeof fetchWithRetry>;
 
+type SetupPlayer = {
+  id: string;
+  name: string;
+  nickname: string;
+  country?: string | null;
+};
+
+function setupPlayer(id: string, country?: string | null): SetupPlayer {
+  return {
+    id,
+    name: `Name ${id}`,
+    nickname: `Nick ${id}`,
+    ...(country === undefined ? {} : { country }),
+  };
+}
+
 function paginatedPlayers(ids: string[], page: number, total: number, totalPages: number) {
   return Response.json({
     success: true,
-    data: ids.map((id) => ({ id })),
+    data: ids.map((id) => setupPlayer(id)),
+    meta: { total, page, limit: 100, totalPages },
+  }) as never;
+}
+
+function paginatedRows(rows: unknown[], page: number, total: number, totalPages: number) {
+  return Response.json({
+    success: true,
+    data: rows,
     meta: { total, page, limit: 100, totalPages },
   }) as never;
 }
@@ -28,7 +52,7 @@ describe('qualification page data helpers', () => {
   it('requests the setup player list with the API cap', async () => {
     mockedFetchWithRetry.mockResolvedValue(paginatedPlayers(['p1'], 1, 1, 1));
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'p1' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('p1')]);
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
     expect(mockedFetchWithRetry).toHaveBeenCalledWith('/api/players?limit=100');
   });
@@ -39,10 +63,10 @@ describe('qualification page data helpers', () => {
       .mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2))
       .mockResolvedValueOnce(paginatedPlayers(['p101'], 2, 101, 2));
 
-    const players = await fetchAllPlayersForSetup<{ id: string }>();
+    const players = await fetchAllPlayersForSetup<SetupPlayer>();
 
     expect(players).toHaveLength(101);
-    expect(players?.[100]).toEqual({ id: 'p101' });
+    expect(players?.[100]).toEqual(setupPlayer('p101'));
     expect(mockedFetchWithRetry).toHaveBeenNthCalledWith(1, '/api/players?limit=100');
     expect(mockedFetchWithRetry).toHaveBeenNthCalledWith(2, '/api/players?limit=100&page=2');
   });
@@ -56,15 +80,15 @@ describe('qualification page data helpers', () => {
       .mockResolvedValueOnce(paginatedPlayers(secondPageIds, 2, 201, 3))
       .mockResolvedValueOnce(paginatedPlayers(compensatingThirdPageIds, 3, 201, 3));
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
   it('reuses a successful bounded snapshot across repeated qualification polls', async () => {
     mockedFetchWithRetry.mockResolvedValue(paginatedPlayers(['p1'], 1, 1, 1));
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'p1' }]);
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'p1' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('p1')]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('p1')]);
 
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
   });
@@ -78,14 +102,14 @@ describe('qualification page data helpers', () => {
         }),
     );
 
-    const first = fetchAllPlayersForSetup<{ id: string }>();
-    const second = fetchAllPlayersForSetup<{ id: string }>();
+    const first = fetchAllPlayersForSetup<SetupPlayer>();
+    const second = fetchAllPlayersForSetup<SetupPlayer>();
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
 
     resolveResponse?.(paginatedPlayers(['p1'], 1, 1, 1));
 
-    await expect(first).resolves.toEqual([{ id: 'p1' }]);
-    await expect(second).resolves.toEqual([{ id: 'p1' }]);
+    await expect(first).resolves.toEqual([setupPlayer('p1')]);
+    await expect(second).resolves.toEqual([setupPlayer('p1')]);
   });
 
   it('starts a fresh request after invalidation and ignores the stale in-flight completion for caching', async () => {
@@ -99,18 +123,18 @@ describe('qualification page data helpers', () => {
       )
       .mockResolvedValueOnce(paginatedPlayers(['fresh'], 1, 1, 1));
 
-    const staleRequest = fetchAllPlayersForSetup<{ id: string }>();
+    const staleRequest = fetchAllPlayersForSetup<SetupPlayer>();
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
 
     clearSetupPlayersForSetupCache();
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'fresh' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('fresh')]);
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
 
     resolveStaleResponse?.(paginatedPlayers(['stale'], 1, 1, 1));
-    await expect(staleRequest).resolves.toEqual([{ id: 'stale' }]);
+    await expect(staleRequest).resolves.toEqual([setupPlayer('stale')]);
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'fresh' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('fresh')]);
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
@@ -118,7 +142,7 @@ describe('qualification page data helpers', () => {
     const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
     mockedFetchWithRetry.mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 301, 4));
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
   });
 
@@ -128,16 +152,16 @@ describe('qualification page data helpers', () => {
       .mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2))
       .mockResolvedValueOnce(paginatedPlayers(['p101'], 2, 102, 2));
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
   });
 
   it('fails closed on an explicit failed wrapper and retries instead of caching an empty roster', async () => {
     mockedFetchWithRetry
-      .mockResolvedValueOnce(Response.json({ success: false, data: [{ id: 'stale' }] }) as never)
+      .mockResolvedValueOnce(Response.json({ success: false, data: [setupPlayer('stale')] }) as never)
       .mockResolvedValueOnce(paginatedPlayers(['recovered'], 1, 1, 1));
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'recovered' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('recovered')]);
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
@@ -146,26 +170,64 @@ describe('qualification page data helpers', () => {
     mockedFetchWithRetry.mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2)).mockResolvedValueOnce(
       Response.json({
         success: false,
-        data: [{ id: 'p101' }],
+        data: [setupPlayer('p101')],
         meta: { total: 101, page: 2, limit: 100, totalPages: 2 },
       }) as never,
     );
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
   it('accepts a legacy response below the page cap but rejects an ambiguous full page without metadata', async () => {
-    mockedFetchWithRetry.mockResolvedValueOnce(Response.json({ data: [{ id: 'legacy' }] }) as never);
+    mockedFetchWithRetry.mockResolvedValueOnce(Response.json({ data: [setupPlayer('legacy')] }) as never);
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'legacy' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('legacy')]);
 
     clearSetupPlayersForSetupCache();
     mockedFetchWithRetry.mockResolvedValueOnce(
-      Response.json({ data: Array.from({ length: 100 }, (_, index) => ({ id: `p${index + 1}` })) }) as never,
+      Response.json({ data: Array.from({ length: 100 }, (_, index) => setupPlayer(`p${index + 1}`)) }) as never,
     );
 
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
+  });
+
+  it.each([
+    ['missing name', { id: 'p1', nickname: 'Nick p1' }],
+    ['non-string name', { id: 'p1', name: 1, nickname: 'Nick p1' }],
+    ['missing nickname', { id: 'p1', name: 'Name p1' }],
+    ['non-string nickname', { id: 'p1', name: 'Name p1', nickname: 1 }],
+    ['invalid country', { id: 'p1', name: 'Name p1', nickname: 'Nick p1', country: 1 }],
+  ])('fails closed on a first-page row with %s', async (_label, malformedPlayer) => {
+    mockedFetchWithRetry.mockResolvedValueOnce(paginatedRows([malformedPlayer], 1, 1, 1));
+
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
+  });
+
+  it('fails closed when a later page contains a malformed row', async () => {
+    const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
+    mockedFetchWithRetry
+      .mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2))
+      .mockResolvedValueOnce(paginatedRows([{ id: 'p101', name: 'Name p101' }], 2, 101, 2));
+
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
+  });
+
+  it('accepts setup rows with a string, null, or absent country', async () => {
+    const players = [setupPlayer('p1', 'JP'), setupPlayer('p2', null), setupPlayer('p3')];
+    mockedFetchWithRetry.mockResolvedValueOnce(paginatedRows(players, 1, players.length, 1));
+
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual(players);
+  });
+
+  it('does not cache malformed rows so the next poll can recover', async () => {
+    mockedFetchWithRetry
+      .mockResolvedValueOnce(paginatedRows([{ id: 'bad', name: 'Bad' }], 1, 1, 1))
+      .mockResolvedValueOnce(paginatedPlayers(['recovered'], 1, 1, 1));
+
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('recovered')]);
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
   it('does not cache failures so the next poll can recover', async () => {
@@ -174,7 +236,7 @@ describe('qualification page data helpers', () => {
       .mockResolvedValueOnce(paginatedPlayers(['recovered'], 1, 1, 1));
 
     await expect(fetchAllPlayersForSetup()).resolves.toBeNull();
-    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'recovered' }]);
+    await expect(fetchAllPlayersForSetup<SetupPlayer>()).resolves.toEqual([setupPlayer('recovered')]);
     expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
