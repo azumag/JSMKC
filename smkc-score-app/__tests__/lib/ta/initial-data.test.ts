@@ -6,10 +6,11 @@
  * - Returns null when an error is thrown (catch-all fallback).
  * - Returns correct TaInitialData when tournament exists.
  * - Sets qualificationRegistrationLocked=true when a knockout entry exists.
+ * - Does not query the global player list; setup discovery is dialog-owned.
  */
 
 import { fetchTaInitialData } from '@/lib/ta/initial-data';
-import type { TTEntry, Player } from '@prisma/client';
+import type { TTEntry } from '@prisma/client';
 
 jest.mock('@/lib/prisma');
 jest.mock('@/lib/tournament-identifier');
@@ -45,7 +46,7 @@ describe('fetchTaInitialData', () => {
     expect(result).toBeNull();
   });
 
-  it('returns TaInitialData with qualificationRegistrationLocked=false when no knockout entries exist', async () => {
+  it('returns TaInitialData without loading the global player list when no knockout entries exist', async () => {
     mockResolveTournament.mockResolvedValue({
       id: 'tid-1',
       frozenStages: [],
@@ -54,33 +55,19 @@ describe('fetchTaInitialData', () => {
     });
 
     const mockEntries = [{ id: 'e1', stage: 'qualification' }];
-    // No taHandicapSeconds: Player no longer carries a handicap default
-    // (removed — it only ever seeded a new tournament entry and never
-    // affected an already-entered player). PLAYER_PUBLIC_SELECT reflects
-    // this, so allPlayers rows from this query never include the field.
-    const mockPlayers = [
-      {
-        id: 'p1',
-        name: 'Alice',
-        nickname: 'alice',
-        country: null,
-        noCamera: false,
-      },
-    ];
 
     // findMany is called once for qualification entries.
-    // hasKnockoutStageStarted uses findFirst (not findMany), so no second findMany call needed.
-    // jest.mocked() on individual methods is required because jest.mocked(prisma) shallow-mocks
-    // only the top-level delegate references, not the methods within each delegate.
+    // hasKnockoutStageStarted uses findFirst (not findMany), so no second findMany call is needed.
+    // Player discovery is intentionally absent: Setup/Edit Players uses usePlayerSearch while open.
     jest.mocked(prisma.tTEntry.findMany).mockResolvedValueOnce(mockEntries as unknown as TTEntry[]);
     jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue(null);
-    jest.mocked(prisma.player.findMany).mockResolvedValue(mockPlayers as unknown as Player[]);
 
     const result = await fetchTaInitialData('tid-1');
 
     expect(result).not.toBeNull();
     expect(result!.entries).toEqual(mockEntries);
-    expect(result!.allPlayers).toEqual(mockPlayers);
+    expect(result).not.toHaveProperty('allPlayers');
+    expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
     expect(result!.qualificationRegistrationLocked).toBe(false);
     expect(result!.frozenStages).toEqual([]);
     expect(result!.taPlayerSelfEdit).toBe(false);
@@ -97,7 +84,6 @@ describe('fetchTaInitialData', () => {
 
     jest.mocked(prisma.tTEntry.findMany).mockResolvedValue([] as unknown as TTEntry[]);
     jest.mocked(prisma.tTEntry.findFirst).mockResolvedValue({ id: 'phase-entry' } as unknown as TTEntry);
-    jest.mocked(prisma.player.findMany).mockResolvedValue([] as unknown as Player[]);
 
     const result = await fetchTaInitialData('tid-2');
 
@@ -105,5 +91,6 @@ describe('fetchTaInitialData', () => {
     expect(result!.qualificationRegistrationLocked).toBe(true);
     expect(result!.frozenStages).toEqual(['phase1']);
     expect(result!.taPlayerSelfEdit).toBe(true);
+    expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
   });
 });
