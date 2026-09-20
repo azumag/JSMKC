@@ -113,6 +113,20 @@ describe('usePlayerSearch', () => {
     expect(result.current.knownPlayers).toEqual([]);
   });
 
+  it('fails closed when a successful response exposes the system BREAK sentinel', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      payloadResponse({ success: true, data: [player('valid', 'Valid'), player('__BREAK__', 'Break')] }),
+    );
+
+    const { result } = renderHook(() => usePlayerSearch(''));
+    await advanceDebounce();
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBe(true);
+    expect(result.current.knownPlayers).toEqual([]);
+  });
+
   it('clears results immediately when the query changes before the debounced request starts', async () => {
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce(responseWith([player('old', 'Old Player')]))

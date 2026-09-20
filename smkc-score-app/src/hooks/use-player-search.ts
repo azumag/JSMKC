@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { extractArrayDataOrNull } from '@/lib/api-response';
-import { normalizePlayerSearchQuery } from '@/lib/player-search';
+import { normalizePlayerSearchQuery, PLAYER_LIST_EXCLUDED_ID } from '@/lib/player-search';
 
 const PLAYER_SEARCH_PAGE_SIZE = 50;
 const PLAYER_SEARCH_DEBOUNCE_MS = 250;
@@ -32,6 +32,7 @@ function isPlayerSearchPlayer(value: unknown): value is PlayerSearchPlayer {
   return (
     typeof player.id === 'string' &&
     player.id.trim().length > 0 &&
+    player.id !== PLAYER_LIST_EXCLUDED_ID &&
     typeof player.name === 'string' &&
     typeof player.nickname === 'string' &&
     (player.country === undefined || player.country === null || typeof player.country === 'string')
