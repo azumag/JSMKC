@@ -1,4 +1,4 @@
-import { extractArrayData, extractPaginationMeta } from '@/lib/api-response';
+import { extractArrayDataOrNull, extractPaginationMeta } from '@/lib/api-response';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 // The players API caps pages at 100 records. Setup/Edit Players is polled by the
@@ -31,7 +31,8 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
     if (!firstResponse.ok) return null;
 
     const firstPayload = await firstResponse.json();
-    const firstPlayers = extractArrayData<TPlayer>(firstPayload);
+    const firstPlayers = extractArrayDataOrNull<TPlayer>(firstPayload);
+    if (!firstPlayers) return null;
     const firstMeta = extractPaginationMeta(firstPayload);
 
     // Legacy/non-paginated payloads can only be trusted as complete when they
@@ -56,12 +57,15 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
       if (!response.ok) return null;
 
       const payload = await response.json();
+      const pagePlayers = extractArrayDataOrNull<TPlayer>(payload);
       const pageMeta = extractPaginationMeta(payload);
 
       // Each page must describe the same snapshot contract. If the total/count
       // changes while paging, retry on the next uncached load instead of
-      // combining an internally inconsistent roster.
+      // combining an internally inconsistent roster. Failed/malformed wrappers
+      // are rejected instead of being normalized into a partial empty page.
       if (
+        !pagePlayers ||
         !pageMeta ||
         pageMeta.page !== page ||
         pageMeta.limit !== firstMeta.limit ||
@@ -71,7 +75,7 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
         return null;
       }
 
-      players.push(...extractArrayData<TPlayer>(payload));
+      players.push(...pagePlayers);
     }
 
     return players.length === firstMeta.total ? players : null;

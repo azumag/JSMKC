@@ -92,6 +92,30 @@ describe('qualification page data helpers', () => {
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
   });
 
+  it('fails closed on an explicit failed wrapper and retries instead of caching an empty roster', async () => {
+    mockedFetchWithRetry
+      .mockResolvedValueOnce(Response.json({ success: false, data: [{ id: 'stale' }] }) as never)
+      .mockResolvedValueOnce(paginatedPlayers(['recovered'], 1, 1, 1));
+
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'recovered' }]);
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails closed when a subsequent page is an explicit failed wrapper', async () => {
+    const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
+    mockedFetchWithRetry.mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 101, 2)).mockResolvedValueOnce(
+      Response.json({
+        success: false,
+        data: [{ id: 'p101' }],
+        meta: { total: 101, page: 2, limit: 100, totalPages: 2 },
+      }) as never,
+    );
+
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
+  });
+
   it('accepts a legacy response below the page cap but rejects an ambiguous full page without metadata', async () => {
     mockedFetchWithRetry.mockResolvedValueOnce(Response.json({ data: [{ id: 'legacy' }] }) as never);
 
