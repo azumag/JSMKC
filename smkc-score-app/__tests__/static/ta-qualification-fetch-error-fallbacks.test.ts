@@ -30,8 +30,8 @@ describe('TA qualification fetch error fallback contract (issue #3645/#3842/#393
   });
 
   it('clears stale polling errors after a successful retry', () => {
-    expect(source).toContain('setError(pollError?.message ?? null);');
-    expect(source).not.toContain('setError(pollError);');
+    expect(source).toContain('setError(pollError ?? null);');
+    expect(source).not.toContain('pollError?.message');
   });
 
   it('keeps the existing polling interval and cache contract', () => {
