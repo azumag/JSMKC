@@ -1,5 +1,5 @@
-import { extractArrayData, extractPaginationMeta } from "@/lib/api-response";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+import { extractArrayData, extractPaginationMeta } from '@/lib/api-response';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 // The players API caps pages at 100 records. Setup/Edit Players is polled by the
 // qualification pages, so keep pagination deliberately bounded rather than
