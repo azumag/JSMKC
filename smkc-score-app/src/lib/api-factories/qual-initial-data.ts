@@ -63,10 +63,7 @@ function collectQualificationPlayers(qualifications: RankableQualification[]): P
  * @returns Initial data ready to pass as `initialData` to usePolling,
  *          or null on any error (client falls back to its own first poll).
  */
-export async function fetchQualInitialData(
-  config: EventTypeConfig,
-  id: string,
-): Promise<QualInitialData | null> {
+export async function fetchQualInitialData(config: EventTypeConfig, id: string): Promise<QualInitialData | null> {
   try {
     const modeField = `${config.eventTypeCode}QualificationConfirmed` as ModeQualField;
     const tournament = await resolveTournament(id, {
@@ -102,12 +99,9 @@ export async function fetchQualInitialData(
       }),
     ]);
 
-    const rankedQualifications = computeQualificationRanks(
-      qualifications,
-      config.qualificationOrderBy ?? [],
-      matches,
-      { matchScoreFields: config.matchScoreFields },
-    );
+    const rankedQualifications = computeQualificationRanks(qualifications, config.qualificationOrderBy ?? [], matches, {
+      matchScoreFields: config.matchScoreFields,
+    });
 
     return {
       qualifications: rankedQualifications,
