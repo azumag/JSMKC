@@ -172,6 +172,20 @@ describe('fetchWithRetry', () => {
     expect(setTimeoutSpy).not.toHaveBeenCalled();
   });
 
+  it('stops before replay when the request is aborted during retry delay', async () => {
+    const controller = new AbortController();
+    const abortReason = new Error('cancelled during retry delay');
+    fetchSpy.mockResolvedValueOnce(makeResponse(500, false));
+    setTimeoutSpy.mockImplementationOnce(() => {
+      controller.abort(abortReason);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
+
+    await expect(fetchWithRetry('/api/test', { signal: controller.signal })).rejects.toBe(abortReason);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('re-throws network error after exhausting GET retries', async () => {
     fetchSpy.mockRejectedValue(new Error('Network failure'));
 
