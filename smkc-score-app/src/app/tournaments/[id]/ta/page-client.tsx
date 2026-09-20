@@ -553,7 +553,7 @@ export default function TimeAttackPageClient({
    * Clearing the local copy on a successful poll also lets Retry recover
    * instead of leaving the page stuck on a stale error card. */
   useEffect(() => {
-    setError(pollError?.message ?? null);
+    setError(pollError ?? null);
   }, [pollError]);
 
   /**
