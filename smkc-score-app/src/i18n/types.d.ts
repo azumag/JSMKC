@@ -24,10 +24,7 @@ type Messages = Omit<typeof messages, 'match' | 'ta'> & {
   broadcast: typeof broadcast;
   debugFill: typeof debugFill;
   gpCupAssignment: typeof gpCupAssignment &
-    Pick<
-      typeof messages.finals,
-      'cupDetailsResolution' | 'keepCupDetails' | 'clearCupDetails' | 'cancelCupChange'
-    >;
+    Pick<typeof messages.finals, 'cupDetailsResolution' | 'keepCupDetails' | 'clearCupDetails' | 'cancelCupChange'>;
   loadingOverlay: typeof loadingOverlay;
   loadingSkeleton: typeof loadingSkeleton;
   loadingSpinner: typeof loadingSpinner;
