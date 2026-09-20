@@ -33,6 +33,18 @@ describe('player search', () => {
     });
   });
 
+  it('bounds the query by Unicode code points without splitting a surrogate pair', () => {
+    const query = `${'x'.repeat(99)}😀tail`;
+    const normalized = `${'x'.repeat(99)}😀`;
+
+    expect(normalizePlayerSearchQuery(query)).toBe(normalized);
+    expect([...normalized]).toHaveLength(100);
+    expect(buildPlayerListWhere(query)).toEqual({
+      id: { not: '__BREAK__' },
+      OR: [{ nickname: { contains: normalized } }, { name: { contains: normalized } }],
+    });
+  });
+
   it('keeps the players route wired to the bounded search helper', () => {
     const routePath = path.resolve(__dirname, '..', '..', 'src', 'app', 'api', 'players', 'route.ts');
     const routeSource = fs.readFileSync(routePath, 'utf8');
