@@ -4,21 +4,25 @@
  */
 
 /**
- * Extracts an array payload from supported API response shapes.
+ * Extracts an array payload from supported API response shapes while preserving
+ * the distinction between a legitimate empty result and an unsupported shape.
  *
  * Supported formats:
  * - T[]
  * - { data: T[] }
  * - { success: true, data: T[] }
  * - { success: true, data: { data: T[], meta: ... } }
+ *
+ * Returns null when no supported array payload is present. Callers that must
+ * fail closed on malformed success responses can use this helper directly.
  */
-export function extractArrayData<T>(payload: unknown): T[] {
+export function extractArrayDataOrNull<T>(payload: unknown): T[] | null {
   if (Array.isArray(payload)) {
     return payload as T[];
   }
 
   if (!payload || typeof payload !== 'object') {
-    return [];
+    return null;
   }
 
   const data = (payload as { data?: unknown }).data;
@@ -28,12 +32,23 @@ export function extractArrayData<T>(payload: unknown): T[] {
   }
 
   if (!data || typeof data !== 'object') {
-    return [];
+    return null;
   }
 
   const nestedData = (data as { data?: unknown }).data;
 
-  return Array.isArray(nestedData) ? (nestedData as T[]) : [];
+  return Array.isArray(nestedData) ? (nestedData as T[]) : null;
+}
+
+/**
+ * Extracts an array payload from supported API response shapes.
+ *
+ * This compatibility helper intentionally normalizes unsupported payloads to an
+ * empty array. Callers that need to distinguish malformed data from a valid
+ * empty result should use extractArrayDataOrNull().
+ */
+export function extractArrayData<T>(payload: unknown): T[] {
+  return extractArrayDataOrNull<T>(payload) ?? [];
 }
 
 export interface PaginationMeta {
