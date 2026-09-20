@@ -6,6 +6,7 @@
  * - Returns immediately on 4xx client error (no retry)
  * - Retries safe reads on 500+ and returns last response after exhausting retries
  * - Retries safe reads on network error and re-throws on last attempt
+ * - Does not retry caller-aborted safe reads
  * - Never automatically replays mutating methods after ambiguous failures
  *
  * We spy on setTimeout to resolve instantly, avoiding real 500ms delays.
@@ -114,6 +115,51 @@ describe('fetchWithRetry', () => {
     const overriddenRequest = new Request('https://example.test/api/test', { method: 'POST' });
     await expect(fetchWithRetry(overriddenRequest, { method: 'GET' })).resolves.toHaveProperty('status', 200);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry an aborted GET from RequestInit.signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    fetchSpy.mockRejectedValue(new Error('cancelled'));
+
+    await expect(fetchWithRetry('/api/test', { signal: controller.signal })).rejects.toThrow('cancelled');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not retry an aborted GET from Request.signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const request = new Request('https://example.test/api/test', { signal: controller.signal });
+    fetchSpy.mockRejectedValue(new Error('cancelled'));
+
+    await expect(fetchWithRetry(request)).rejects.toThrow('cancelled');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a standard AbortError without observable aborted signal state', async () => {
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'AbortError';
+    fetchSpy.mockRejectedValue(abortError);
+
+    await expect(fetchWithRetry('/api/test')).rejects.toBe(abortError);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('RequestInit.signal overrides an aborted Request.signal for retry ownership', async () => {
+    const requestController = new AbortController();
+    requestController.abort();
+    const overrideController = new AbortController();
+    const request = new Request('https://example.test/api/test', { signal: requestController.signal });
+    fetchSpy.mockRejectedValueOnce(new Error('Network failure')).mockResolvedValueOnce(makeResponse(200));
+
+    const res = await fetchWithRetry(request, { signal: overrideController.signal });
+
+    expect(res.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
   });
 
   it('re-throws network error after exhausting GET retries', async () => {
