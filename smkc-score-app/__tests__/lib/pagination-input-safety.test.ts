@@ -2,36 +2,30 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { getPaginationParams, paginate } from '@/lib/pagination';
 
 describe('pagination input safety', () => {
-  it.each([NaN, Infinity, -Infinity])(
-    'defaults non-finite page %p to the first page',
-    (page) => {
-      expect(getPaginationParams({ page })).toEqual({
-        page: 1,
-        limit: 50,
-        skip: 0,
-        include: undefined,
-      });
-    }
-  );
+  it.each([NaN, Infinity, -Infinity])('defaults non-finite page %p to the first page', (page) => {
+    expect(getPaginationParams({ page })).toEqual({
+      page: 1,
+      limit: 50,
+      skip: 0,
+      include: undefined,
+    });
+  });
 
-  it.each([NaN, Infinity, -Infinity])(
-    'defaults non-finite limit %p to 50',
-    (limit) => {
-      expect(getPaginationParams({ page: 2, limit })).toEqual({
-        page: 2,
-        limit: 50,
-        skip: 50,
-        include: undefined,
-      });
-    }
-  );
+  it.each([NaN, Infinity, -Infinity])('defaults non-finite limit %p to 50', (limit) => {
+    expect(getPaginationParams({ page: 2, limit })).toEqual({
+      page: 2,
+      limit: 50,
+      skip: 50,
+      include: undefined,
+    });
+  });
 
   it('preserves runtime compatibility for numeric strings', () => {
     expect(
       getPaginationParams({
         page: '3' as unknown as number,
         limit: '20' as unknown as number,
-      })
+      }),
     ).toEqual({
       page: 3,
       limit: 20,
@@ -56,9 +50,7 @@ describe('pagination input safety', () => {
   });
 
   it('fails closed when a finite page would create an unsafe Prisma offset', () => {
-    expect(
-      getPaginationParams({ page: Number.MAX_VALUE, limit: 100 })
-    ).toEqual({
+    expect(getPaginationParams({ page: Number.MAX_VALUE, limit: 100 })).toEqual({
       page: 1,
       limit: 100,
       skip: 0,
@@ -72,10 +64,15 @@ describe('pagination input safety', () => {
       findMany: jest.fn(async () => []),
     };
 
-    const result = await paginate(query, {}, {}, {
-      page: Infinity,
-      limit: Infinity,
-    });
+    const result = await paginate(
+      query,
+      {},
+      {},
+      {
+        page: Infinity,
+        limit: Infinity,
+      },
+    );
 
     expect(query.findMany).toHaveBeenCalledWith({
       where: {},
