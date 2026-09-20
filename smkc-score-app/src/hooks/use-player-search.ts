@@ -49,7 +49,9 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
     const timer = window.setTimeout(() => {
       if (generationRef.current !== generation) return;
 
-      setState((current) => ({ ...current, loading: true, error: false }));
+      // Drop results from the previous query as soon as the new request starts.
+      // knownPlayers is retained so already-selected players remain renderable.
+      setState((current) => ({ ...current, results: [], loading: true, error: false }));
 
       const params = new URLSearchParams({ limit: String(PLAYER_SEARCH_PAGE_SIZE) });
       if (normalizedQuery) params.set('search', normalizedQuery);
