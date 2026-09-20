@@ -2,5 +2,6 @@
   "rankInput": "順位上書き",
   "editRank": "順位を編集",
   "saveRank": "順位を保存",
-  "clearRankOverride": "順位の上書きを解除"
+  "clearRankOverride": "順位の上書きを解除",
+  "invalidRank": "順位は整数で入力してください。"
 }
