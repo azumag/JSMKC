@@ -72,6 +72,26 @@ describe('usePlayerSearch', () => {
     expect(result.current.results.map((entry) => entry.id)).toEqual(['new']);
   });
 
+  it('does not refetch when raw queries normalize to the same search value', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(responseWith([player('p1', 'Alpha')]));
+
+    const { result, rerender } = renderHook(({ query }) => usePlayerSearch(query), {
+      initialProps: { query: 'Alpha' },
+    });
+
+    await advanceDebounce();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(result.current.results.map((entry) => entry.id)).toEqual(['p1']);
+
+    rerender({ query: '  Alpha  ' });
+
+    expect(result.current.results.map((entry) => entry.id)).toEqual(['p1']);
+    expect(result.current.loading).toBe(false);
+
+    await advanceDebounce();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('aborts the old query and ignores its late completion after rapid input', async () => {
     let resolveOld!: (value: Response) => void;
     const oldResponse = new Promise<Response>((resolve) => {
