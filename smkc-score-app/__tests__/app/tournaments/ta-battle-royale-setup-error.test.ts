@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #3838)', () => {
+describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #3838, #3925)', () => {
   const read = (relativePath: string) => fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
 
   it('uses common.networkError for start failures without exposing raw response or transport details', () => {
@@ -14,11 +14,13 @@ describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #38
     expect(source).not.toContain('startError instanceof Error ? startError.message');
     expect(source).not.toContain("payload.error || 'Failed to start TA battle royale'");
     expect(source).toContain("logger.error('Failed to start TA battle royale'");
+    expect(source).toContain("operation: 'startBattleRoyale'");
     expect(source).toContain('status: response.status');
-    expect(source).toContain('error: payload.error');
+    expect(source).not.toContain('const payload = await response.json()');
+    expect(source).not.toContain('error: payload.error');
   });
 
-  it('documents the fail-closed UI contract without changing start semantics', () => {
+  it('documents the fail-closed UI and diagnostics contract without changing start semantics', () => {
     const source = read('src/app/tournaments/[id]/ta/battle-royale-setup-client.tsx');
     const docs = read('docs/ta-battle-royale-setup-client-errors.md');
 
@@ -26,8 +28,10 @@ describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #38
     expect(source).toContain('body: JSON.stringify({ players: selectedPlayers })');
     expect(source).toContain('/ta/finals`');
     expect(docs).toContain('non-2xx response も `common.networkError`');
+    expect(docs).toContain('response body を parse しない');
     expect(docs).toContain('raw `payload.error`');
     expect(docs).toContain('raw `Error.message`');
+    expect(docs).toContain('HTTP status');
     expect(docs).toContain('logger');
   });
 

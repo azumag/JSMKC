@@ -133,11 +133,10 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ players: selectedPlayers }),
       });
-      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         logger.error('Failed to start TA battle royale', {
+          operation: 'startBattleRoyale',
           status: response.status,
-          error: payload.error,
           tournamentId,
         });
         setError(tc('networkError'));
