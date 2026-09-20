@@ -3,6 +3,12 @@
  * both legacy payloads and standardized success wrappers.
  */
 
+function hasInvalidSuccessFlag(payload: object): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(payload, 'success') && (payload as { success?: unknown }).success !== true
+  );
+}
+
 /**
  * Extracts an array payload from supported API response shapes while preserving
  * the distinction between a legitimate empty result and an unsupported shape.
@@ -13,6 +19,10 @@
  * - { success: true, data: T[] }
  * - { success: true, data: { data: T[], meta: ... } }
  *
+ * When a wrapper explicitly provides `success`, only `success: true` is accepted.
+ * This keeps strict callers from treating an explicit or malformed failure wrapper
+ * as usable data while preserving legacy payloads that do not have a success flag.
+ *
  * Returns null when no supported array payload is present. Callers that must
  * fail closed on malformed success responses can use this helper directly.
  */
@@ -21,7 +31,7 @@ export function extractArrayDataOrNull<T>(payload: unknown): T[] | null {
     return payload as T[];
   }
 
-  if (!payload || typeof payload !== 'object') {
+  if (!payload || typeof payload !== 'object' || hasInvalidSuccessFlag(payload)) {
     return null;
   }
 
@@ -94,13 +104,14 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
  * Metadata is accepted only when `totalPages` is consistent with the server
  * pagination contract (`Math.ceil(total / limit) || 1`). An out-of-range
  * current `page` remains valid so callers can clamp it to the final page.
+ * Wrappers that explicitly provide `success` must use `success: true`.
  *
  * Supported formats:
  * - { data: T[], meta: ... }
  * - { success: true, data: { data: T[], meta: ... } }
  */
 export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
-  if (!payload || typeof payload !== 'object') {
+  if (!payload || typeof payload !== 'object' || hasInvalidSuccessFlag(payload)) {
     return null;
   }
 
