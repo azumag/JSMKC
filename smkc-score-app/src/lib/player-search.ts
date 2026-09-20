@@ -5,8 +5,22 @@ export function isSelectablePlayerId(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && !/\s/.test(value) && value !== PLAYER_LIST_EXCLUDED_ID;
 }
 
+function sliceUnicodeCodePoints(value: string, maxCodePoints: number): string {
+  let end = 0;
+  let count = 0;
+
+  for (const codePoint of value) {
+    if (count >= maxCodePoints) break;
+    end += codePoint.length;
+    count += 1;
+  }
+
+  return value.slice(0, end);
+}
+
 export function normalizePlayerSearchQuery(value: string | null): string | null {
-  const normalized = value?.trim().slice(0, MAX_PLAYER_SEARCH_QUERY_LENGTH) ?? '';
+  const trimmed = value?.trim() ?? '';
+  const normalized = sliceUnicodeCodePoints(trimmed, MAX_PLAYER_SEARCH_QUERY_LENGTH);
   return normalized.length > 0 ? normalized : null;
 }
 
