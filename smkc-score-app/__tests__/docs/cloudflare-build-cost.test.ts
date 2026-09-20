@@ -24,7 +24,7 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('20 or more commits in the push');
     expect(policy).toContain('empty commits or empty pushes');
     expect(policy).toContain('force-push');
-    expect(policy).toContain('real attempt in the rolling 24-hour history');
+    expect(policy).toMatch(/real\s+attempt in the rolling 24-hour history/);
   });
 
   it('keeps deployment scheduling and D1 migration outside the cost-control gate', () => {
