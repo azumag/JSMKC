@@ -104,7 +104,7 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [enabled, normalizedQuery, query]);
+  }, [enabled, normalizedQuery]);
 
   const resultMatchesCurrentQuery = enabled && state.resultQuery === normalizedQuery;
   return {
