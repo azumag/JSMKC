@@ -47,6 +47,19 @@ describe('qualification page data helpers', () => {
     expect(mockedFetchWithRetry).toHaveBeenNthCalledWith(2, '/api/players?limit=100&page=2');
   });
 
+  it('rejects a short intermediate page before a later page can compensate for the missing rows', async () => {
+    const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
+    const secondPageIds = Array.from({ length: 50 }, (_, index) => `p${index + 101}`);
+    const compensatingThirdPageIds = Array.from({ length: 51 }, (_, index) => `p${index + 151}`);
+    mockedFetchWithRetry
+      .mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 201, 3))
+      .mockResolvedValueOnce(paginatedPlayers(secondPageIds, 2, 201, 3))
+      .mockResolvedValueOnce(paginatedPlayers(compensatingThirdPageIds, 3, 201, 3));
+
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
+  });
+
   it('reuses a successful bounded snapshot across repeated qualification polls', async () => {
     mockedFetchWithRetry.mockResolvedValue(paginatedPlayers(['p1'], 1, 1, 1));
 
