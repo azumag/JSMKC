@@ -6,6 +6,7 @@ type RankCellMessages = {
   editRank: string;
   saveRank: string;
   clearRankOverride: string;
+  invalidRank: string;
 };
 
 const appRoot = path.resolve(__dirname, '..', '..', '..');
@@ -26,22 +27,25 @@ describe('RankCell localization contract', () => {
       editRank: 'Edit rank',
       saveRank: 'Save rank',
       clearRankOverride: 'Clear rank override',
+      invalidRank: 'Enter a whole-number rank.',
     });
     expect(ja).toEqual({
       rankInput: '順位上書き',
       editRank: '順位を編集',
       saveRank: '順位を保存',
       clearRankOverride: '順位の上書きを解除',
+      invalidRank: '順位は整数で入力してください。',
     });
     expect(requestSource).toContain('rankCell: rankCellMessages[locale]');
   });
 
-  it('uses translated accessible names while keeping the icon glyphs presentation-only', () => {
+  it('uses translated accessible names and validation copy while keeping icon glyphs presentation-only', () => {
     expect(componentSource).toContain("const tRankCell = useTranslations('rankCell');");
     expect(componentSource).toContain("aria-label={tRankCell('rankInput')}");
     expect(componentSource).toContain("aria-label={tRankCell('editRank')}");
     expect(componentSource).toContain("aria-label={tRankCell('saveRank')}");
     expect(componentSource).toContain("aria-label={tRankCell('clearRankOverride')}");
+    expect(componentSource).toContain("{tRankCell('invalidRank')}");
     expect(componentSource).not.toContain('aria-label="Edit rank"');
   });
 });
