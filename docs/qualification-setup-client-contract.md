@@ -18,7 +18,7 @@ archive response は既存の archive-wide `allPlayers` snapshot を正本とし
 
 通常 TA の Setup/Edit Players は `usePlayerSearch()` へ移行済みで、qualification の3秒 polling と server initial-data から global player-list fetch を分離する。既存 qualification entry の `player` と、dialog session 中に取得した `knownPlayers` を merge して selected player の表示を保持し、`Select All` / deselect は current bounded result page のみに作用する。したがって通常 TA は roster が300人を超えても任意 player を検索でき、dialog を閉じている間は player discovery request を発行しない。
 
-BM / MR / GP page client が移行前の `fetchAllPlayersForSetup()` import をまだ持つ間、その関数は transport を行わず `null` を返す compatibility shim とする。`resolveAllPlayers()` は live/archived qualification payload の `allPlayers` seed へ fallback する。旧 snapshot cache と generation invalidation state は削除済みで、`clearSetupPlayersForSetupCache()` は compatibility のための no-op のみ残す。page client の import cleanup は挙動変更を伴わない follow-up として実施できる。
+BM / MR / GP page client が移行前の `fetchAllPlayersForSetup()` import をまだ持つ間、その関数は transport を行わず `null` を返す compatibility shim とする。`resolveAllPlayers()` は live/archived qualification payload の `allPlayers` seed へ fallback する。旧 snapshot cache と generation invalidation state は削除済みで、cache invalidation API も残さない。page client の import cleanup は挙動変更を伴わない follow-up として実施できる。
 
 ## Non-idempotent request ownership
 

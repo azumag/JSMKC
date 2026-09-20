@@ -1,8 +1,4 @@
-import {
-  clearSetupPlayersForSetupCache,
-  fetchAllPlayersForSetup,
-  resolveAllPlayers,
-} from '@/lib/qualification-page-data';
+import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
 
 type SetupPlayer = {
   id: string;
@@ -32,9 +28,5 @@ describe('qualification page player seed compatibility', () => {
 
   it('falls back to an empty seed when the payload has no players', () => {
     expect(resolveAllPlayers<SetupPlayer>(null, undefined)).toEqual([]);
-  });
-
-  it('keeps the removed cache invalidation API as a harmless compatibility no-op', () => {
-    expect(() => clearSetupPlayersForSetupCache()).not.toThrow();
   });
 });

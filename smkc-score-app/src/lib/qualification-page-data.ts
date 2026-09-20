@@ -16,14 +16,6 @@ export async function fetchAllPlayersForSetup<TPlayer>(): Promise<TPlayer[] | nu
   return null;
 }
 
-/**
- * @deprecated The removed setup-player snapshot no longer has cache state.
- * Retained as a no-op until compatibility imports are removed.
- */
-export function clearSetupPlayersForSetupCache(): void {
-  // Intentionally empty: player discovery is owned by server-side search.
-}
-
 export function resolveAllPlayers<TPlayer>(
   fetchedPlayers: TPlayer[] | null,
   payloadPlayers: TPlayer[] | null | undefined,
