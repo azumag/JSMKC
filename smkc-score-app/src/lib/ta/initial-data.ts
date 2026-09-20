@@ -2,26 +2,18 @@
  * Server-side initial data fetcher for the TA qualification page.
  *
  * Called from the TA Server Component (app/tournaments/[id]/ta/page.tsx) to
- * pre-fetch the same payload that the client's usePolling would otherwise fetch
- * on first mount. Passing this as `initialData` to usePolling eliminates the
- * loading skeleton flash on first paint.
+ * pre-fetch the same tournament payload that the client's usePolling would
+ * otherwise fetch on first mount. Passing this as `initialData` to usePolling
+ * eliminates the loading skeleton flash on first paint.
  *
- * The shape mirrors the return value of `fetchTournamentData` in page-client.tsx
- * so that usePolling can seed its state directly without any transformation.
+ * Player discovery intentionally does not live here. Setup/Edit Players uses
+ * the bounded `/api/players` server-side search only while its admin dialog is
+ * open, so the live qualification payload stays independent of roster size.
  */
 
 import prisma from '@/lib/prisma';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { resolveTournament } from '@/lib/tournament-identifier';
-
-/** Player fields exposed to the TA qualification UI. */
-export interface TaPlayer {
-  id: string;
-  name: string;
-  nickname: string;
-  country: string | null;
-  noCamera: boolean;
-}
 
 /**
  * Combined initial data shape that usePolling seeds from.
@@ -29,7 +21,6 @@ export interface TaPlayer {
  */
 export interface TaInitialData {
   entries: unknown[];
-  allPlayers: TaPlayer[];
   qualificationRegistrationLocked: boolean;
   frozenStages: string[];
   taPlayerSelfEdit: boolean;
@@ -50,9 +41,9 @@ async function hasKnockoutStageStarted(tournamentId: string): Promise<boolean> {
 /**
  * Pre-fetches TA qualification data for a tournament.
  *
- * Runs the same queries as GET /api/tournaments/[id]/ta plus the players list
- * in one parallel batch, returning the data shape expected by usePolling in the
- * TA client component.
+ * Runs the same tournament queries as GET /api/tournaments/[id]/ta in one
+ * parallel batch. The global player list is deliberately excluded: the setup
+ * dialog performs its own bounded server-side search when opened.
  *
  * @param id Tournament ID or slug
  * @returns Initial data ready to pass as `initialData` to usePolling,
@@ -70,24 +61,17 @@ export async function fetchTaInitialData(id: string): Promise<TaInitialData | nu
     if (!tournament) return null;
     const tournamentId = tournament.id;
 
-    const [entries, knockoutStarted, allPlayers] = await Promise.all([
+    const [entries, knockoutStarted] = await Promise.all([
       prisma.tTEntry.findMany({
         where: { tournamentId, stage: 'qualification' },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
         orderBy: [{ rank: 'asc' }, { totalTime: 'asc' }],
       }),
       hasKnockoutStageStarted(tournamentId),
-      prisma.player.findMany({
-        where: { id: { not: '__BREAK__' } },
-        orderBy: { nickname: 'asc' },
-        take: 100,
-        select: PLAYER_PUBLIC_SELECT,
-      }),
     ]);
 
     return {
       entries,
-      allPlayers,
       qualificationRegistrationLocked: knockoutStarted,
       frozenStages: (tournament.frozenStages as string[]) ?? [],
       taPlayerSelfEdit: tournament.taPlayerSelfEdit ?? true,

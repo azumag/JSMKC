@@ -14,12 +14,14 @@ describe('fail-closed client feedback docs', () => {
     expect(participantDoc).not.toContain('client-side 例外が `Error` として具体的な message を持つ場合');
   });
 
-  it('keeps TA qualification load failures fail-closed', () => {
+  it('keeps TA qualification load and setup-player search failures fail-closed', () => {
     expect(qualificationLoadDoc).toContain('common.networkError');
     expect(qualificationLoadDoc).toContain('raw `error` / `message`');
     expect(qualificationLoadDoc).toContain('status');
-    expect(qualificationLoadDoc).toContain('fetchAllPlayersForSetup()');
-    expect(qualificationLoadDoc).toContain('resolveAllPlayers()');
+    expect(qualificationLoadDoc).toContain('usePlayerSearch()');
+    expect(qualificationLoadDoc).toContain('dialog 内で localized `common.networkError`');
+    expect(qualificationLoadDoc).not.toContain('fetchAllPlayersForSetup()');
+    expect(qualificationLoadDoc).not.toContain('resolveAllPlayers()');
     expect(qualificationLoadDoc).not.toContain('keeps concrete server-provided API errors visible');
     expect(qualificationLoadDoc).not.toContain('non-empty `error` string keeps that message');
   });

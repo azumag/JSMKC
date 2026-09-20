@@ -12,6 +12,8 @@ TA qualification load の user-facing error handling は fail-closed とし、ba
 
 ## Data and polling behavior
 
-qualification endpoint、polling interval、cache key、initial-data hydration、response mapping は変更しない。setup-player request は引き続き intentionally non-fatal とし、`fetchAllPlayersForSetup()` が failure 時に `null` を返した場合は `resolveAllPlayers()` が利用可能なら TA payload の archived `allPlayers` へ fallback する。
+qualification endpoint、polling interval、cache key、response mapping は維持する。通常の3秒 polling は TA qualification payload だけを取得し、global player list を同時取得しない。server initial-data hydration も同じ shape を使い、qualification entries に含まれる player identity のみを持つ。
 
-これにより、一時的な `/api/players` failure で利用可能な qualification data 全体を error page に置き換えず、primary TA qualification load の failure だけを localized generic feedback と安全な診断情報に分離する。
+Setup/Edit Players の player discovery は admin dialog が open の間だけ `usePlayerSearch()` が `/api/players?limit=50&search=...` を bounded に取得する。search transport / response validation failure は qualification page 全体を error state にせず、dialog 内で localized `common.networkError` として表示する。既存 qualification entry と既に観測した search result は保持するため、search failure や query change だけで selected assignment は失われない。
+
+これにより、一時的な `/api/players` failure は setup dialog の discovery だけに隔離され、primary TA qualification load の failure とは独立して localized generic feedback と安全な診断情報を維持する。
