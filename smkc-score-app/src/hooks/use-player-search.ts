@@ -68,8 +68,9 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
     if (!enabled) {
       // Invalidate the prior result generation before a later re-enable. Queueing
       // this avoids a cascading synchronous setState from the effect itself.
+      let cancelled = false;
       queueMicrotask(() => {
-        if (generationRef.current !== generation) return;
+        if (cancelled || generationRef.current !== generation) return;
         setState((current) => ({
           ...current,
           results: [],
@@ -78,7 +79,11 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
           resultQuery: undefined,
         }));
       });
-      return;
+      return () => {
+        // The disabled component may unmount before the queued clear runs.
+        // Do not let that stale microtask enqueue a state update after cleanup.
+        cancelled = true;
+      };
     }
 
     const controller = new AbortController();
