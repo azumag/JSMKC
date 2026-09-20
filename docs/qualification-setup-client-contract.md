@@ -12,7 +12,9 @@ BM / MR / GP の qualification setup は `smkc-score-app/src/lib/hooks/useQualif
 - `Select All` / deselect は current bounded result page だけに作用し、過去 query の selected player を巻き込まない。
 - player-search failure は backend raw prose を表示せず `common.networkError` に fail-closed する。
 
-これにより 300人を超える roster でも BM / MR / GP の Setup/Edit Groups から任意の player を検索して追加できる。qualification page 自体が現在行っている `fetchAllPlayersForSetup()` の3秒 polling は別の性能境界であり、Issue #3933 の次段階として polling から分離する。
+これにより 300人を超える roster でも BM / MR / GP の Setup/Edit Groups から任意の player を検索して追加できる。移行期間の負荷抑制として `fetchAllPlayersForSetup()` は成功した bounded snapshot を30秒だけ再利用し、同時呼び出しも1本の in-flight request に共有する。したがって通常3秒 polling が 101〜300人 roster の2〜3ページ取得を毎回繰り返すことはない。transport failure、pagination inconsistency、300人超の fail-closed `null` は cache せず、次の poll で回復できる。
+
+この cache は server-side search の代替ではない。通常 TA の Setup/Edit Players はまだ bounded seed と client-side filter に依存するため、TA を `usePlayerSearch()` へ移し、最終的に qualification polling から `fetchAllPlayersForSetup()` 自体を外すことが Issue #3933 の残件である。
 
 ## Non-idempotent request ownership
 
@@ -41,6 +43,6 @@ qualification setup POST は non-idempotent mutation であり、request を開�
 - A大会の request が pending のまま B大会へ移動しても B大会が即座に submit できる
 - abort を無視して返る A大会の late success / transport failure が B大会の state、refetch、submit lock を変更しない
 
-player search の debounce / stale completion / unmount abort は `smkc-score-app/__tests__/hooks/use-player-search.test.ts`、`GroupSetupDialog` の server-search wiring と selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/group-setup-player-search-contract.test.ts` で固定する。
+player search の debounce / stale completion / unmount abort は `smkc-score-app/__tests__/hooks/use-player-search.test.ts`、`GroupSetupDialog` の server-search wiring と selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/group-setup-player-search-contract.test.ts` で固定する。`smkc-score-app/__tests__/lib/qualification-page-data.test.ts` は bounded pagination に加えて successful snapshot の TTL reuse、同時 call の in-flight sharing、failure を cache しない recovery 契約を固定する。
 
 API endpoint、payload、authorization、qualification grouping semantics はこの client-side isolation 契約では変更しない。

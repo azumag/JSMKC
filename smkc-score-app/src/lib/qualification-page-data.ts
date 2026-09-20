@@ -10,11 +10,22 @@ const SETUP_PLAYERS_PAGE_SIZE = 100;
 const MAX_SETUP_PLAYER_PAGES = 3;
 const SETUP_PLAYERS_URL = `/api/players?limit=${SETUP_PLAYERS_PAGE_SIZE}`;
 
+// Qualification mode data refreshes every 3 seconds, but the setup-player seed
+// does not need that cadence: BM/MR/GP dialogs use server-side search as the
+// authoritative discovery path, and TA only needs a reasonably fresh bounded
+// seed until it is migrated to the same search contract. Keep one short-lived
+// snapshot so a 101-300 player roster does not trigger 2-3 extra requests on
+// every qualification poll while still picking up registry changes promptly.
+const SETUP_PLAYERS_CACHE_TTL_MS = 30_000;
+
+let cachedSetupPlayers: { players: unknown[]; expiresAt: number } | null = null;
+let setupPlayersInFlight: Promise<unknown[] | null> | null = null;
+
 function setupPlayersPageUrl(page: number): string {
   return page === 1 ? SETUP_PLAYERS_URL : `${SETUP_PLAYERS_URL}&page=${page}`;
 }
 
-export async function fetchAllPlayersForSetup<TPlayer>(): Promise<TPlayer[] | null> {
+async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
   try {
     const firstResponse = await fetchWithRetry(setupPlayersPageUrl(1));
     if (!firstResponse.ok) return null;
@@ -48,8 +59,8 @@ export async function fetchAllPlayersForSetup<TPlayer>(): Promise<TPlayer[] | nu
       const pageMeta = extractPaginationMeta(payload);
 
       // Each page must describe the same snapshot contract. If the total/count
-      // changes while paging, retry on the next poll instead of combining an
-      // internally inconsistent roster.
+      // changes while paging, retry on the next uncached load instead of
+      // combining an internally inconsistent roster.
       if (
         !pageMeta ||
         pageMeta.page !== page ||
@@ -67,6 +78,40 @@ export async function fetchAllPlayersForSetup<TPlayer>(): Promise<TPlayer[] | nu
   } catch {
     return null;
   }
+}
+
+export async function fetchAllPlayersForSetup<TPlayer>(): Promise<TPlayer[] | null> {
+  const now = Date.now();
+  if (cachedSetupPlayers && cachedSetupPlayers.expiresAt > now) {
+    return [...cachedSetupPlayers.players] as TPlayer[];
+  }
+
+  if (!setupPlayersInFlight) {
+    setupPlayersInFlight = loadSetupPlayers<unknown>().finally(() => {
+      setupPlayersInFlight = null;
+    });
+  }
+
+  const players = await setupPlayersInFlight;
+  if (players === null) {
+    // Do not cache transport failures, malformed pagination, or over-limit
+    // fail-closed results. The next poll may recover after a transient issue.
+    return null;
+  }
+
+  cachedSetupPlayers = {
+    players: [...players],
+    expiresAt: Date.now() + SETUP_PLAYERS_CACHE_TTL_MS,
+  };
+  return [...players] as TPlayer[];
+}
+
+/**
+ * Explicit invalidation for tests and future player-registry mutations that
+ * need the setup seed refreshed immediately rather than waiting for the TTL.
+ */
+export function clearSetupPlayersForSetupCache(): void {
+  cachedSetupPlayers = null;
 }
 
 export function resolveAllPlayers<TPlayer>(
