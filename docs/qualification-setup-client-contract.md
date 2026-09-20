@@ -16,7 +16,9 @@ BM / MR / GP の qualification setup は `smkc-score-app/src/lib/hooks/useQualif
 
 setup-player snapshot の明示 invalidation は generation を進める。invalidation 後の caller は旧 generation の pending request を共有せず fresh request を開始し、旧 request が遅れて完了しても新 generation の cache や in-flight ownership を上書きしない。invalidation 前から旧 request を待っていた caller 自身にはその結果を返してよいが、その snapshot は新 generation の cache として採用しない。
 
-この cache は server-side search の代替ではない。通常 TA の Setup/Edit Players はまだ bounded seed と client-side filter に依存するため、TA を `usePlayerSearch()` へ移し、最終的に qualification polling から `fetchAllPlayersForSetup()` 自体を外すことが Issue #3933 の残件である。
+通常 TA の Setup/Edit Players は `usePlayerSearch()` へ移行済みで、qualification の3秒 polling と server initial-data から global player-list fetch を分離する。既存 qualification entry の `player` と、dialog session 中に取得した `knownPlayers` を merge して selected player の表示を保持し、`Select All` / deselect は current bounded result page のみに作用する。したがって通常 TA は roster が300人を超えても任意 player を検索でき、dialog を閉じている間は player discovery request を発行しない。
+
+Issue #3933 の残件は、BM / MR / GP の親 qualification polling が bounded seed 用に保持している `fetchAllPlayersForSetup()` を外し、共有 `GroupSetupDialog` が current qualification assignments と dialog-owned server search だけで成立するようにすること。移行が完了したら setup-player snapshot cache 自体も削除候補になる。
 
 ## Non-idempotent request ownership
 
@@ -45,6 +47,6 @@ qualification setup POST は non-idempotent mutation であり、request を開�
 - A大会の request が pending のまま B大会へ移動しても B大会が即座に submit できる
 - abort を無視して返る A大会の late success / transport failure が B大会の state、refetch、submit lock を変更しない
 
-player search の debounce / stale completion / unmount abort は `smkc-score-app/__tests__/hooks/use-player-search.test.ts`、`GroupSetupDialog` の server-search wiring と selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/group-setup-player-search-contract.test.ts` で固定する。`smkc-score-app/__tests__/lib/qualification-page-data.test.ts` は bounded pagination に加えて successful snapshot の TTL reuse、同一 generation 内の in-flight sharing、invalidation 後の fresh request と stale completion の cache 隔離、failure を cache しない recovery 契約を固定する。
+player search の debounce / stale completion / unmount abort は `smkc-score-app/__tests__/hooks/use-player-search.test.ts`、`GroupSetupDialog` の server-search wiring と selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/group-setup-player-search-contract.test.ts`、通常 TA の polling isolation / selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/ta-setup-player-search-contract.test.ts` で固定する。`smkc-score-app/__tests__/lib/qualification-page-data.test.ts` は bounded pagination に加えて successful snapshot の TTL reuse、同一 generation 内の in-flight sharing、invalidation 後の fresh request と stale completion の cache 隔離、failure を cache しない recovery 契約を固定する。
 
 API endpoint、payload、authorization、qualification grouping semantics はこの client-side isolation 契約では変更しない。
