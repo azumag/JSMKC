@@ -75,6 +75,32 @@ describe('qualification page data helpers', () => {
     await expect(second).resolves.toEqual([{ id: 'p1' }]);
   });
 
+  it('starts a fresh request after invalidation and ignores the stale in-flight completion for caching', async () => {
+    let resolveStaleResponse: ((value: never) => void) | undefined;
+    mockedFetchWithRetry
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveStaleResponse = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(paginatedPlayers(['fresh'], 1, 1, 1));
+
+    const staleRequest = fetchAllPlayersForSetup<{ id: string }>();
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
+
+    clearSetupPlayersForSetupCache();
+
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'fresh' }]);
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
+
+    resolveStaleResponse?.(paginatedPlayers(['stale'], 1, 1, 1));
+    await expect(staleRequest).resolves.toEqual([{ id: 'stale' }]);
+
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'fresh' }]);
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
+  });
+
   it('fails closed before issuing unbounded requests for rosters above 300 players', async () => {
     const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
     mockedFetchWithRetry.mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 301, 4));
