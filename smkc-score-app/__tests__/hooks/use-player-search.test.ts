@@ -6,11 +6,15 @@ import { usePlayerSearch } from '@/hooks/use-player-search';
 
 const player = (id: string, nickname: string) => ({ id, nickname, name: `${nickname} Name` });
 
-function responseWith(players: ReturnType<typeof player>[]): Response {
+function payloadResponse(payload: unknown): Response {
   return {
     ok: true,
-    json: async () => ({ success: true, data: players }),
+    json: async () => payload,
   } as Response;
+}
+
+function responseWith(players: ReturnType<typeof player>[]): Response {
+  return payloadResponse({ success: true, data: players });
 }
 
 async function advanceDebounce() {
@@ -47,6 +51,31 @@ describe('usePlayerSearch', () => {
     expect(result.current.results.map((entry) => entry.id)).toEqual(['p1']);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBe(false);
+  });
+
+  it('treats a legitimate empty result as a successful search', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(responseWith([]));
+
+    const { result } = renderHook(() => usePlayerSearch('missing'));
+    await advanceDebounce();
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBe(false);
+  });
+
+  it('fails closed when a successful response has an unsupported payload shape', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      payloadResponse({ success: true, data: { unexpected: [player('p1', 'Alpha')] } }),
+    );
+
+    const { result } = renderHook(() => usePlayerSearch('Alpha'));
+    await advanceDebounce();
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBe(true);
+    expect(result.current.knownPlayers).toEqual([]);
   });
 
   it('clears results immediately when the query changes before the debounced request starts', async () => {
