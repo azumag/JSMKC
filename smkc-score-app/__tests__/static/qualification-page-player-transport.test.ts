@@ -11,15 +11,7 @@ describe('qualification page player transport static guard', () => {
   it.each(['bm', 'mr', 'gp'] as const)(
     'keeps %s qualification polling free of direct global player-list transport',
     (mode) => {
-      const source = readRepoFile(
-        'smkc-score-app',
-        'src',
-        'app',
-        'tournaments',
-        '[id]',
-        mode,
-        'page-client.tsx',
-      );
+      const source = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', mode, 'page-client.tsx');
 
       expect(source).toContain(`/api/tournaments/\${tournamentId}/${mode}`);
       expect(source).not.toContain('/api/players');
@@ -27,13 +19,7 @@ describe('qualification page player transport static guard', () => {
   );
 
   it('keeps the temporary setup-player compatibility helper transport-free while it exists', () => {
-    const helperPath = path.join(
-      root,
-      'smkc-score-app',
-      'src',
-      'lib',
-      'qualification-page-data.ts',
-    );
+    const helperPath = path.join(root, 'smkc-score-app', 'src', 'lib', 'qualification-page-data.ts');
 
     if (!fs.existsSync(helperPath)) return;
 
