@@ -1,8 +1,18 @@
 import fs from 'fs';
 import path from 'path';
-import { buildPlayerListWhere, normalizePlayerSearchQuery } from '@/lib/player-search';
+import { buildPlayerListWhere, isSelectablePlayerId, normalizePlayerSearchQuery } from '@/lib/player-search';
 
 describe('player search', () => {
+  it('accepts only canonical selectable player identities', () => {
+    expect(isSelectablePlayerId('p1')).toBe(true);
+    expect(isSelectablePlayerId('')).toBe(false);
+    expect(isSelectablePlayerId('   ')).toBe(false);
+    expect(isSelectablePlayerId(' p1')).toBe(false);
+    expect(isSelectablePlayerId('p1 ')).toBe(false);
+    expect(isSelectablePlayerId('__BREAK__')).toBe(false);
+    expect(isSelectablePlayerId(1)).toBe(false);
+  });
+
   it('treats an empty or whitespace-only query as no search filter', () => {
     expect(normalizePlayerSearchQuery(null)).toBeNull();
     expect(normalizePlayerSearchQuery('   ')).toBeNull();
