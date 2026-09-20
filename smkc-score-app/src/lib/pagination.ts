@@ -108,9 +108,12 @@ export interface PaginationOptions {
  *   const clamped = getPaginationParams({ page: -1, limit: 500 });
  *   // Returns: { page: 1, limit: 100, skip: 0 }
  */
-export function getPaginationParams(
-  options?: PaginationOptions
-): { page: number; limit: number; skip: number; include?: Record<string, unknown> } {
+export function getPaginationParams(options?: PaginationOptions): {
+  page: number;
+  limit: number;
+  skip: number;
+  include?: Record<string, unknown>;
+} {
   // Number() intentionally preserves the historical runtime compatibility for
   // numeric strings while allowing us to reject NaN and +/-Infinity explicitly.
   const parsedPage = Number(options?.page ?? 1);
@@ -118,12 +121,8 @@ export function getPaginationParams(
 
   // Fail closed to the documented defaults for non-finite values before
   // flooring/clamping. This prevents Infinity from reaching Prisma as skip/take.
-  const normalizedPage = Number.isFinite(parsedPage)
-    ? Math.max(1, Math.floor(parsedPage))
-    : 1;
-  const limit = Number.isFinite(parsedLimit)
-    ? Math.min(100, Math.max(1, Math.floor(parsedLimit)))
-    : 50;
+  const normalizedPage = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  const limit = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, Math.floor(parsedLimit))) : 50;
 
   // Prisma offsets must remain safe finite integers. Extremely large but finite
   // page values can overflow the multiplication or exceed integer precision, so
@@ -190,7 +189,7 @@ export async function paginate<T>(
   query: PrismaModelDelegate,
   where: Record<string, unknown>,
   orderBy: Record<string, unknown>,
-  options?: PaginationOptions
+  options?: PaginationOptions,
 ): Promise<PaginatedResponse<T>> {
   // Process and validate pagination parameters
   const { page, limit, skip, include } = getPaginationParams(options);
