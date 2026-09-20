@@ -56,7 +56,9 @@ describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #38
   it('owns the start request for the mounted setup page and ignores stale completions', () => {
     const source = read('src/app/tournaments/[id]/ta/battle-royale-setup-client.tsx');
     const docs = read('docs/ta-battle-royale-setup-client-errors.md');
-    const fetchIndex = source.indexOf('const response = await fetch(`/api/tournaments/${tournamentId}/ta/battle-royale`');
+    const fetchIndex = source.indexOf(
+      'const response = await fetch(`/api/tournaments/${tournamentId}/ta/battle-royale`',
+    );
     const staleGuardIndex = source.indexOf('if (!isCurrentRequest()) return;', fetchIndex);
     const responseBranchIndex = source.indexOf('if (!response.ok)', fetchIndex);
     const navigationIndex = source.indexOf('window.location.assign(', responseBranchIndex);
