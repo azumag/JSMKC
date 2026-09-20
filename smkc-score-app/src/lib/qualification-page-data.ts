@@ -20,6 +20,8 @@ const SETUP_PLAYERS_CACHE_TTL_MS = 30_000;
 
 let cachedSetupPlayers: { players: unknown[]; expiresAt: number } | null = null;
 let setupPlayersInFlight: Promise<unknown[] | null> | null = null;
+let setupPlayersInFlightGeneration: number | null = null;
+let setupPlayersCacheGeneration = 0;
 
 function setupPlayersPageUrl(page: number): string {
   return page === 1 ? SETUP_PLAYERS_URL : `${SETUP_PLAYERS_URL}&page=${page}`;
@@ -90,32 +92,55 @@ export async function fetchAllPlayersForSetup<TPlayer>(): Promise<TPlayer[] | nu
     return [...cachedSetupPlayers.players] as TPlayer[];
   }
 
-  if (!setupPlayersInFlight) {
-    setupPlayersInFlight = loadSetupPlayers<unknown>().finally(() => {
-      setupPlayersInFlight = null;
+  // Invalidation advances the generation without trying to cancel an existing
+  // transport. Callers after invalidation must start a new request instead of
+  // sharing the stale one, while callers that were already waiting may still
+  // receive their original result.
+  if (!setupPlayersInFlight || setupPlayersInFlightGeneration !== setupPlayersCacheGeneration) {
+    const request = loadSetupPlayers<unknown>();
+    setupPlayersInFlight = request;
+    setupPlayersInFlightGeneration = setupPlayersCacheGeneration;
+
+    void request.finally(() => {
+      // A stale request may finish after a newer generation has already become
+      // the tracked request. Only its owner is allowed to clear the tracker.
+      if (setupPlayersInFlight === request) {
+        setupPlayersInFlight = null;
+        setupPlayersInFlightGeneration = null;
+      }
     });
   }
 
-  const players = await setupPlayersInFlight;
+  const request = setupPlayersInFlight;
+  const requestGeneration = setupPlayersInFlightGeneration;
+  const players = await request;
   if (players === null) {
     // Do not cache transport failures, malformed pagination, or over-limit
     // fail-closed results. The next poll may recover after a transient issue.
     return null;
   }
 
-  cachedSetupPlayers = {
-    players: [...players],
-    expiresAt: Date.now() + SETUP_PLAYERS_CACHE_TTL_MS,
-  };
+  // An explicit invalidation may have happened while this request was pending.
+  // In that case return the result to its original caller but never repopulate
+  // the newer generation's cache with a stale snapshot.
+  if (requestGeneration === setupPlayersCacheGeneration) {
+    cachedSetupPlayers = {
+      players: [...players],
+      expiresAt: Date.now() + SETUP_PLAYERS_CACHE_TTL_MS,
+    };
+  }
   return [...players] as TPlayer[];
 }
 
 /**
  * Explicit invalidation for tests and future player-registry mutations that
  * need the setup seed refreshed immediately rather than waiting for the TTL.
+ * Advancing the generation also prevents stale in-flight work from being shared
+ * by later callers or repopulating the cache after invalidation.
  */
 export function clearSetupPlayersForSetupCache(): void {
   cachedSetupPlayers = null;
+  setupPlayersCacheGeneration += 1;
 }
 
 export function resolveAllPlayers<TPlayer>(
