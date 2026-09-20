@@ -100,7 +100,9 @@ describe('fetchWithRetry', () => {
   it('does not replay a mutating request after a network error', async () => {
     fetchSpy.mockRejectedValue(new Error('Network failure'));
 
-    await expect(fetchWithRetry('/api/test', { method: 'PATCH' })).rejects.toThrow('Network failure');
+    await expect(fetchWithRetry('/api/test', { method: 'PATCH' })).rejects.toThrow(
+      'Network failure',
+    );
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(setTimeoutSpy).not.toHaveBeenCalled();
   });
@@ -113,10 +115,15 @@ describe('fetchWithRetry', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     fetchSpy.mockReset();
-    fetchSpy.mockResolvedValueOnce(makeResponse(500, false)).mockResolvedValueOnce(makeResponse(200));
+    fetchSpy
+      .mockResolvedValueOnce(makeResponse(500, false))
+      .mockResolvedValueOnce(makeResponse(200));
 
     const overriddenRequest = new Request('https://example.test/api/test', { method: 'POST' });
-    await expect(fetchWithRetry(overriddenRequest, { method: 'GET' })).resolves.toHaveProperty('status', 200);
+    await expect(fetchWithRetry(overriddenRequest, { method: 'GET' })).resolves.toHaveProperty(
+      'status',
+      200,
+    );
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
