@@ -165,8 +165,8 @@ describe('RankCell — edit mode', () => {
 });
 
 describe('RankCell — edge cases', () => {
-  it('TC-2657: empty string input + Enter calls onSave with null (parseInt("") === NaN)', async () => {
-    // The implementation converts empty input via parseInt("") = NaN → treats as null (clear)
+  it('TC-2657: empty input + Enter calls onSave with null and closes editor', async () => {
+    // Empty input intentionally clears the override; strict parsing treats it as null.
     render(<RankCell qualificationId="qual-empty" rankOverride={null} autoRank={2} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
@@ -181,8 +181,8 @@ describe('RankCell — edge cases', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 
-  it('TC-2658: input "0" + Enter calls onSave with 0 (rank 0 passes isNaN check)', async () => {
-    // parseInt("0") = 0, isNaN(0) = false → saved as 0. Callers should guard against rank 0 if needed.
+  it('TC-2658: input "0" + Enter passes 0 to onSave and closes editor', async () => {
+    // The UI parser accepts whole-number 0; range validation belongs to the API/caller contract.
     render(<RankCell qualificationId="qual-zero" rankOverride={null} autoRank={3} isAdmin={true} onSave={noop} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
