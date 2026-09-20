@@ -21,16 +21,18 @@ describe('qualification setup player identity validation', () => {
     mockedFetchWithRetry.mockReset();
   });
 
-  it('fails closed on blank and reserved setup-player ids', async () => {
+  it('fails closed on blank, non-canonical, and reserved setup-player ids', async () => {
     mockedFetchWithRetry
       .mockResolvedValueOnce(Response.json({ data: [{ id: '' }] }) as never)
       .mockResolvedValueOnce(Response.json({ data: [{ id: '   ' }] }) as never)
+      .mockResolvedValueOnce(Response.json({ data: [{ id: ' p1 ' }] }) as never)
       .mockResolvedValueOnce(Response.json({ data: [{ id: '__BREAK__' }] }) as never);
 
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
-    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(3);
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(4);
   });
 
   it('fails closed when duplicate player ids appear across pagination pages', async () => {

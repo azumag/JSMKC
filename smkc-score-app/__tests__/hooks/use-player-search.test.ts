@@ -84,6 +84,7 @@ describe('usePlayerSearch', () => {
     { id: 1, name: 'Alpha Name', nickname: 'Alpha' },
     { id: '', name: 'Alpha Name', nickname: 'Alpha' },
     { id: '   ', name: 'Alpha Name', nickname: 'Alpha' },
+    { id: ' p1 ', name: 'Alpha Name', nickname: 'Alpha' },
     { id: 'p1', name: 'Alpha Name', nickname: 'Alpha', country: 81 },
   ])('fails closed when a successful array contains a malformed player row: %p', async (invalidPlayer) => {
     (global.fetch as jest.Mock).mockResolvedValue(
