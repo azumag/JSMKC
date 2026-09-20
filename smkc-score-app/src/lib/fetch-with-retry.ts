@@ -41,6 +41,15 @@ function isAbortError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
 }
 
+function abortReason(signal: AbortSignal): unknown {
+  const reason = (signal as AbortSignal & { reason?: unknown }).reason;
+  if (reason !== undefined) return reason;
+
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
 function isRetrySafeRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
   const method = requestMethod(input, init);
   return method === 'GET' || method === 'HEAD';
@@ -98,6 +107,29 @@ async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
   };
 }
 
+async function waitForRetry(input: RequestInfo | URL, init?: RequestInit): Promise<void> {
+  const signal = requestSignal(input, init);
+  if (!signal) {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return;
+  }
+  if (signal.aborted) throw abortReason(signal);
+
+  await new Promise<void>((resolve, reject) => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const onAbort = () => {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      reject(abortReason(signal));
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    timeoutId = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, RETRY_DELAY_MS);
+  });
+}
+
 /**
  * Fetch with automatic retry on 500+ status codes for safe read methods.
  * Mutating methods are attempted exactly once because an error response or
@@ -152,9 +184,10 @@ async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): 
       if (attempt === maxAttempts - 1) throw err;
     }
 
-    // Wait before retry (skip delay on last attempt)
+    // Wait before retry (skip delay on last attempt). The wait itself observes
+    // caller cancellation so an abort between attempts never starts a replay.
     if (attempt < maxAttempts - 1) {
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      await waitForRetry(input, init);
     }
   }
 
