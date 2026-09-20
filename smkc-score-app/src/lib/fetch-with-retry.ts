@@ -30,6 +30,26 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   return (init?.method ?? (isRequestInput(input) ? input.method : 'GET')).toUpperCase();
 }
 
+function requestSignal(input: RequestInfo | URL, init?: RequestInit): AbortSignal | null {
+  if (init?.signal !== undefined) {
+    return init.signal;
+  }
+  return isRequestInput(input) ? input.signal : null;
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  const reason = (signal as AbortSignal & { reason?: unknown }).reason;
+  if (reason !== undefined) return reason;
+
+  const error = new Error('The operation was aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
 function isRetrySafeRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
   const method = requestMethod(input, init);
   return method === 'GET' || method === 'HEAD';
@@ -87,10 +107,35 @@ async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
   };
 }
 
+async function waitForRetry(input: RequestInfo | URL, init?: RequestInit): Promise<void> {
+  const signal = requestSignal(input, init);
+  if (!signal) {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return;
+  }
+  if (signal.aborted) throw abortReason(signal);
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = { id: undefined as ReturnType<typeof setTimeout> | undefined };
+    const onAbort = () => {
+      if (timeout.id !== undefined) clearTimeout(timeout.id);
+      reject(abortReason(signal));
+    };
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    timeout.id = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, RETRY_DELAY_MS);
+  });
+}
+
 /**
  * Fetch with automatic retry on 500+ status codes for safe read methods.
  * Mutating methods are attempted exactly once because an error response or
  * connection loss does not prove that the server failed to commit the write.
+ * Explicitly aborted reads also fail immediately: cancellation is caller intent,
+ * not a transient transport failure to replay after a delay.
  * Returns the last response (successful or final failure).
  */
 export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -129,14 +174,20 @@ async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): 
         return lastResponse;
       }
     } catch (err) {
+      // Caller cancellation is intentional and must never be replayed. Prefer
+      // the effective signal (RequestInit overrides Request.signal), while also
+      // recognizing the standard AbortError when no signal state is available.
+      if (requestSignal(input, init)?.aborted || isAbortError(err)) throw err;
+
       // Network error — retry safe reads unless this is the last attempt.
       // Mutations have maxAttempts=1, so they always re-throw immediately.
       if (attempt === maxAttempts - 1) throw err;
     }
 
-    // Wait before retry (skip delay on last attempt)
+    // Wait before retry (skip delay on last attempt). The wait itself observes
+    // caller cancellation so an abort between attempts never starts a replay.
     if (attempt < maxAttempts - 1) {
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      await waitForRetry(input, init);
     }
   }
 
