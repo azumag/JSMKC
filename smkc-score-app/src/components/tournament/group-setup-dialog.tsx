@@ -52,6 +52,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { usePlayerSearch } from '@/hooks/use-player-search';
 import { GROUPS, assignGroupsBySeeding, randomlyAssignGroups, type SetupPlayer } from '@/lib/group-utils';
+import { parseManualScore } from '@/lib/parse-manual-score';
 
 /**
  * Selectable group counts (docs/qualification-combined-ranking.md §7: 4+
@@ -459,10 +460,8 @@ export function GroupSetupDialog({
                               value={sp.seeding ?? ''}
                               disabled={saving}
                               onChange={(e) => {
-                                const val = e.target.value;
-                                const parsed = parseInt(val, 10);
-                                /* Guard: only accept valid positive integers */
-                                const seeding = val && !Number.isNaN(parsed) && parsed >= 1 ? parsed : undefined;
+                                const parsed = parseManualScore(e.target.value);
+                                const seeding = parsed !== null && parsed >= 1 ? parsed : undefined;
                                 setSetupPlayers(
                                   setupPlayers.map((p) => (p.playerId === sp.playerId ? { ...p, seeding } : p)),
                                 );
