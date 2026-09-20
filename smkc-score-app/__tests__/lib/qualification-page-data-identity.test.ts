@@ -7,16 +7,12 @@ jest.mock('@/lib/fetch-with-retry', () => ({
 
 const mockedFetchWithRetry = fetchWithRetry as jest.MockedFunction<typeof fetchWithRetry>;
 
-function paginatedPlayerRows(rows: unknown[], page: number, total: number, totalPages: number) {
+function paginatedPlayers(ids: string[], page: number, total: number, totalPages: number) {
   return Response.json({
     success: true,
-    data: rows,
+    data: ids.map((id) => ({ id })),
     meta: { total, page, limit: 100, totalPages },
   }) as never;
-}
-
-function paginatedPlayers(ids: string[], page: number, total: number, totalPages: number) {
-  return paginatedPlayerRows(ids.map((id) => ({ id })), page, total, totalPages);
 }
 
 describe('qualification setup player identity validation', () => {
@@ -27,9 +23,9 @@ describe('qualification setup player identity validation', () => {
 
   it('fails closed on blank and reserved setup-player ids', async () => {
     mockedFetchWithRetry
-      .mockResolvedValueOnce(paginatedPlayerRows([{ id: '' }], 1, 1, 1))
-      .mockResolvedValueOnce(paginatedPlayerRows([{ id: '   ' }], 1, 1, 1))
-      .mockResolvedValueOnce(paginatedPlayerRows([{ id: '__BREAK__' }], 1, 1, 1));
+      .mockResolvedValueOnce(Response.json({ data: [{ id: '' }] }) as never)
+      .mockResolvedValueOnce(Response.json({ data: [{ id: '   ' }] }) as never)
+      .mockResolvedValueOnce(Response.json({ data: [{ id: '__BREAK__' }] }) as never);
 
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
@@ -49,7 +45,7 @@ describe('qualification setup player identity validation', () => {
 
   it('does not cache an invalid player identity so the next poll can recover', async () => {
     mockedFetchWithRetry
-      .mockResolvedValueOnce(paginatedPlayerRows([{ id: '__BREAK__' }], 1, 1, 1))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: '__BREAK__' }] }) as never)
       .mockResolvedValueOnce(paginatedPlayers(['recovered'], 1, 1, 1));
 
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
