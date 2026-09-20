@@ -20,12 +20,7 @@ function paginatedPlayerRows(rows: unknown[], page: number, total: number, total
 }
 
 function paginatedPlayers(ids: string[], page: number, total: number, totalPages: number) {
-  return paginatedPlayerRows(
-    ids.map((id) => ({ id })),
-    page,
-    total,
-    totalPages,
-  );
+  return paginatedPlayerRows(ids.map((id) => ({ id })), page, total, totalPages);
 }
 
 describe('qualification page data helpers', () => {
