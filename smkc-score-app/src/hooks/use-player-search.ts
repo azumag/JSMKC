@@ -21,6 +21,10 @@ interface PlayerSearchState {
   error: boolean;
 }
 
+interface InternalPlayerSearchState extends PlayerSearchState {
+  resultQuery: string | null | undefined;
+}
+
 function mergeKnownPlayers(current: PlayerSearchPlayer[], incoming: PlayerSearchPlayer[]): PlayerSearchPlayer[] {
   const byId = new Map(current.map((player) => [player.id, player]));
   for (const player of incoming) byId.set(player.id, player);
@@ -29,32 +33,47 @@ function mergeKnownPlayers(current: PlayerSearchPlayer[], incoming: PlayerSearch
 
 export function usePlayerSearch(query: string, enabled = true): PlayerSearchState {
   const generationRef = useRef(0);
-  const [state, setState] = useState<PlayerSearchState>({
+  const normalizedQuery = normalizePlayerSearchQuery(query);
+  const [state, setState] = useState<InternalPlayerSearchState>({
     results: [],
     knownPlayers: [],
     loading: true,
     error: false,
+    resultQuery: undefined,
   });
 
   useEffect(() => {
     const generation = ++generationRef.current;
     if (!enabled) {
-      // Clear query-specific state while inactive, but keep learned player details
-      // so selected players remain renderable if this hook is enabled again.
-      setState((current) => ({ ...current, results: [], loading: false, error: false }));
+      // Invalidate the prior result generation before a later re-enable. Queueing
+      // this avoids a cascading synchronous setState from the effect itself.
+      queueMicrotask(() => {
+        if (generationRef.current !== generation) return;
+        setState((current) => ({
+          ...current,
+          results: [],
+          loading: false,
+          error: false,
+          resultQuery: undefined,
+        }));
+      });
       return;
     }
 
     const controller = new AbortController();
-    const normalizedQuery = normalizePlayerSearchQuery(query);
-
-    // The input already represents this generation. Drop candidates and errors
-    // from the previous query immediately instead of leaving them interactive
-    // during the debounce window. knownPlayers is intentionally retained.
-    setState((current) => ({ ...current, results: [], loading: true, error: false }));
 
     const timer = window.setTimeout(() => {
       if (generationRef.current !== generation) return;
+
+      // Mark this request as the active generation when it actually starts.
+      // Until then, the derived return value below hides previous-query results.
+      setState((current) => ({
+        ...current,
+        results: [],
+        loading: true,
+        error: false,
+        resultQuery: normalizedQuery,
+      }));
 
       const params = new URLSearchParams({ limit: String(PLAYER_SEARCH_PAGE_SIZE) });
       if (normalizedQuery) params.set('search', normalizedQuery);
@@ -72,6 +91,7 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
             knownPlayers: mergeKnownPlayers(current.knownPlayers, players),
             loading: false,
             error: false,
+            resultQuery: normalizedQuery,
           }));
         })
         .catch(() => {
@@ -84,7 +104,13 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [enabled, query]);
+  }, [enabled, normalizedQuery, query]);
 
-  return state;
+  const resultMatchesCurrentQuery = enabled && state.resultQuery === normalizedQuery;
+  return {
+    results: resultMatchesCurrentQuery ? state.results : [],
+    knownPlayers: state.knownPlayers,
+    loading: enabled ? !resultMatchesCurrentQuery || state.loading : false,
+    error: resultMatchesCurrentQuery ? state.error : false,
+  };
 }
