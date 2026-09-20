@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #3838, #3925)', () => {
+describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #3838, #3925, #3927)', () => {
   const read = (relativePath: string) => fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
 
   it('uses common.networkError for start failures without exposing raw response or transport details', () => {
@@ -51,5 +51,29 @@ describe('TA battle royale setup error contract (issues #3572, #3636, #3794, #38
     expect(finallyIndex).toBeGreaterThan(savingIndex);
     expect(releaseIndex).toBeGreaterThan(finallyIndex);
     expect(clearSavingIndex).toBeGreaterThan(releaseIndex);
+  });
+
+  it('owns the start request for the mounted setup page and ignores stale completions', () => {
+    const source = read('src/app/tournaments/[id]/ta/battle-royale-setup-client.tsx');
+    const docs = read('docs/ta-battle-royale-setup-client-errors.md');
+    const fetchIndex = source.indexOf(
+      'const response = await fetch(`/api/tournaments/${tournamentId}/ta/battle-royale`',
+    );
+    const staleGuardIndex = source.indexOf('if (!isCurrentRequest()) return;', fetchIndex);
+    const responseBranchIndex = source.indexOf('if (!response.ok)', fetchIndex);
+    const navigationIndex = source.indexOf('window.location.assign(', responseBranchIndex);
+
+    expect(source).toContain('const startAbortRef = useRef<AbortController | null>(null);');
+    expect(source).toContain('const controller = new AbortController();');
+    expect(source).toContain('signal: controller.signal');
+    expect(source).toContain('controller?.abort();');
+    expect(source).toContain('!controller.signal.aborted && startAbortRef.current === controller');
+    expect(staleGuardIndex).toBeGreaterThan(fetchIndex);
+    expect(staleGuardIndex).toBeLessThan(responseBranchIndex);
+    expect(navigationIndex).toBeGreaterThan(responseBranchIndex);
+    expect(source).toContain('if (!isCurrentRequest()) return;\n      logger.error');
+    expect(source).toContain('if (isCurrentRequest()) {\n        startAbortRef.current = null;');
+    expect(docs).toContain('late completion');
+    expect(docs).toContain('server-side mutation');
   });
 });

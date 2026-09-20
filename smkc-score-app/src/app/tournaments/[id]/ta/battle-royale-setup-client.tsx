@@ -50,6 +50,7 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const startAbortRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -73,6 +74,16 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       cancelled = true;
     };
   }, [tc, tournamentId]);
+
+  useEffect(
+    () => () => {
+      const controller = startAbortRef.current;
+      startAbortRef.current = null;
+      controller?.abort();
+      savingRef.current = false;
+    },
+    [],
+  );
 
   const selectedByPlayerId = useMemo(
     () => new Map(selectedPlayers.map((entry) => [entry.playerId, entry])),
@@ -127,12 +138,19 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
     savingRef.current = true;
     setSaving(true);
     setError(null);
+
+    const controller = new AbortController();
+    startAbortRef.current = controller;
+    const isCurrentRequest = () => !controller.signal.aborted && startAbortRef.current === controller;
+
     try {
       const response = await fetch(`/api/tournaments/${tournamentId}/ta/battle-royale`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ players: selectedPlayers }),
+        signal: controller.signal,
       });
+      if (!isCurrentRequest()) return;
       if (!response.ok) {
         logger.error('Failed to start TA battle royale', {
           operation: 'startBattleRoyale',
@@ -145,9 +163,11 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       }
       // Keep a hard navigation after the mutation so finals always boots from
       // freshly persisted server state; use an absolute same-origin URL to
-      // satisfy Next.js' relative-location navigation lint rule.
+      // satisfy Next.js' relative-location navigation lint rule. Request
+      // ownership above prevents an old, unmounted setup page from navigating.
       window.location.assign(new URL(`/tournaments/${tournamentId}/ta/finals`, window.location.origin).toString());
     } catch (startError) {
+      if (!isCurrentRequest()) return;
       logger.error('Failed to start TA battle royale', {
         error: startError,
         tournamentId,
@@ -155,8 +175,11 @@ export default function BattleRoyaleSetupClient({ tournamentId }: { tournamentId
       setError(tc('networkError'));
       setConfirmOpen(false);
     } finally {
-      savingRef.current = false;
-      setSaving(false);
+      if (isCurrentRequest()) {
+        startAbortRef.current = null;
+        savingRef.current = false;
+        setSaving(false);
+      }
     }
   };
 
