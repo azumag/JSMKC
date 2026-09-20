@@ -82,10 +82,26 @@ describe('usePlayerSearch', () => {
     null,
     { id: 'p1', name: 'Alpha Name' },
     { id: 1, name: 'Alpha Name', nickname: 'Alpha' },
+    { id: '', name: 'Alpha Name', nickname: 'Alpha' },
+    { id: '   ', name: 'Alpha Name', nickname: 'Alpha' },
     { id: 'p1', name: 'Alpha Name', nickname: 'Alpha', country: 81 },
   ])('fails closed when a successful array contains a malformed player row: %p', async (invalidPlayer) => {
     (global.fetch as jest.Mock).mockResolvedValue(
       payloadResponse({ success: true, data: [player('valid', 'Valid'), invalidPlayer] }),
+    );
+
+    const { result } = renderHook(() => usePlayerSearch('Alpha'));
+    await advanceDebounce();
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBe(true);
+    expect(result.current.knownPlayers).toEqual([]);
+  });
+
+  it('fails closed when a successful array repeats a player identity', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      payloadResponse({ success: true, data: [player('p1', 'Alpha'), player('p1', 'Alpha duplicate')] }),
     );
 
     const { result } = renderHook(() => usePlayerSearch('Alpha'));
