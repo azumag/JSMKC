@@ -77,6 +77,22 @@ describe('extractPaginationMeta', () => {
     expect(extractPaginationMeta({ success: true, data: { data: [], meta: invalidMeta } })).toBeNull();
   });
 
+  it.each([
+    { ...meta, totalPages: 2 },
+    { ...meta, totalPages: 4 },
+    { total: 0, page: 1, limit: 50, totalPages: 2 },
+  ])('rejects pagination metadata whose totalPages conflicts with total and limit: %p', (invalidMeta) => {
+    expect(extractPaginationMeta({ data: [], meta: invalidMeta })).toBeNull();
+    expect(extractPaginationMeta({ success: true, data: { data: [], meta: invalidMeta } })).toBeNull();
+  });
+
+  it('accepts totalPages=1 for an empty result set', () => {
+    const emptyMeta = { total: 0, page: 1, limit: 50, totalPages: 1 };
+
+    expect(extractPaginationMeta({ data: [], meta: emptyMeta })).toEqual(emptyMeta);
+    expect(extractPaginationMeta({ success: true, data: { data: [], meta: emptyMeta } })).toEqual(emptyMeta);
+  });
+
   it('accepts an out-of-range page so callers can clamp to the server-reported last page', () => {
     const outOfRangePage = { total: 1, page: 3, limit: 50, totalPages: 1 };
 
