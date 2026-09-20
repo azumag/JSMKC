@@ -36,11 +36,36 @@ interface RankCellProps {
   onSave: (qualificationId: string, rankOverride: number | null) => Promise<boolean | void>;
 }
 
+type ParsedRankOverride = { valid: true; value: number | null } | { valid: false };
+
+function parseRankOverrideInput(inputValue: string): ParsedRankOverride {
+  const normalized = inputValue.trim();
+  if (normalized === '') return { valid: true, value: null };
+
+  // Do not let parseInt-style partial parsing silently turn values such as
+  // "1.5" or "1e2" into a different rank. The API remains responsible for
+  // domain constraints such as the minimum rank, while this boundary ensures
+  // the submitted value is exactly a safe decimal integer.
+  if (!/^\d+$/.test(normalized)) return { valid: false };
+
+  const value = Number(normalized);
+  return Number.isSafeInteger(value) ? { valid: true, value } : { valid: false };
+}
+
 function RankCellSaveError() {
   const tCommon = useTranslations('common');
   return (
     <p className="text-xs text-destructive" role="alert">
       {tCommon('networkError')}
+    </p>
+  );
+}
+
+function RankCellInputError() {
+  const tRankCell = useTranslations('rankCell');
+  return (
+    <p className="text-xs text-destructive" role="alert">
+      {tRankCell('invalidRank')}
     </p>
   );
 }
@@ -54,22 +79,29 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
   const tRankCell = useTranslations('rankCell');
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [inputError, setInputError] = useState(false);
   // Unexpected rejected callbacks show a safe localized error; API failures normally return false instead.
   const [saveError, setSaveError] = useState(false);
 
   const openEdit = () => {
     setInputValue(rankOverride?.toString() ?? '');
+    setInputError(false);
     setSaveError(false);
     setIsEditing(true);
   };
 
   const commitSave = async () => {
     setSaveError(false);
+    const parsed = parseRankOverrideInput(inputValue);
+    if (!parsed.valid) {
+      setInputError(true);
+      return;
+    }
+
+    setInputError(false);
     try {
-      const v = parseInt(inputValue);
-      // Rank 0 is allowed through (isNaN(0) === false); the API layer enforces
-      // minimum rank constraints.
-      const saved = await onSave(qualificationId, isNaN(v) ? null : v);
+      // Rank 0 is intentionally allowed through; the API layer owns minimum-rank validation.
+      const saved = await onSave(qualificationId, parsed.value);
       if (saved !== false) setIsEditing(false);
     } catch (err) {
       // Keep the editor open so the user can retry after seeing a safe error.
@@ -83,6 +115,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
   };
 
   const commitClear = async () => {
+    setInputError(false);
     setSaveError(false);
     try {
       const saved = await onSave(qualificationId, null);
@@ -105,9 +138,14 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
           <Input
             type="number"
             min={1}
+            step={1}
             value={inputValue}
             aria-label={tRankCell('rankInput')}
-            onChange={(e) => setInputValue(e.target.value)}
+            aria-invalid={inputError || undefined}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              setInputError(false);
+            }}
             className="w-14 h-7 text-center text-sm p-1"
             onKeyDown={(e) => {
               if (e.key === 'Enter') commitSave();
@@ -137,6 +175,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             </Button>
           )}
         </div>
+        {inputError && <RankCellInputError />}
         {saveError && <RankCellSaveError />}
       </div>
     );
