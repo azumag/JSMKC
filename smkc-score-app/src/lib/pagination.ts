@@ -87,6 +87,7 @@ export interface PaginationOptions {
  * Applies defaults and constraints:
  * - Page defaults to 1, minimum is 1 (no zero or negative pages)
  * - Limit defaults to 50, minimum is 1, maximum is 100
+ * - Non-finite values fall back to their defaults
  * - Calculates the `skip` value for Prisma's offset-based pagination
  *
  * The maximum limit of 100 prevents clients from requesting excessive
@@ -109,24 +110,22 @@ export interface PaginationOptions {
 export function getPaginationParams(
   options?: PaginationOptions
 ): { page: number; limit: number; skip: number; include?: Record<string, unknown> } {
-  // Apply defaults for missing values.
-  // Page defaults to 1 (first page) and limit defaults to 50 records.
-  const rawPage = options?.page ?? 1;
-  const rawLimit = options?.limit ?? 50;
+  // Number() intentionally preserves the historical runtime compatibility for
+  // numeric strings while allowing us to reject NaN and +/-Infinity explicitly.
+  const parsedPage = Number(options?.page ?? 1);
+  const parsedLimit = Number(options?.limit ?? 50);
 
-  // Clamp page to minimum of 1 (no zero or negative pages allowed).
-  // This prevents confusing skip calculations and invalid SQL offsets.
-  const page = Math.max(1, Math.floor(rawPage));
+  // Fail closed to the documented defaults for non-finite values before
+  // flooring/clamping. This prevents Infinity from reaching Prisma as skip/take.
+  const page = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(100, Math.max(1, Math.floor(parsedLimit)))
+    : 50;
 
-  // Clamp limit between 1 and 100 inclusive.
-  // Minimum of 1 ensures at least one record per page.
-  // Maximum of 100 prevents excessive data transfers that could
-  // strain the database and network.
-  const limit = Math.min(100, Math.max(1, Math.floor(rawLimit)));
-
-  // Calculate the number of records to skip for Prisma's offset pagination.
+  // Calculate the number of records to skip for Prisma's offset-based pagination.
   // Page 1 skips 0, page 2 skips `limit`, page 3 skips `2 * limit`, etc.
-  const skip = (page - 1) * limit;
+  const rawSkip = (page - 1) * limit;
+  const skip = Number.isFinite(rawSkip) ? rawSkip : 0;
 
   return { page, limit, skip, include: options?.include };
 }
