@@ -2,5 +2,6 @@
   "rankInput": "Rank override",
   "editRank": "Edit rank",
   "saveRank": "Save rank",
-  "clearRankOverride": "Clear rank override"
+  "clearRankOverride": "Clear rank override",
+  "invalidRank": "Enter a whole-number rank."
 }
