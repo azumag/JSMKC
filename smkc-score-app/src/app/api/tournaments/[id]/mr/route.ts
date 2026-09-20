@@ -14,9 +14,10 @@
 
 import { withApiTiming } from '@/lib/perf/api-timing';
 import { createQualificationHandlers } from '@/lib/api-factories/qualification-route';
+import { withQualificationPlayerSeed } from '@/lib/api-factories/qualification-player-seed';
 import { mrConfig } from '@/lib/event-types';
 
 const { GET: _GET, POST, PUT, PATCH } = createQualificationHandlers(mrConfig);
 export { POST, PUT, PATCH };
-export const GET = (...args: Parameters<typeof _GET>): ReturnType<typeof _GET> =>
-  withApiTiming('mr.qual.GET', () => _GET(...args));
+export const GET = (...args: Parameters<typeof _GET>) =>
+  withApiTiming('mr.qual.GET', async () => withQualificationPlayerSeed(await _GET(...args)));
