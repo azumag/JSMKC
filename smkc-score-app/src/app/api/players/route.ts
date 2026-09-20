@@ -26,6 +26,7 @@ import { createErrorResponse, handleValidationError, handleAuthzError } from '@/
 import { resolveCountryCode } from '@/lib/countries';
 import { PLAYER_ERROR_CODES } from '@/lib/player-error-codes';
 import { isPrismaErrorCode } from '@/lib/prisma-error';
+import { buildPlayerListWhere } from '@/lib/player-search';
 
 /**
  * GET /api/players
@@ -34,8 +35,9 @@ import { isPrismaErrorCode } from '@/lib/prisma-error';
  * sorted alphabetically by nickname.
  *
  * Query parameters:
- *   - page  (number, default: 1)  - Page number for pagination
- *   - limit (number, default: 50) - Number of results per page
+ *   - page   (number, default: 1)  - Page number for pagination
+ *   - limit  (number, default: 50) - Number of results per page
+ *   - search (string, optional)    - Case-insensitive substring match for nickname/name
  *
  * Response: Paginated result from the paginate() utility including
  * data array, total count, page info, etc.
@@ -59,8 +61,9 @@ export async function GET(request: NextRequest) {
     //
     // Exclude the system __BREAK__ player used as a sentinel for BYE matches
     // in round-robin scheduling. This player has no real-world identity and
-    // should never appear in player listings or UI.
-    const where = { id: { not: '__BREAK__' } };
+    // should never appear in player listings or UI. Optional search is bounded
+    // and applied to nickname/name without changing the existing pagination contract.
+    const where = buildPlayerListWhere(searchParams.get('search'));
     const result = await paginate(
       {
         findMany: prisma.player.findMany.bind(prisma.player),
