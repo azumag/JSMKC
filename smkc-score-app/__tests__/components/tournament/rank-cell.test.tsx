@@ -19,6 +19,7 @@ jest.mock('next-intl', () => {
       editRank: 'Edit rank',
       saveRank: 'Save rank',
       clearRankOverride: 'Clear rank override',
+      invalidRank: 'Enter a whole-number rank.',
     },
   };
 
@@ -196,6 +197,36 @@ describe('RankCell — edge cases', () => {
     // Editor closes after save, same as other numeric values
     expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
+
+  it.each(['1.5', '1e2', '9007199254740992'])(
+    'rejects invalid integer input %s without calling onSave and allows correction',
+    async (value) => {
+      render(<RankCell qualificationId="qual-invalid" rankOverride={null} autoRank={3} isAdmin={true} onSave={noop} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+      const input = screen.getByRole('spinbutton', { name: 'Rank override' });
+      fireEvent.change(input, { target: { value } });
+
+      await act(async () => {
+        fireEvent.keyDown(input, { key: 'Enter' });
+      });
+
+      expect(noop).not.toHaveBeenCalled();
+      expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('alert')).toHaveTextContent('Enter a whole-number rank.');
+
+      fireEvent.change(input, { target: { value: '2' } });
+      expect(input).not.toHaveAttribute('aria-invalid');
+      expect(screen.queryByRole('alert')).toBeNull();
+
+      await act(async () => {
+        fireEvent.keyDown(input, { key: 'Enter' });
+      });
+
+      expect(noop).toHaveBeenCalledWith('qual-invalid', 2);
+      expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
+    },
+  );
 
   it('TC-2659: commitSave closes editor on success and keeps it open while in-flight', async () => {
     // With try/catch in commitSave, setIsEditing(false) is called only on success.
