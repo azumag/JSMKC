@@ -78,6 +78,25 @@ describe('usePlayerSearch', () => {
     expect(result.current.knownPlayers).toEqual([]);
   });
 
+  it.each([
+    null,
+    { id: 'p1', name: 'Alpha Name' },
+    { id: 1, name: 'Alpha Name', nickname: 'Alpha' },
+    { id: 'p1', name: 'Alpha Name', nickname: 'Alpha', country: 81 },
+  ])('fails closed when a successful array contains a malformed player row: %p', async (invalidPlayer) => {
+    (global.fetch as jest.Mock).mockResolvedValue(
+      payloadResponse({ success: true, data: [player('valid', 'Valid'), invalidPlayer] }),
+    );
+
+    const { result } = renderHook(() => usePlayerSearch('Alpha'));
+    await advanceDebounce();
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBe(true);
+    expect(result.current.knownPlayers).toEqual([]);
+  });
+
   it('clears results immediately when the query changes before the debounced request starts', async () => {
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce(responseWith([player('old', 'Old Player')]))
