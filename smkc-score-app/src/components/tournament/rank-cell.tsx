@@ -164,7 +164,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             ✓
           </Button>
           {rankOverride != null && (
-            /* Clear button: removes override and restores automatic rank */}
+            /* Clear button: removes override and restores automatic rank */
             <Button
               size="sm"
               variant="ghost"
