@@ -69,11 +69,11 @@ export interface PaginationMeta {
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isPositiveInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
 }
 
 function isPaginationMeta(value: unknown): value is PaginationMeta {
@@ -94,17 +94,20 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
 
   // Keep client-side metadata aligned with the server paginate() contract.
   // page may intentionally exceed totalPages so callers can clamp an
-  // out-of-range request to the server-reported final page.
+  // out-of-range request to the server-reported final page. Every accepted
+  // field must stay within JavaScript's safe-integer range so this arithmetic
+  // cannot silently lose precision.
   const expectedTotalPages = Math.ceil(meta.total / meta.limit) || 1;
   return meta.totalPages === expectedTotalPages;
 }
 
 /**
  * Extracts pagination metadata from supported paginated API response shapes.
- * Metadata is accepted only when `totalPages` is consistent with the server
- * pagination contract (`Math.ceil(total / limit) || 1`). An out-of-range
- * current `page` remains valid so callers can clamp it to the final page.
- * Wrappers that explicitly provide `success` must use `success: true`.
+ * Metadata is accepted only when all numeric fields are safe integers and
+ * `totalPages` is consistent with the server pagination contract
+ * (`Math.ceil(total / limit) || 1`). An out-of-range current `page` remains
+ * valid so callers can clamp it to the final page. Wrappers that explicitly
+ * provide `success` must use `success: true`.
  *
  * Supported formats:
  * - { data: T[], meta: ... }
