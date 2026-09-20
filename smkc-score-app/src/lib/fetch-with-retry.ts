@@ -31,14 +31,14 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
 }
 
 function requestSignal(input: RequestInfo | URL, init?: RequestInit): AbortSignal | null {
-  if (init && Object.prototype.hasOwnProperty.call(init, 'signal')) {
-    return init.signal ?? null;
+  if (init?.signal !== undefined) {
+    return init.signal;
   }
   return isRequestInput(input) ? input.signal : null;
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
 }
 
 function isRetrySafeRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
