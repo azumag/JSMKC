@@ -81,6 +81,32 @@ describe('extractPaginationMeta', () => {
     ).toEqual(meta);
   });
 
+  it('requires pagination metadata to be colocated with a supported data array', () => {
+    expect(extractPaginationMeta({ meta })).toBeNull();
+    expect(
+      extractPaginationMeta({
+        success: true,
+        meta,
+        data: { data: [{ id: '1' }] },
+      }),
+    ).toBeNull();
+  });
+
+  it('uses nested metadata for nested data instead of unrelated top-level metadata', () => {
+    const unrelatedTopLevelMeta = { total: 1, page: 1, limit: 50, totalPages: 1 };
+
+    expect(
+      extractPaginationMeta({
+        success: true,
+        meta: unrelatedTopLevelMeta,
+        data: {
+          data: [{ id: '1' }],
+          meta,
+        },
+      }),
+    ).toEqual(meta);
+  });
+
   it.each([false, null, 'true', 1, undefined])(
     'rejects pagination wrappers with malformed success flag: %p',
     (success) => {

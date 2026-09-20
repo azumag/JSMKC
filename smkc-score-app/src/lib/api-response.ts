@@ -109,6 +109,10 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
  * valid so callers can clamp it to the final page. Wrappers that explicitly
  * provide `success` must use `success: true`.
  *
+ * Metadata must be colocated with the array shape it describes. This prevents
+ * malformed mixed wrappers from pairing a nested data array with unrelated
+ * top-level metadata (or accepting metadata with no supported data array).
+ *
  * Supported formats:
  * - { data: T[], meta: ... }
  * - { success: true, data: { data: T[], meta: ... } }
@@ -118,13 +122,19 @@ export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
     return null;
   }
 
-  const directMeta = (payload as { meta?: unknown }).meta;
-  if (isPaginationMeta(directMeta)) {
-    return directMeta;
+  const data = (payload as { data?: unknown }).data;
+
+  if (Array.isArray(data)) {
+    const directMeta = (payload as { meta?: unknown }).meta;
+    return isPaginationMeta(directMeta) ? directMeta : null;
   }
 
-  const data = (payload as { data?: unknown }).data;
   if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const nestedData = (data as { data?: unknown }).data;
+  if (!Array.isArray(nestedData)) {
     return null;
   }
 
