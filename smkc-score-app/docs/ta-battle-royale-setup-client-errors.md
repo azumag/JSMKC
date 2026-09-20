@@ -10,6 +10,12 @@ non-2xx start response は response body を parse しない。logger には ope
 
 この境界により、server-side implementation detail をブラウザ側へ複製せず、HTTP failure の診断に必要な最小 metadata だけを保持する。
 
+## request lifetime
+
+battle royale start POST は setup page の mount lifetime に所有させる。request ごとに `AbortController` を作り、page unmount 時は in-flight request を abort する。transport が abort を無視して late completion を返した場合も、現在所有している controller と一致する request だけが error state、saving state、成功後の finals navigation を更新できる。
+
+abort は server-side mutation の取消し保証ではない。POST が server に到達済みなら mutation が適用されている可能性は残るため、client は「cancel succeeded」とは扱わず、stale completion の UI/navigation side effect だけを抑止する。
+
 ## ユーザー向け表示
 
 1. start API の non-2xx response は `common.networkError`
@@ -24,5 +30,6 @@ raw `payload.error` と raw `Error.message` は UI に出さない。non-2xx res
 - 最低2人の開始制約
 - 選手選択・TA handicap
 - 確認ダイアログ
-- 成功後の finals への hard navigation
+- 現在の setup page に所有された成功 request の finals への hard navigation
+- server-side mutation の rollback/cancellation 保証
 - DB / Cloudflare / production 設定
