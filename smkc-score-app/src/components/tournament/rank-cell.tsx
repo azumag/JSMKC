@@ -45,8 +45,9 @@ function parseRankOverrideInput(inputValue: string): ParsedRankOverride {
   // Do not let parseInt-style partial parsing silently turn values such as
   // "1.5" or "1e2" into a different rank. The API remains responsible for
   // domain constraints such as the minimum rank, while this boundary ensures
-  // the submitted value is exactly a safe decimal integer.
-  if (!/^\d+$/.test(normalized)) return { valid: false };
+  // the submitted value is exactly a safe decimal integer. Keep an optional
+  // sign valid here so API-owned range validation is not moved into the UI.
+  if (!/^[+-]?\d+$/.test(normalized)) return { valid: false };
 
   const value = Number(normalized);
   return Number.isSafeInteger(value) ? { valid: true, value } : { valid: false };
@@ -163,7 +164,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             ✓
           </Button>
           {rankOverride != null && (
-            /* Clear button: removes override and restores automatic rank */
+            /* Clear button: removes override and restores automatic rank */}
             <Button
               size="sm"
               variant="ghost"
