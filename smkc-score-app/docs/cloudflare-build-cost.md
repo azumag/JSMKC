@@ -10,17 +10,17 @@ while production Worker builds are rate-gated to reduce paid Workers Build Minut
 Keep the existing `smkc` repository connection to `azumag/JSMKC` and `main`.
 The production trigger contract is:
 
-| Setting                      | Required value        |
-| ---------------------------- | --------------------- |
-| Worker                       | `smkc`                |
-| Production branch            | `main`                |
-| Non-production branch builds | **OFF**               |
-| Build cache                  | **ON**                |
-| Root directory               | `smkc-score-app`      |
-| Build command                | `npm run build:cf`    |
-| Deploy command               | `npx wrangler deploy` |
-| Path includes                | `["*"]`             |
-| Path excludes                | `["*"]`             |
+| Setting                      | Required value          |
+| ---------------------------- | ----------------------- |
+| Worker                       | `smkc`                  |
+| Production branch            | `main`                  |
+| Non-production branch builds | **OFF**                 |
+| Build cache                  | **ON**                  |
+| Root directory               | `smkc-score-app`        |
+| Build command                | `npm run build:cf`      |
+| Deploy command               | `npx wrangler deploy`   |
+| Path includes                | `["*"]`               |
+| Path excludes                | `["*"]`               |
 
 `path_excludes=["*"]` is intentional. It suppresses ordinary push-triggered
 production builds while keeping the `main` repository connection intact. Do not
