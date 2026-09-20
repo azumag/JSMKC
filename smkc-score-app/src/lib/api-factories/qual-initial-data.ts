@@ -1,13 +1,14 @@
 /**
  * Server-side initial data fetcher for BM / MR / GP qualification pages.
  *
- * Called from the respective Server Components to pre-fetch the same payload
- * that the client's usePolling would otherwise fetch on first mount.  Passing
+ * Called from the respective Server Components to pre-fetch the same mode data
+ * that the client's usePolling would otherwise fetch on first mount. Passing
  * this as `initialData` to usePolling eliminates the loading skeleton flash on
  * first paint for all three event types.
  *
- * The shape mirrors the return value of `fetchTournamentData` in each
- * page-client.tsx so that usePolling can seed its state directly.
+ * Setup-player discovery is owned by GroupSetupDialog's bounded server-side
+ * search. The initial `allPlayers` seed therefore contains only players already
+ * present in qualification assignments instead of querying the global roster.
  */
 
 import prisma from '@/lib/prisma';
@@ -24,6 +25,9 @@ import type { Player } from '@/lib/types';
  * `qualifications` and `matches` are mode-specific Prisma records (BM/MR/GP delegate payloads
  * augmented with computed rank fields). They remain `unknown[]` here because this interface is
  * shared across all three modes; each page-client casts to its concrete type.
+ *
+ * `allPlayers` is deliberately only the current qualification-assignment seed.
+ * GroupSetupDialog supplements it with bounded server-side search while open.
  */
 export interface QualInitialData {
   qualifications: unknown[];
@@ -34,21 +38,32 @@ export interface QualInitialData {
 
 type ModeQualField = 'bmQualificationConfirmed' | 'mrQualificationConfirmed' | 'gpQualificationConfirmed';
 
+function collectQualificationPlayers(qualifications: RankableQualification[]): Player[] {
+  const playersById = new Map<string, Player>();
+
+  for (const qualification of qualifications) {
+    const player = qualification.player as Player | undefined;
+    if (player?.id) playersById.set(player.id, player);
+  }
+
+  return [...playersById.values()];
+}
+
 /**
  * Pre-fetches qualification data for a BM / MR / GP tournament.
  *
- * Runs the same Prisma queries as GET /api/tournaments/[id]/{bm,mr,gp}
- * plus the players list in one parallel batch.
+ * Runs the same qualification/match Prisma queries as
+ * GET /api/tournaments/[id]/{bm,mr,gp}. It intentionally does not query the
+ * global player registry: current assignment players are already included in
+ * the qualification rows, and new-player discovery belongs to the setup
+ * dialog's bounded `/api/players` search.
  *
  * @param config EventTypeConfig for the mode (bmConfig, mrConfig, gpConfig)
  * @param id     Tournament ID or slug
  * @returns Initial data ready to pass as `initialData` to usePolling,
  *          or null on any error (client falls back to its own first poll).
  */
-export async function fetchQualInitialData(
-  config: EventTypeConfig,
-  id: string,
-): Promise<QualInitialData | null> {
+export async function fetchQualInitialData(config: EventTypeConfig, id: string): Promise<QualInitialData | null> {
   try {
     const modeField = `${config.eventTypeCode}QualificationConfirmed` as ModeQualField;
     const tournament = await resolveTournament(id, {
@@ -68,7 +83,7 @@ export async function fetchQualInitialData(
     const qualModel = prisma[config.qualificationModel] as unknown as FindManyDelegate<RankableQualification>;
     const matchModel = prisma[config.matchModel] as unknown as FindManyDelegate<RankableMatch>;
 
-    const [qualifications, matches, allPlayers] = await Promise.all([
+    const [qualifications, matches] = await Promise.all([
       qualModel.findMany({
         where: { tournamentId },
         include: { player: { select: PLAYER_PUBLIC_SELECT } },
@@ -82,26 +97,17 @@ export async function fetchQualInitialData(
         },
         orderBy: { matchNumber: 'asc' },
       }),
-      prisma.player.findMany({
-        where: { id: { not: '__BREAK__' } },
-        orderBy: { nickname: 'asc' },
-        take: 100,
-        select: PLAYER_PUBLIC_SELECT,
-      }),
     ]);
 
-    const rankedQualifications = computeQualificationRanks(
-      qualifications,
-      config.qualificationOrderBy ?? [],
-      matches,
-      { matchScoreFields: config.matchScoreFields },
-    );
+    const rankedQualifications = computeQualificationRanks(qualifications, config.qualificationOrderBy ?? [], matches, {
+      matchScoreFields: config.matchScoreFields,
+    });
 
     return {
       qualifications: rankedQualifications,
       matches,
-      allPlayers,
-      qualificationConfirmed: (tournament as Record<string, unknown>)[modeField] as boolean ?? false,
+      allPlayers: collectQualificationPlayers(rankedQualifications),
+      qualificationConfirmed: ((tournament as Record<string, unknown>)[modeField] as boolean) ?? false,
     };
   } catch {
     // Swallowed intentionally: client falls back to its own first poll.

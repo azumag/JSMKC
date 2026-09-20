@@ -4,7 +4,7 @@ BM / MR / GP の qualification setup は `smkc-score-app/src/lib/hooks/useQualif
 
 ## Player discovery
 
-`GroupSetupDialog` の選手候補は、qualification polling が持つ bounded な `allPlayers` を初期表示用の seed として使いつつ、dialog が open の間は `usePlayerSearch()` の server-side search を正本として補完する。
+`GroupSetupDialog` の選手候補は、qualification payload が持つ bounded な `allPlayers` を初期表示用の seed として使いつつ、dialog が open の間は `usePlayerSearch()` の server-side search を正本として補完する。BM / MR / GP の server-rendered initial payload は global player registry を別 query せず、current qualification assignments に既に含まれる `player` だけをこの seed に使う。client polling 側は移行完了まで一時的に `fetchAllPlayersForSetup()` の bounded snapshot を補完 seed として保持する。
 
 - server-side search は `/api/players?limit=50&search=...` の bounded first page を使い、入力 debounce、AbortController、generation ownership は shared hook が所有する。
 - 空 query の最初の search が完了するまで、親 payload の先頭50件だけを fallback 表示できる。非空 query で unfiltered seed へ fallback しない。
@@ -12,7 +12,7 @@ BM / MR / GP の qualification setup は `smkc-score-app/src/lib/hooks/useQualif
 - `Select All` / deselect は current bounded result page だけに作用し、過去 query の selected player を巻き込まない。
 - player-search failure は backend raw prose を表示せず `common.networkError` に fail-closed する。
 
-これにより 300人を超える roster でも BM / MR / GP の Setup/Edit Groups から任意の player を検索して追加できる。移行期間の負荷抑制として `fetchAllPlayersForSetup()` は成功した bounded snapshot を30秒だけ再利用し、同時呼び出しも1本の in-flight request に共有する。したがって通常3秒 polling が 101〜300人 roster の2〜3ページ取得を毎回繰り返すことはない。transport failure、pagination inconsistency、300人超の fail-closed `null` は cache せず、次の poll で回復できる。
+これにより 300人を超える roster でも BM / MR / GP の Setup/Edit Groups から任意の player を検索して追加できる。server-rendered initial data は current assignments 以外の player discovery を行わない。移行期間の client polling 負荷抑制として `fetchAllPlayersForSetup()` は成功した bounded snapshot を30秒だけ再利用し、同時呼び出しも1本の in-flight request に共有する。したがって通常3秒 polling が 101〜300人 roster の2〜3ページ取得を毎回繰り返すことはない。transport failure、pagination inconsistency、300人超の fail-closed `null` は cache せず、次の poll で回復できる。
 
 setup-player snapshot の明示 invalidation は generation を進める。invalidation 後の caller は旧 generation の pending request を共有せず fresh request を開始し、旧 request が遅れて完了しても新 generation の cache や in-flight ownership を上書きしない。invalidation 前から旧 request を待っていた caller 自身にはその結果を返してよいが、その snapshot は新 generation の cache として採用しない。
 
@@ -47,6 +47,6 @@ qualification setup POST は non-idempotent mutation であり、request を開�
 - A大会の request が pending のまま B大会へ移動しても B大会が即座に submit できる
 - abort を無視して返る A大会の late success / transport failure が B大会の state、refetch、submit lock を変更しない
 
-player search の debounce / stale completion / unmount abort は `smkc-score-app/__tests__/hooks/use-player-search.test.ts`、`GroupSetupDialog` の server-search wiring と selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/group-setup-player-search-contract.test.ts`、通常 TA の polling isolation / selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/ta-setup-player-search-contract.test.ts` で固定する。`smkc-score-app/__tests__/lib/qualification-page-data.test.ts` は bounded pagination に加えて successful snapshot の TTL reuse、同一 generation 内の in-flight sharing、invalidation 後の fresh request と stale completion の cache 隔離、failure を cache しない recovery 契約を固定する。
+player search の debounce / stale completion / unmount abort は `smkc-score-app/__tests__/hooks/use-player-search.test.ts`、`GroupSetupDialog` の server-search wiring と selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/group-setup-player-search-contract.test.ts`、通常 TA の polling isolation / selected-player retention / bounded bulk-selection は `smkc-score-app/__tests__/static/ta-setup-player-search-contract.test.ts` で固定する。BM / MR / GP の server initial-data が global player registry を query せず current qualification assignments だけを setup seed にする契約は `smkc-score-app/__tests__/lib/api-factories/qual-initial-data.test.ts` で固定する。`smkc-score-app/__tests__/lib/qualification-page-data.test.ts` は bounded pagination に加えて successful snapshot の TTL reuse、同一 generation 内の in-flight sharing、invalidation 後の fresh request と stale completion の cache 隔離、failure を cache しない recovery 契約を固定する。
 
 API endpoint、payload、authorization、qualification grouping semantics はこの client-side isolation 契約では変更しない。
