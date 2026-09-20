@@ -4,7 +4,9 @@
  * D1 eliminates the old PrismaNeon cold-start 1101 crashes, but retries
  * are kept as a general resilience measure for occasional 500s.
  *
- * Usage: drop-in replacement for fetch() in client components.
+ * Usage: drop-in replacement for fetch() in client components. Automatic
+ * replay is deliberately limited to safe read methods so a mutation is never
+ * duplicated after an ambiguous 500/network failure.
  *
  *   import { fetchWithRetry } from '@/lib/fetch-with-retry';
  *   const response = await fetchWithRetry('/api/players');
@@ -22,6 +24,15 @@ const inFlightApiGets = new Map<string, Promise<ResponseSnapshot>>();
 
 function isRequestInput(input: RequestInfo | URL): input is Request {
   return typeof Request !== 'undefined' && input instanceof Request;
+}
+
+function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
+  return (init?.method ?? (isRequestInput(input) ? input.method : 'GET')).toUpperCase();
+}
+
+function isRetrySafeRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
+  const method = requestMethod(input, init);
+  return method === 'GET' || method === 'HEAD';
 }
 
 function hasRequestSpecificInit(init?: RequestInit): boolean {
@@ -42,8 +53,8 @@ function isDedupeSafeBrowserApiGet(input: RequestInfo | URL, init?: RequestInit)
   if (isRequestInput(input)) return false;
   if (hasRequestSpecificInit(init)) return false;
 
-  const method = init?.method ?? 'GET';
-  if (method.toUpperCase() !== 'GET') return false;
+  const method = requestMethod(input, init);
+  if (method !== 'GET') return false;
 
   const url = typeof input === 'string' ? new URL(input, window.location.href) : input;
 
@@ -77,7 +88,9 @@ async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
 }
 
 /**
- * Fetch with automatic retry on 500+ status codes.
+ * Fetch with automatic retry on 500+ status codes for safe read methods.
+ * Mutating methods are attempted exactly once because an error response or
+ * connection loss does not prove that the server failed to commit the write.
  * Returns the last response (successful or final failure).
  */
 export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -106,8 +119,9 @@ export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestIni
 
 async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   let lastResponse: Response | undefined;
+  const maxAttempts = isRetrySafeRequest(input, init) ? MAX_RETRIES : 1;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       lastResponse = await fetch(input, init);
       // Success or client error (4xx) — don't retry
@@ -115,16 +129,17 @@ async function fetchWithRetryRaw(input: RequestInfo | URL, init?: RequestInit): 
         return lastResponse;
       }
     } catch (err) {
-      // Network error — retry unless last attempt
-      if (attempt === MAX_RETRIES - 1) throw err;
+      // Network error — retry safe reads unless this is the last attempt.
+      // Mutations have maxAttempts=1, so they always re-throw immediately.
+      if (attempt === maxAttempts - 1) throw err;
     }
 
     // Wait before retry (skip delay on last attempt)
-    if (attempt < MAX_RETRIES - 1) {
+    if (attempt < maxAttempts - 1) {
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     }
   }
 
-  // All retries exhausted — return the last 500 response
+  // All retry-safe attempts exhausted, or a mutation returned 500+ once.
   return lastResponse!;
 }
