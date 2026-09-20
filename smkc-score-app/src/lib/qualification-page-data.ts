@@ -13,8 +13,8 @@ const SETUP_PLAYERS_URL = `/api/players?limit=${SETUP_PLAYERS_PAGE_SIZE}`;
 
 // Qualification mode data refreshes every 3 seconds, but the setup-player seed
 // does not need that cadence: BM/MR/GP dialogs use server-side search as the
-// authoritative discovery path, and TA only needs a reasonably fresh bounded
-// seed until it is migrated to the same search contract. Keep one short-lived
+// authoritative discovery path, while their client polling still carries this
+// bounded seed until the remaining migration is complete. Keep one short-lived
 // snapshot so a 101-300 player roster does not trigger 2-3 extra requests on
 // every qualification poll while still picking up registry changes promptly.
 const SETUP_PLAYERS_CACHE_TTL_MS = 30_000;
@@ -34,17 +34,23 @@ function hasExpectedSetupPlayerPageSize(rowCount: number, page: number, total: n
   return rowCount === expected;
 }
 
-function hasValidUniqueSetupPlayerIds(players: unknown[]): boolean {
+function hasValidUniqueSetupPlayers(players: unknown[]): boolean {
   const ids = new Set<string>();
 
   for (const value of players) {
     if (!value || typeof value !== 'object') return false;
 
-    const id = (value as { id?: unknown }).id;
-    if (!isSelectablePlayerId(id) || ids.has(id)) {
+    const player = value as { id?: unknown; name?: unknown; nickname?: unknown; country?: unknown };
+    if (
+      !isSelectablePlayerId(player.id) ||
+      typeof player.name !== 'string' ||
+      typeof player.nickname !== 'string' ||
+      (player.country !== undefined && player.country !== null && typeof player.country !== 'string') ||
+      ids.has(player.id)
+    ) {
       return false;
     }
-    ids.add(id);
+    ids.add(player.id);
   }
 
   return true;
@@ -64,7 +70,7 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
     // contain fewer records than the API page cap. Exactly 100 rows without
     // metadata is ambiguous, so fail closed rather than silently truncating.
     if (!firstMeta) {
-      return firstPlayers.length < SETUP_PLAYERS_PAGE_SIZE && hasValidUniqueSetupPlayerIds(firstPlayers)
+      return firstPlayers.length < SETUP_PLAYERS_PAGE_SIZE && hasValidUniqueSetupPlayers(firstPlayers)
         ? firstPlayers
         : null;
     }
@@ -110,7 +116,7 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
       players.push(...pagePlayers);
     }
 
-    return players.length === firstMeta.total && hasValidUniqueSetupPlayerIds(players) ? players : null;
+    return players.length === firstMeta.total && hasValidUniqueSetupPlayers(players) ? players : null;
   } catch {
     return null;
   }
