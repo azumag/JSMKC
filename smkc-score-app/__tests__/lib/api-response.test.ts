@@ -97,13 +97,17 @@ describe('extractPaginationMeta', () => {
   it.each([
     { ...meta, total: -1 },
     { ...meta, total: 1.5 },
+    { ...meta, total: Number.MAX_SAFE_INTEGER + 1 },
     { ...meta, page: 0 },
     { ...meta, page: -1 },
     { ...meta, page: 1.5 },
+    { ...meta, page: Number.MAX_SAFE_INTEGER + 1 },
     { ...meta, limit: 0 },
     { ...meta, limit: 1.5 },
+    { ...meta, limit: Number.MAX_SAFE_INTEGER + 1 },
     { ...meta, totalPages: 0 },
     { ...meta, totalPages: 1.5 },
+    { ...meta, totalPages: Number.MAX_SAFE_INTEGER + 1 },
   ])('rejects invalid numeric pagination metadata: %p', (invalidMeta) => {
     expect(extractPaginationMeta({ data: [], meta: invalidMeta })).toBeNull();
     expect(extractPaginationMeta({ success: true, data: { data: [], meta: invalidMeta } })).toBeNull();
