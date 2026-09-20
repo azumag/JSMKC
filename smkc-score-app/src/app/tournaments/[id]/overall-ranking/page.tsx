@@ -72,7 +72,12 @@ interface OverallRankingData {
 }
 
 /** Marks generic transport/response failures that must use the shared localized fallback. */
-class GenericOverallRankingError extends Error {}
+class GenericOverallRankingError extends Error {
+  constructor() {
+    super('overall-ranking-load-failed');
+    this.name = 'GenericOverallRankingError';
+  }
+}
 
 export default function OverallRankingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: tournamentId } = use(params);
