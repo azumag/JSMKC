@@ -116,14 +116,14 @@ async function waitForRetry(input: RequestInfo | URL, init?: RequestInit): Promi
   if (signal.aborted) throw abortReason(signal);
 
   await new Promise<void>((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = { id: undefined as ReturnType<typeof setTimeout> | undefined };
     const onAbort = () => {
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      if (timeout.id !== undefined) clearTimeout(timeout.id);
       reject(abortReason(signal));
     };
 
     signal.addEventListener('abort', onAbort, { once: true });
-    timeoutId = setTimeout(() => {
+    timeout.id = setTimeout(() => {
       signal.removeEventListener('abort', onAbort);
       resolve();
     }, RETRY_DELAY_MS);
