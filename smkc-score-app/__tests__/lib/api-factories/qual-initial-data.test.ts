@@ -76,12 +76,9 @@ describe('fetchQualInitialData', () => {
     expect(result!.allPlayers).toEqual([PLAYER]);
     expect(result!.qualificationConfirmed).toBe(false);
     expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
-    expect(mockComputeRanks).toHaveBeenCalledWith(
-      [QUALIFICATION],
-      bmConfig.qualificationOrderBy,
-      [MATCH],
-      { matchScoreFields: bmConfig.matchScoreFields },
-    );
+    expect(mockComputeRanks).toHaveBeenCalledWith([QUALIFICATION], bmConfig.qualificationOrderBy, [MATCH], {
+      matchScoreFields: bmConfig.matchScoreFields,
+    });
   });
 
   it('deduplicates the setup seed from current qualification assignments without a global player query', async () => {
@@ -109,9 +106,7 @@ describe('fetchQualInitialData', () => {
   });
 
   it('TC-2572: swallows Prisma error and returns null', async () => {
-    (mockPrisma.bMQualification.findMany as jest.Mock).mockRejectedValue(
-      new Error('DB connection failed'),
-    );
+    (mockPrisma.bMQualification.findMany as jest.Mock).mockRejectedValue(new Error('DB connection failed'));
 
     const result = await fetchQualInitialData(bmConfig, 'tournament-1');
 
