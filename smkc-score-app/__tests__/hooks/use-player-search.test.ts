@@ -40,7 +40,10 @@ describe('usePlayerSearch', () => {
     await advanceDebounce();
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(global.fetch).toHaveBeenCalledWith('/api/players?limit=50', expect.objectContaining({ signal: expect.anything() }));
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/players?limit=50',
+      expect.objectContaining({ signal: expect.anything() }),
+    );
     expect(result.current.results.map((entry) => entry.id)).toEqual(['p1']);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBe(false);
