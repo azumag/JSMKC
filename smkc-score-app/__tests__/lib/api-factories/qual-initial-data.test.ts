@@ -3,7 +3,7 @@
  *
  * Covers:
  * - TC-2569: tournament not found → null
- * - TC-2570: BM happy path → returns ranked qualifications, matches, allPlayers
+ * - TC-2570: BM happy path → returns ranked qualifications, matches, assigned-player seed
  * - TC-2571: bmQualificationConfirmed=true → qualificationConfirmed=true
  * - TC-2572: Prisma error → swallowed, returns null
  * - TC-2573: GP config → uses gPQualification and gPMatch models
@@ -49,7 +49,6 @@ beforeEach(() => {
   (mockPrisma.tournament.findFirst as jest.Mock).mockResolvedValue(TOURNAMENT);
   (mockPrisma.bMQualification.findMany as jest.Mock).mockResolvedValue([QUALIFICATION]);
   (mockPrisma.bMMatch.findMany as jest.Mock).mockResolvedValue([MATCH]);
-  (mockPrisma.player.findMany as jest.Mock).mockResolvedValue([PLAYER]);
   mockComputeRanks.mockReturnValue([QUALIFICATION]);
 });
 
@@ -65,7 +64,7 @@ describe('fetchQualInitialData', () => {
     expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
   });
 
-  it('TC-2570: BM happy path — returns ranked qualifications, matches, and allPlayers', async () => {
+  it('TC-2570: BM happy path — returns ranked qualifications, matches, and assigned-player seed', async () => {
     const rankedQuals = [{ ...QUALIFICATION, rank: 1 }];
     mockComputeRanks.mockReturnValue(rankedQuals);
 
@@ -76,12 +75,26 @@ describe('fetchQualInitialData', () => {
     expect(result!.matches).toEqual([MATCH]);
     expect(result!.allPlayers).toEqual([PLAYER]);
     expect(result!.qualificationConfirmed).toBe(false);
+    expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
     expect(mockComputeRanks).toHaveBeenCalledWith(
       [QUALIFICATION],
       bmConfig.qualificationOrderBy,
       [MATCH],
       { matchScoreFields: bmConfig.matchScoreFields },
     );
+  });
+
+  it('deduplicates the setup seed from current qualification assignments without a global player query', async () => {
+    const secondQualification = {
+      ...QUALIFICATION,
+      id: 'q2',
+    };
+    mockComputeRanks.mockReturnValue([QUALIFICATION, secondQualification]);
+
+    const result = await fetchQualInitialData(bmConfig, 'tournament-1');
+
+    expect(result!.allPlayers).toEqual([PLAYER]);
+    expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
   });
 
   it('TC-2571: returns qualificationConfirmed=true when bmQualificationConfirmed is true', async () => {
@@ -117,6 +130,7 @@ describe('fetchQualInitialData', () => {
     expect(mockPrisma.gPMatch.findMany).toHaveBeenCalled();
     expect(mockPrisma.bMQualification.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.bMMatch.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
   });
 
   it('TC-2574: returns qualificationConfirmed=true when gpQualificationConfirmed is true', async () => {
@@ -161,5 +175,6 @@ describe('fetchQualInitialData', () => {
     expect(mockPrisma.bMMatch.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.gPQualification.findMany).not.toHaveBeenCalled();
     expect(mockPrisma.gPMatch.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.player.findMany).not.toHaveBeenCalled();
   });
 });
