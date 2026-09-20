@@ -21,10 +21,7 @@ interface PlayerSearchState {
   error: boolean;
 }
 
-function mergeKnownPlayers(
-  current: PlayerSearchPlayer[],
-  incoming: PlayerSearchPlayer[],
-): PlayerSearchPlayer[] {
+function mergeKnownPlayers(current: PlayerSearchPlayer[], incoming: PlayerSearchPlayer[]): PlayerSearchPlayer[] {
   const byId = new Map(current.map((player) => [player.id, player]));
   for (const player of incoming) byId.set(player.id, player);
   return [...byId.values()];
