@@ -58,16 +58,27 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
 
   const meta = value as Partial<PaginationMeta>;
 
-  return (
-    isNonNegativeInteger(meta.total) &&
-    isPositiveInteger(meta.page) &&
-    isPositiveInteger(meta.limit) &&
-    isPositiveInteger(meta.totalPages)
-  );
+  if (
+    !isNonNegativeInteger(meta.total) ||
+    !isPositiveInteger(meta.page) ||
+    !isPositiveInteger(meta.limit) ||
+    !isPositiveInteger(meta.totalPages)
+  ) {
+    return false;
+  }
+
+  // Keep client-side metadata aligned with the server paginate() contract.
+  // page may intentionally exceed totalPages so callers can clamp an
+  // out-of-range request to the server-reported final page.
+  const expectedTotalPages = Math.ceil(meta.total / meta.limit) || 1;
+  return meta.totalPages === expectedTotalPages;
 }
 
 /**
  * Extracts pagination metadata from supported paginated API response shapes.
+ * Metadata is accepted only when `totalPages` is consistent with the server
+ * pagination contract (`Math.ceil(total / limit) || 1`). An out-of-range
+ * current `page` remains valid so callers can clamp it to the final page.
  *
  * Supported formats:
  * - { data: T[], meta: ... }
