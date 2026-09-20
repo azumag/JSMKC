@@ -20,4 +20,11 @@ describe('GroupSetupDialog player search contract', () => {
     expect(source).toContain('const newPlayers = candidatePlayers');
     expect(source).toContain('new Set(candidatePlayers.map((p) => p.id))');
   });
+
+  it('uses strict integer parsing for seeding instead of partial parseInt coercion', () => {
+    expect(source).toContain("import { parseManualScore } from '@/lib/parse-manual-score'");
+    expect(source).toContain('const parsed = parseManualScore(e.target.value);');
+    expect(source).toContain('const seeding = parsed !== null && parsed >= 1 ? parsed : undefined;');
+    expect(source).not.toContain('parseInt(val, 10)');
+  });
 });
