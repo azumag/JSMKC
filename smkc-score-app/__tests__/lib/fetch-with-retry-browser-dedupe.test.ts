@@ -62,6 +62,39 @@ describe('fetchWithRetry browser GET dedupe', () => {
     expect(firstResponse).not.toBe(secondResponse);
   });
 
+  it.each([204, 205, 304])('preserves bodyless HTTP %i responses for concurrent callers', async (status) => {
+    const pending = deferred<Response>();
+    fetchSpy.mockReturnValue(pending.promise);
+
+    const first = fetchWithRetry(`/api/bodyless-${status}`);
+    const second = fetchWithRetry(`/api/bodyless-${status}`);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    pending.resolve(new Response(null, { status }));
+    const [firstResponse, secondResponse] = await Promise.all([first, second]);
+
+    expect(firstResponse.status).toBe(status);
+    expect(secondResponse.status).toBe(status);
+    await expect(firstResponse.text()).resolves.toBe('');
+    await expect(secondResponse.text()).resolves.toBe('');
+  });
+
+  it('keeps ordinary response bodies independently readable after dedupe', async () => {
+    const pending = deferred<Response>();
+    fetchSpy.mockReturnValue(pending.promise);
+
+    const first = fetchWithRetry('/api/body-copy');
+    const second = fetchWithRetry('/api/body-copy');
+
+    pending.resolve(makeFetchResponse());
+    const [firstResponse, secondResponse] = await Promise.all([first, second]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await expect(firstResponse.text()).resolves.toBe('{}');
+    await expect(secondResponse.text()).resolves.toBe('{}');
+  });
+
   it('cleans a rejected in-flight GET so a later request starts a fresh fetch', async () => {
     fetchSpy
       .mockRejectedValueOnce(new Error('first network failure'))
