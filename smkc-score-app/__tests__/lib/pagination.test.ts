@@ -63,12 +63,10 @@ describe('Pagination Utilities', () => {
       expect(params.page).toBe(1);
     });
 
-    it('should handle non-numeric page values', () => {
-      // Source does: Math.max(1, Math.floor('abc')) => Math.max(1, NaN) => NaN
-      // Math.max with NaN returns NaN in JavaScript, so the source does not
-      // sanitize non-numeric string inputs to a safe default.
+    it('should handle non-numeric page values by falling back to page 1', () => {
       const params = getPaginationParams({ page: 'abc' as unknown as number });
-      expect(params.page).toBeNaN();
+      expect(params.page).toBe(1);
+      expect(params.skip).toBe(0);
     });
 
     it('should handle string numeric page values', () => {
