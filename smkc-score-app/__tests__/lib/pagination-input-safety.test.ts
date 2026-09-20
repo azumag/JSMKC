@@ -14,14 +14,17 @@ describe('pagination input safety', () => {
     }
   );
 
-  it.each([NaN, Infinity, -Infinity])('defaults non-finite limit %p to 50', (limit) => {
-    expect(getPaginationParams({ page: 2, limit })).toEqual({
-      page: 2,
-      limit: 50,
-      skip: 50,
-      include: undefined,
-    });
-  });
+  it.each([NaN, Infinity, -Infinity])(
+    'defaults non-finite limit %p to 50',
+    (limit) => {
+      expect(getPaginationParams({ page: 2, limit })).toEqual({
+        page: 2,
+        limit: 50,
+        skip: 50,
+        include: undefined,
+      });
+    }
+  );
 
   it('preserves runtime compatibility for numeric strings', () => {
     expect(
@@ -53,7 +56,9 @@ describe('pagination input safety', () => {
   });
 
   it('fails closed when a finite page would create an unsafe Prisma offset', () => {
-    expect(getPaginationParams({ page: Number.MAX_VALUE, limit: 100 })).toEqual({
+    expect(
+      getPaginationParams({ page: Number.MAX_VALUE, limit: 100 })
+    ).toEqual({
       page: 1,
       limit: 100,
       skip: 0,
