@@ -16,7 +16,7 @@ const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
 
 type ResponseSnapshot = {
-  body: ArrayBuffer;
+  body: ArrayBuffer | null;
   init: ResponseInit;
 };
 
@@ -60,6 +60,10 @@ function hasRequestSpecificInit(init?: RequestInit): boolean {
   return Object.keys(init).some((key) => key !== 'method');
 }
 
+function responseStatusForbidsBody(status: number): boolean {
+  return status === 204 || status === 205 || status === 304;
+}
+
 /**
  * Only plain browser GETs are safe to coalesce by URL.
  *
@@ -93,12 +97,15 @@ function dedupeKey(input: RequestInfo | URL): string {
 }
 
 function responseFromSnapshot(snapshot: ResponseSnapshot): Response {
-  return new Response(snapshot.body.slice(0), snapshot.init);
+  return new Response(snapshot.body === null ? null : snapshot.body.slice(0), snapshot.init);
 }
 
 async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
   return {
-    body: await response.arrayBuffer(),
+    // Fetch responses with these status codes are bodyless by definition. Even
+    // an empty ArrayBuffer is still a body to the Response constructor and
+    // would make reconstruction throw for 204/205/304.
+    body: responseStatusForbidsBody(response.status) ? null : await response.arrayBuffer(),
     init: {
       status: response.status,
       statusText: response.statusText,
