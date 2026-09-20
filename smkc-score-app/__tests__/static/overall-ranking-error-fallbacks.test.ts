@@ -11,8 +11,11 @@ describe('overall ranking client error fallback contract (issue #3870)', () => {
     expect(source).toContain("logger.error('Overall ranking fetch returned non-2xx', {");
     expect(source).toContain('status: response.status');
     expect(source).toContain('throw new GenericOverallRankingError();');
-    expect(source).toContain('pollError instanceof GenericOverallRankingError');
+    expect(source).toContain("super('overall-ranking-load-failed');");
+    expect(source).toContain("setError(pollError ? tCommon('networkError') : null);");
     expect(source).toContain("tCommon('networkError')");
+    expect(source).not.toContain('pollError.message');
+    expect(source).not.toContain('pollError instanceof GenericOverallRankingError');
     expect(source).not.toContain('errorData.error');
     expect(source).not.toContain('throw new Error(data.error);');
     expect(source).not.toContain('throw new Error(errorData.error);');

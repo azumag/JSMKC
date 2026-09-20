@@ -19,8 +19,8 @@ class SharedMatchLoadError extends Error {
   }
 }
 
-export function isSharedMatchNotFoundError(error: Error | null): boolean {
-  return error instanceof SharedMatchNotFoundError;
+export function isSharedMatchNotFoundError(error: Error | string | null): boolean {
+  return error instanceof SharedMatchNotFoundError || error === 'shared-match-not-found';
 }
 
 export async function fetchSharedMatchPageData<TMatch, TTournament>({

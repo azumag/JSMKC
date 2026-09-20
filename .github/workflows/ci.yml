@@ -109,6 +109,12 @@ jobs:
           NODE_ENV: test
           NODE_OPTIONS: "--max-old-space-size=4096"
 
+      - name: Production build
+        # Cloudflare Workers Builds invokes the same Next.js production build
+        # before OpenNext packaging. Keep this gate in PR CI so TypeScript and
+        # next-intl catalog drift fail before a broken commit reaches main.
+        run: npm run build
+
       - name: Security audit
         # Fail closed for all high/critical findings except the exact, dev-only
         # Prisma -> deepmerge-ts advisory tracked in #3114. Validate the
