@@ -10,8 +10,8 @@
  *
  * Features:
  * - Two-column responsive layout (stacks on mobile)
- * - Player search filtering by name/nickname
- * - Select All / deselect for filtered results
+ * - Bounded server-side player search by name/nickname
+ * - Select All / deselect for the current search result page
  * - Seeding number input per player (for §10 qualification flow)
  * - Qualification group count is selectable (2 or 3; see docs/finals-entrant-selection.{ja,en}.md
  *   for how finals entrant selection differs between the two)
@@ -23,7 +23,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { PlayerName } from '@/components/ui/player-name';
@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { usePlayerSearch } from '@/hooks/use-player-search';
 import { GROUPS, assignGroupsBySeeding, randomlyAssignGroups, type SetupPlayer } from '@/lib/group-utils';
 
 /**
@@ -61,6 +62,7 @@ import { GROUPS, assignGroupsBySeeding, randomlyAssignGroups, type SetupPlayer }
 const GROUP_COUNT_OPTIONS = [2, 3] as const;
 const DEFAULT_GROUP_COUNT: number = GROUP_COUNT_OPTIONS[0];
 const MIN_GROUPS: number = GROUP_COUNT_OPTIONS[0];
+const PLAYER_SEARCH_FALLBACK_LIMIT = 50;
 
 /**
  * Reassigns any player whose current group isn't in `availableGroups` to the
@@ -90,7 +92,7 @@ export type { SetupPlayer } from '@/lib/group-utils';
 interface GroupSetupDialogProps {
   /** Game mode - used to resolve mode-specific translations internally */
   mode: 'bm' | 'mr' | 'gp';
-  /** All available players from the API */
+  /** Bounded player seed from the qualification payload; server search supplements this list. */
   allPlayers: Player[];
   /** Current player-group assignments (state managed by parent) */
   setupPlayers: SetupPlayer[];
@@ -137,12 +139,61 @@ export function GroupSetupDialog({
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
   const [groupCount, setGroupCount] = useState<number>(DEFAULT_GROUP_COUNT);
   const [pendingGroupCount, setPendingGroupCount] = useState<number | null>(null);
+  const {
+    results: searchResults,
+    knownPlayers: searchedKnownPlayers,
+    loading: playerSearchLoading,
+    error: playerSearchError,
+  } = usePlayerSearch(playerSearchQuery, isOpen);
 
   const hasExistingQualifications = existingAssignments.length > 0;
 
   const availableGroups = GROUPS.slice(0, groupCount);
 
   const minGroups = MIN_GROUPS;
+
+  /**
+   * Merge the bounded qualification payload with every server-search result
+   * observed during this dialog session. This keeps selected players renderable
+   * after the active search query changes without requiring a full roster fetch.
+   */
+  const knownPlayersById = useMemo(() => {
+    const byId = new Map<string, Player>();
+    for (const player of allPlayers) byId.set(player.id, player);
+    for (const player of searchedKnownPlayers) byId.set(player.id, player);
+    return byId;
+  }, [allPlayers, searchedKnownPlayers]);
+
+  /**
+   * While the initial empty-query server search is pending (or temporarily
+   * unavailable), show at most the same bounded first-page size from the parent
+   * payload. A non-empty query never falls back to unfiltered seed data.
+   */
+  const candidatePlayers = useMemo(() => {
+    if (playerSearchQuery) return searchResults;
+    if (searchResults.length > 0 || (!playerSearchLoading && !playerSearchError)) return searchResults;
+    return allPlayers.slice(0, PLAYER_SEARCH_FALLBACK_LIMIT);
+  }, [allPlayers, playerSearchError, playerSearchLoading, playerSearchQuery, searchResults]);
+
+  const selectedIds = new Set(setupPlayers.map((sp) => sp.playerId));
+
+  /**
+   * Current server result page plus selected players that were learned from an
+   * earlier query. Search-result-only bulk actions intentionally use
+   * `candidatePlayers`, not this merged view.
+   */
+  const visiblePlayers = useMemo(() => {
+    const byId = new Map(candidatePlayers.map((player) => [player.id, player]));
+    for (const selected of setupPlayers) {
+      const knownPlayer = knownPlayersById.get(selected.playerId);
+      if (knownPlayer) byId.set(knownPlayer.id, knownPlayer);
+    }
+    return [...byId.values()];
+  }, [candidatePlayers, knownPlayersById, setupPlayers]);
+
+  const allFilteredSelected =
+    candidatePlayers.length > 0 && candidatePlayers.every((player) => selectedIds.has(player.id));
+  const visibleError = error ?? (playerSearchError ? tc('networkError') : null);
 
   /**
    * Handle dialog open/close with automatic state management.
@@ -224,16 +275,6 @@ export function GroupSetupDialog({
     setSetupPlayers(assignGroupsBySeeding(setupPlayers, groupCount, minGroups));
   };
 
-  /* Filter players by search query (name or nickname) */
-  const filteredPlayers = allPlayers.filter((p) => {
-    if (!playerSearchQuery) return true;
-    const q = playerSearchQuery.toLowerCase();
-    return p.nickname.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
-  });
-
-  const selectedIds = new Set(setupPlayers.map((sp) => sp.playerId));
-  const allFilteredSelected = filteredPlayers.length > 0 && filteredPlayers.every((p) => selectedIds.has(p.id));
-
   /* Check if all players have valid positive integer seeding */
   const allHaveSeeding =
     setupPlayers.length > 0 &&
@@ -263,13 +304,13 @@ export function GroupSetupDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {error && (
+          {visibleError && (
             <div
               role="alert"
               aria-live="assertive"
               className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
             >
-              {error}
+              {visibleError}
             </div>
           )}
 
@@ -292,7 +333,7 @@ export function GroupSetupDialog({
                   className="mb-2"
                 />
                 {/* Select All checkbox */}
-                {filteredPlayers.length > 0 && (
+                {candidatePlayers.length > 0 && (
                   <div className="flex items-center gap-2 py-1 border-b mb-1">
                     <Checkbox
                       id="select-all"
@@ -300,12 +341,12 @@ export function GroupSetupDialog({
                       disabled={saving}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          const newPlayers = filteredPlayers
+                          const newPlayers = candidatePlayers
                             .filter((p) => !selectedIds.has(p.id))
                             .map((p) => ({ playerId: p.id, group: availableGroups[0] }));
                           setSetupPlayers([...setupPlayers, ...newPlayers]);
                         } else {
-                          const filteredIds = new Set(filteredPlayers.map((p) => p.id));
+                          const filteredIds = new Set(candidatePlayers.map((p) => p.id));
                           setSetupPlayers(setupPlayers.filter((sp) => !filteredIds.has(sp.playerId)));
                         }
                       }}
@@ -318,10 +359,10 @@ export function GroupSetupDialog({
                 )}
                 {/* Scrollable player list */}
                 <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
-                  {filteredPlayers.length === 0 ? (
+                  {visiblePlayers.length === 0 ? (
                     <p className="text-muted-foreground text-sm py-2">{tc('noPlayersSelected')}</p>
                   ) : (
-                    filteredPlayers.map((player) => (
+                    visiblePlayers.map((player) => (
                       <div
                         key={player.id}
                         className="flex items-center gap-2 py-2 sm:py-1 px-2 sm:px-1 rounded hover:bg-muted/50"
@@ -407,7 +448,7 @@ export function GroupSetupDialog({
                   ) : (
                     <div className="divide-y">
                       {setupPlayers.map((sp) => {
-                        const player = allPlayers.find((p) => p.id === sp.playerId);
+                        const player = knownPlayersById.get(sp.playerId);
                         return (
                           <div key={sp.playerId} className="flex items-center gap-2 px-3 py-2">
                             {/* Seeding number input: compact width for 1-2 digit numbers */}
