@@ -58,7 +58,10 @@ interface CombinedStandingsTableProps<T extends CombinedStandingsEntry> {
    * cross-group sudden-death result can be corrected the same way an in-group
    * one already can (issue: cross-group playoff had no undo/edit affordance).
    */
-  onRankOverrideSave: (qualificationId: string, combinedRankOverride: number | null) => Promise<void>;
+  onRankOverrideSave: (
+    qualificationId: string,
+    combinedRankOverride: number | null,
+  ) => Promise<boolean | void>;
   onBroadcast?: (
     player1Name: string,
     player2Name: string,
