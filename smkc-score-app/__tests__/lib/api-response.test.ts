@@ -1,5 +1,20 @@
 import { describe, expect, it } from '@jest/globals';
-import { extractArrayData, extractPaginationMeta } from '@/lib/api-response';
+import { extractArrayData, extractArrayDataOrNull, extractPaginationMeta } from '@/lib/api-response';
+
+describe('extractArrayDataOrNull', () => {
+  it('preserves legitimate empty arrays across supported response shapes', () => {
+    expect(extractArrayDataOrNull([])).toEqual([]);
+    expect(extractArrayDataOrNull({ data: [] })).toEqual([]);
+    expect(extractArrayDataOrNull({ success: true, data: [] })).toEqual([]);
+    expect(extractArrayDataOrNull({ success: true, data: { data: [], meta: {} } })).toEqual([]);
+  });
+
+  it('returns null for unsupported response shapes', () => {
+    expect(extractArrayDataOrNull({ success: true, data: { id: '1' } })).toBeNull();
+    expect(extractArrayDataOrNull({ success: true })).toBeNull();
+    expect(extractArrayDataOrNull(null)).toBeNull();
+  });
+});
 
 describe('extractArrayData', () => {
   it('returns a direct array unchanged', () => {
