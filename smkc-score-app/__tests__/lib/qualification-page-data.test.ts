@@ -1,4 +1,8 @@
-import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
+import {
+  clearSetupPlayersForSetupCache,
+  fetchAllPlayersForSetup,
+  resolveAllPlayers,
+} from '@/lib/qualification-page-data';
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 jest.mock('@/lib/fetch-with-retry', () => ({
@@ -17,6 +21,7 @@ function paginatedPlayers(ids: string[], page: number, total: number, totalPages
 
 describe('qualification page data helpers', () => {
   beforeEach(() => {
+    clearSetupPlayersForSetupCache();
     mockedFetchWithRetry.mockReset();
   });
 
@@ -42,6 +47,34 @@ describe('qualification page data helpers', () => {
     expect(mockedFetchWithRetry).toHaveBeenNthCalledWith(2, '/api/players?limit=100&page=2');
   });
 
+  it('reuses a successful bounded snapshot across repeated qualification polls', async () => {
+    mockedFetchWithRetry.mockResolvedValue(paginatedPlayers(['p1'], 1, 1, 1));
+
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'p1' }]);
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'p1' }]);
+
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares an in-flight snapshot request instead of duplicating polling fetches', async () => {
+    let resolveResponse: ((value: never) => void) | undefined;
+    mockedFetchWithRetry.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+
+    const first = fetchAllPlayersForSetup<{ id: string }>();
+    const second = fetchAllPlayersForSetup<{ id: string }>();
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(1);
+
+    resolveResponse?.(paginatedPlayers(['p1'], 1, 1, 1));
+
+    await expect(first).resolves.toEqual([{ id: 'p1' }]);
+    await expect(second).resolves.toEqual([{ id: 'p1' }]);
+  });
+
   it('fails closed before issuing unbounded requests for rosters above 300 players', async () => {
     const firstPageIds = Array.from({ length: 100 }, (_, index) => `p${index + 1}`);
     mockedFetchWithRetry.mockResolvedValueOnce(paginatedPlayers(firstPageIds, 1, 301, 4));
@@ -64,6 +97,7 @@ describe('qualification page data helpers', () => {
 
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'legacy' }]);
 
+    clearSetupPlayersForSetupCache();
     mockedFetchWithRetry.mockResolvedValueOnce(
       Response.json({ data: Array.from({ length: 100 }, (_, index) => ({ id: `p${index + 1}` })) }) as never,
     );
@@ -71,10 +105,14 @@ describe('qualification page data helpers', () => {
     await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toBeNull();
   });
 
-  it('returns null instead of throwing when the players endpoint is unavailable', async () => {
-    mockedFetchWithRetry.mockRejectedValue(new Error('players down'));
+  it('does not cache failures so the next poll can recover', async () => {
+    mockedFetchWithRetry
+      .mockRejectedValueOnce(new Error('players down'))
+      .mockResolvedValueOnce(paginatedPlayers(['recovered'], 1, 1, 1));
 
     await expect(fetchAllPlayersForSetup()).resolves.toBeNull();
+    await expect(fetchAllPlayersForSetup<{ id: string }>()).resolves.toEqual([{ id: 'recovered' }]);
+    expect(mockedFetchWithRetry).toHaveBeenCalledTimes(2);
   });
 
   it('prefers the fresh players response and falls back to archived allPlayers', () => {
