@@ -28,6 +28,12 @@ function setupPlayersPageUrl(page: number): string {
   return page === 1 ? SETUP_PLAYERS_URL : `${SETUP_PLAYERS_URL}&page=${page}`;
 }
 
+function hasExpectedSetupPlayerPageSize(rowCount: number, page: number, total: number, limit: number): boolean {
+  const offset = (page - 1) * limit;
+  const expected = Math.max(0, Math.min(limit, total - offset));
+  return rowCount === expected;
+}
+
 function hasValidUniqueSetupPlayerIds(players: unknown[]): boolean {
   const ids = new Set<string>();
 
@@ -63,7 +69,11 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
         : null;
     }
 
-    if (firstMeta.page !== 1 || firstMeta.limit !== SETUP_PLAYERS_PAGE_SIZE) {
+    if (
+      firstMeta.page !== 1 ||
+      firstMeta.limit !== SETUP_PLAYERS_PAGE_SIZE ||
+      !hasExpectedSetupPlayerPageSize(firstPlayers.length, firstMeta.page, firstMeta.total, firstMeta.limit)
+    ) {
       return null;
     }
 
@@ -91,7 +101,8 @@ async function loadSetupPlayers<TPlayer>(): Promise<TPlayer[] | null> {
         pageMeta.page !== page ||
         pageMeta.limit !== firstMeta.limit ||
         pageMeta.total !== firstMeta.total ||
-        pageMeta.totalPages !== firstMeta.totalPages
+        pageMeta.totalPages !== firstMeta.totalPages ||
+        !hasExpectedSetupPlayerPageSize(pagePlayers.length, pageMeta.page, pageMeta.total, pageMeta.limit)
       ) {
         return null;
       }
