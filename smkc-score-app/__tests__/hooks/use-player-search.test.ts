@@ -136,6 +136,9 @@ describe('usePlayerSearch', () => {
     expect(result.current.knownPlayers.map((entry) => entry.id)).toEqual(['p1']);
 
     rerender({ enabled: false });
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(result.current.results).toEqual([]);
     expect(result.current.knownPlayers.map((entry) => entry.id)).toEqual(['p1']);
