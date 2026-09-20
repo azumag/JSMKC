@@ -88,6 +88,7 @@ export interface PaginationOptions {
  * - Page defaults to 1, minimum is 1 (no zero or negative pages)
  * - Limit defaults to 50, minimum is 1, maximum is 100
  * - Non-finite values fall back to their defaults
+ * - Unsafe offsets fall back to the first page
  * - Calculates the `skip` value for Prisma's offset-based pagination
  *
  * The maximum limit of 100 prevents clients from requesting excessive
@@ -117,15 +118,18 @@ export function getPaginationParams(
 
   // Fail closed to the documented defaults for non-finite values before
   // flooring/clamping. This prevents Infinity from reaching Prisma as skip/take.
-  const page = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  const normalizedPage = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
   const limit = Number.isFinite(parsedLimit)
     ? Math.min(100, Math.max(1, Math.floor(parsedLimit)))
     : 50;
 
-  // Calculate the number of records to skip for Prisma's offset-based pagination.
-  // Page 1 skips 0, page 2 skips `limit`, page 3 skips `2 * limit`, etc.
-  const rawSkip = (page - 1) * limit;
-  const skip = Number.isFinite(rawSkip) ? rawSkip : 0;
+  // Prisma offsets must remain safe finite integers. Extremely large but finite
+  // page values can overflow the multiplication or exceed integer precision, so
+  // fail closed to the first page rather than returning inconsistent metadata.
+  const rawSkip = (normalizedPage - 1) * limit;
+  const hasSafeSkip = Number.isSafeInteger(rawSkip) && rawSkip >= 0;
+  const page = hasSafeSkip ? normalizedPage : 1;
+  const skip = hasSafeSkip ? rawSkip : 0;
 
   return { page, limit, skip, include: options?.include };
 }
