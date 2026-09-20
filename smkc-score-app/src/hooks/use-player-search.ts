@@ -25,6 +25,18 @@ interface InternalPlayerSearchState extends PlayerSearchState {
   resultQuery: string | null | undefined;
 }
 
+function isPlayerSearchPlayer(value: unknown): value is PlayerSearchPlayer {
+  if (!value || typeof value !== 'object') return false;
+
+  const player = value as Partial<PlayerSearchPlayer>;
+  return (
+    typeof player.id === 'string' &&
+    typeof player.name === 'string' &&
+    typeof player.nickname === 'string' &&
+    (player.country === undefined || player.country === null || typeof player.country === 'string')
+  );
+}
+
 function mergeKnownPlayers(current: PlayerSearchPlayer[], incoming: PlayerSearchPlayer[]): PlayerSearchPlayer[] {
   const byId = new Map(current.map((player) => [player.id, player]));
   for (const player of incoming) byId.set(player.id, player);
@@ -82,8 +94,10 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
         .then(async (response) => {
           if (!response.ok) throw new Error('player-search-request-failed');
           const payload = await response.json();
-          const players = extractArrayDataOrNull<PlayerSearchPlayer>(payload);
-          if (players === null) throw new Error('player-search-response-invalid');
+          const players = extractArrayDataOrNull<unknown>(payload);
+          if (players === null || !players.every(isPlayerSearchPlayer)) {
+            throw new Error('player-search-response-invalid');
+          }
           return players;
         })
         .then((players) => {
