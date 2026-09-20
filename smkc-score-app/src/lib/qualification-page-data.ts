@@ -35,12 +35,7 @@ function hasValidUniqueSetupPlayerIds(players: unknown[]): boolean {
     if (!value || typeof value !== 'object') return false;
 
     const id = (value as { id?: unknown }).id;
-    if (
-      typeof id !== 'string' ||
-      id.trim().length === 0 ||
-      id === PLAYER_LIST_EXCLUDED_ID ||
-      ids.has(id)
-    ) {
+    if (typeof id !== 'string' || id.trim().length === 0 || id === PLAYER_LIST_EXCLUDED_ID || ids.has(id)) {
       return false;
     }
     ids.add(id);
