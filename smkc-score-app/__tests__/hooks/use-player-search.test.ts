@@ -49,6 +49,29 @@ describe('usePlayerSearch', () => {
     expect(result.current.error).toBe(false);
   });
 
+  it('clears results immediately when the query changes before the debounced request starts', async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce(responseWith([player('old', 'Old Player')]))
+      .mockResolvedValueOnce(responseWith([player('new', 'New Player')]));
+
+    const { result, rerender } = renderHook(({ query }) => usePlayerSearch(query), {
+      initialProps: { query: 'old' },
+    });
+
+    await advanceDebounce();
+    expect(result.current.results.map((entry) => entry.id)).toEqual(['old']);
+
+    rerender({ query: 'new' });
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.loading).toBe(true);
+    expect(result.current.error).toBe(false);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    await advanceDebounce();
+    expect(result.current.results.map((entry) => entry.id)).toEqual(['new']);
+  });
+
   it('aborts the old query and ignores its late completion after rapid input', async () => {
     let resolveOld!: (value: Response) => void;
     const oldResponse = new Promise<Response>((resolve) => {
@@ -99,6 +122,28 @@ describe('usePlayerSearch', () => {
 
     expect(result.current.results.map((entry) => entry.id)).toEqual(['p2']);
     expect(result.current.knownPlayers.map((entry) => entry.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('clears transient state when disabled without forgetting known players', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(responseWith([player('p1', 'Alpha')]));
+
+    const { result, rerender } = renderHook(({ enabled }) => usePlayerSearch('Alpha', enabled), {
+      initialProps: { enabled: true },
+    });
+
+    await advanceDebounce();
+    expect(result.current.results.map((entry) => entry.id)).toEqual(['p1']);
+    expect(result.current.knownPlayers.map((entry) => entry.id)).toEqual(['p1']);
+
+    rerender({ enabled: false });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.knownPlayers.map((entry) => entry.id)).toEqual(['p1']);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBe(false);
   });
 
   it('aborts an in-flight request on unmount', async () => {
