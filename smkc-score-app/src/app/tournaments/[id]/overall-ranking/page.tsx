@@ -136,13 +136,7 @@ export default function OverallRankingPage({ params }: { params: Promise<{ id: s
 
   /* Sync polling errors to local error state for display */
   useEffect(() => {
-    if (pollError) {
-      setError(
-        pollError instanceof GenericOverallRankingError
-          ? tCommon('networkError')
-          : pollError.message || tCommon('networkError'),
-      );
-    }
+    setError(pollError ? tCommon('networkError') : null);
   }, [pollError, tCommon]);
 
   /**
