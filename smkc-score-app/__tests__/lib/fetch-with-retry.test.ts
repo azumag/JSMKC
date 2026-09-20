@@ -27,12 +27,10 @@ describe('fetchWithRetry', () => {
   beforeEach(() => {
     fetchSpy = jest.spyOn(globalThis, 'fetch');
     // Make setTimeout call callback synchronously to avoid real delays
-    setTimeoutSpy = jest
-      .spyOn(globalThis, 'setTimeout')
-      .mockImplementation((fn: TimerHandler) => {
-        if (typeof fn === 'function') fn();
-        return 0 as unknown as ReturnType<typeof setTimeout>;
-      });
+    setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout').mockImplementation((fn: TimerHandler) => {
+      if (typeof fn === 'function') fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    });
   });
 
   afterEach(() => {
@@ -68,9 +66,7 @@ describe('fetchWithRetry', () => {
   });
 
   it('returns success if second GET attempt succeeds after 500', async () => {
-    fetchSpy
-      .mockResolvedValueOnce(makeResponse(500, false))
-      .mockResolvedValueOnce(makeResponse(200));
+    fetchSpy.mockResolvedValueOnce(makeResponse(500, false)).mockResolvedValueOnce(makeResponse(200));
 
     const res = await fetchWithRetry('/api/test');
 
@@ -100,9 +96,7 @@ describe('fetchWithRetry', () => {
   it('does not replay a mutating request after a network error', async () => {
     fetchSpy.mockRejectedValue(new Error('Network failure'));
 
-    await expect(fetchWithRetry('/api/test', { method: 'PATCH' })).rejects.toThrow(
-      'Network failure',
-    );
+    await expect(fetchWithRetry('/api/test', { method: 'PATCH' })).rejects.toThrow('Network failure');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(setTimeoutSpy).not.toHaveBeenCalled();
   });
@@ -115,15 +109,10 @@ describe('fetchWithRetry', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     fetchSpy.mockReset();
-    fetchSpy
-      .mockResolvedValueOnce(makeResponse(500, false))
-      .mockResolvedValueOnce(makeResponse(200));
+    fetchSpy.mockResolvedValueOnce(makeResponse(500, false)).mockResolvedValueOnce(makeResponse(200));
 
     const overriddenRequest = new Request('https://example.test/api/test', { method: 'POST' });
-    await expect(fetchWithRetry(overriddenRequest, { method: 'GET' })).resolves.toHaveProperty(
-      'status',
-      200,
-    );
+    await expect(fetchWithRetry(overriddenRequest, { method: 'GET' })).resolves.toHaveProperty('status', 200);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -135,9 +124,7 @@ describe('fetchWithRetry', () => {
   });
 
   it('succeeds if second GET attempt resolves after network error', async () => {
-    fetchSpy
-      .mockRejectedValueOnce(new Error('Network failure'))
-      .mockResolvedValueOnce(makeResponse(200));
+    fetchSpy.mockRejectedValueOnce(new Error('Network failure')).mockResolvedValueOnce(makeResponse(200));
 
     const res = await fetchWithRetry('/api/test');
 
