@@ -3,10 +3,7 @@ const MAX_PLAYER_SEARCH_QUERY_LENGTH = 100;
 
 export function isSelectablePlayerId(value: unknown): value is string {
   return (
-    typeof value === 'string' &&
-    value.trim().length > 0 &&
-    value === value.trim() &&
-    value !== PLAYER_LIST_EXCLUDED_ID
+    typeof value === 'string' && value.trim().length > 0 && value === value.trim() && value !== PLAYER_LIST_EXCLUDED_ID
   );
 }
 
