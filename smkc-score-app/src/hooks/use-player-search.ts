@@ -30,7 +30,7 @@ function mergeKnownPlayers(
   return [...byId.values()];
 }
 
-export function usePlayerSearch(query: string): PlayerSearchState {
+export function usePlayerSearch(query: string, enabled = true): PlayerSearchState {
   const generationRef = useRef(0);
   const [state, setState] = useState<PlayerSearchState>({
     results: [],
@@ -41,6 +41,8 @@ export function usePlayerSearch(query: string): PlayerSearchState {
 
   useEffect(() => {
     const generation = ++generationRef.current;
+    if (!enabled) return;
+
     const controller = new AbortController();
     const normalizedQuery = normalizePlayerSearchQuery(query);
 
@@ -77,7 +79,7 @@ export function usePlayerSearch(query: string): PlayerSearchState {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [enabled, query]);
 
   return state;
 }
