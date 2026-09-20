@@ -5,8 +5,7 @@
 
 function hasInvalidSuccessFlag(payload: object): boolean {
   return (
-    Object.prototype.hasOwnProperty.call(payload, 'success') &&
-    (payload as { success?: unknown }).success !== true
+    Object.prototype.hasOwnProperty.call(payload, 'success') && (payload as { success?: unknown }).success !== true
   );
 }
 
