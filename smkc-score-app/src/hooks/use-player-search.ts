@@ -38,17 +38,23 @@ export function usePlayerSearch(query: string, enabled = true): PlayerSearchStat
 
   useEffect(() => {
     const generation = ++generationRef.current;
-    if (!enabled) return;
+    if (!enabled) {
+      // Clear query-specific state while inactive, but keep learned player details
+      // so selected players remain renderable if this hook is enabled again.
+      setState((current) => ({ ...current, results: [], loading: false, error: false }));
+      return;
+    }
 
     const controller = new AbortController();
     const normalizedQuery = normalizePlayerSearchQuery(query);
 
+    // The input already represents this generation. Drop candidates and errors
+    // from the previous query immediately instead of leaving them interactive
+    // during the debounce window. knownPlayers is intentionally retained.
+    setState((current) => ({ ...current, results: [], loading: true, error: false }));
+
     const timer = window.setTimeout(() => {
       if (generationRef.current !== generation) return;
-
-      // Drop results from the previous query as soon as the new request starts.
-      // knownPlayers is retained so already-selected players remain renderable.
-      setState((current) => ({ ...current, results: [], loading: true, error: false }));
 
       const params = new URLSearchParams({ limit: String(PLAYER_SEARCH_PAGE_SIZE) });
       if (normalizedQuery) params.set('search', normalizedQuery);
