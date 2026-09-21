@@ -62,16 +62,19 @@ describe('PUT /api/tournaments/[id]/broadcast safe integer validation', () => {
     expect(prisma.tournament.update).not.toHaveBeenCalled();
   });
 
-  it.each(['player1Wins', 'player2Wins', 'matchFt'])('still accepts a non-negative safe integer for %s', async (field) => {
-    await PUT(mockReq({ [field]: 42 }), mockParams);
+  it.each(['player1Wins', 'player2Wins', 'matchFt'])(
+    'still accepts a non-negative safe integer for %s',
+    async (field) => {
+      await PUT(mockReq({ [field]: 42 }), mockParams);
 
-    expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status ?? 200).toBe(200);
-    expect(prisma.tournament.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          [`overlay${field[0].toUpperCase()}${field.slice(1)}`]: 42,
+      expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status ?? 200).toBe(200);
+      expect(prisma.tournament.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            [`overlay${field[0].toUpperCase()}${field.slice(1)}`]: 42,
+          }),
         }),
-      }),
-    );
-  });
+      );
+    },
+  );
 });
