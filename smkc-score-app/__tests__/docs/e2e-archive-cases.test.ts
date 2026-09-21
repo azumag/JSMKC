@@ -120,7 +120,9 @@ describe('archive E2E case registration', () => {
     expect(section).toContain('route interception');
     expect(section).toContain('archive fallback');
 
-    expect(tcArchive).toContain('TC-ARC-09  Qualification pages hydrate from mode allPlayers without global players fetches.');
+    expect(tcArchive).toContain(
+      'TC-ARC-09  Qualification pages hydrate from mode allPlayers without global players fetches.',
+    );
     expect(tcArchive).toContain("if (kind === 'players')");
     expect(tcArchive).toContain('unexpectedPlayerRequests');
     expect(fs.existsSync(qualificationPlayerTransportTestPath)).toBe(true);
