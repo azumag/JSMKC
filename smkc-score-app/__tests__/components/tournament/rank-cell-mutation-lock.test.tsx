@@ -36,7 +36,10 @@ function deferred<T>() {
 describe('RankCell pending mutation lock', () => {
   it('blocks duplicate save events while pending and allows retry after a false result', async () => {
     const firstSave = deferred<boolean>();
-    const onSave = jest.fn().mockImplementationOnce(() => firstSave.promise).mockResolvedValue(false);
+    const onSave = jest
+      .fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockResolvedValue(false);
 
     render(<RankCell qualificationId="qual-save" rankOverride={null} autoRank={2} isAdmin={true} onSave={onSave} />);
 
