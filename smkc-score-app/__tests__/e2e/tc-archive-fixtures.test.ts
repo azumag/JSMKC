@@ -112,6 +112,8 @@ describe('archive E2E fixtures', () => {
     const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
     const targetPage = {
       bringToFront: jest.fn(async () => undefined),
+      route: jest.fn(async () => undefined),
+      unroute: jest.fn(async () => undefined),
       goto: jest.fn(async () => undefined),
       waitForFunction: jest.fn(async () => undefined),
       close: jest.fn(async () => undefined),
@@ -141,54 +143,32 @@ describe('archive E2E fixtures', () => {
     expect(targetPage.close).toHaveBeenCalled();
   });
 
-  it('waits for both qualification requests before fulfilling either response', async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-05-11T00:00:00.000Z'));
+  it('hydrates BM from the mode payload without requesting the global player registry', async () => {
     const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
-    const fulfillOrder: string[] = [];
-    const continueOrder: string[] = [];
-    const pendingRequests: Array<{ predicate: (request: { url: () => string }) => boolean; resolve: (request: unknown) => void }> = [];
+    const fulfilled: string[] = [];
     let routeHandler: ((route: unknown) => Promise<void>) | null = null;
 
     const requestFor = (url: string) => ({ url: () => url });
     const routeFor = (kind: string, url: string) => ({
       request: () => requestFor(url),
       fulfill: jest.fn(async () => {
-        fulfillOrder.push(kind);
+        fulfilled.push(kind);
       }),
-      continue: jest.fn(async () => {
-        continueOrder.push(kind);
-      }),
+      continue: jest.fn(async () => undefined),
     });
-    const resolveWaiters = (url: string) => {
-      const request = requestFor(url);
-      for (const waiter of pendingRequests) {
-        if (waiter.predicate(request)) waiter.resolve(request);
-      }
-    };
 
     const targetPage = {
       route: jest.fn(async (_pattern, handler) => {
         routeHandler = handler;
       }),
       unroute: jest.fn(async () => undefined),
-      waitForRequest: jest.fn((predicate) =>
-        new Promise((resolve) => pendingRequests.push({ predicate, resolve }))),
       waitForFunction: jest.fn(async () => undefined),
       bringToFront: jest.fn(async () => undefined),
       close: jest.fn(async () => undefined),
       goto: jest.fn(async () => {
         if (!routeHandler) throw new Error('route handler missing');
         const modeUrl = 'https://preview.example.test/api/tournaments/tournament-1/bm';
-        const playersUrl = 'https://preview.example.test/api/players?limit=100';
-        resolveWaiters(modeUrl);
-        const modePromise = routeHandler(routeFor('mode', modeUrl));
-        await routeHandler(routeFor('mode-duplicate', modeUrl));
-        await Promise.resolve();
-        expect(fulfillOrder).toEqual([]);
-        resolveWaiters(playersUrl);
-        const playersPromise = routeHandler(routeFor('players', playersUrl));
-        await Promise.all([modePromise, playersPromise]);
+        await routeHandler(routeFor('mode', modeUrl));
       }),
     };
     const page = {
@@ -198,67 +178,49 @@ describe('archive E2E fixtures', () => {
     };
 
     await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
-      .resolves.toBe(0);
-    expect(fulfillOrder.sort()).toEqual(['mode', 'players']);
+      .resolves.toBe(1);
+    expect(fulfilled).toEqual(['mode']);
     expect(targetPage.goto).toHaveBeenCalledWith(
       'https://preview.example.test/tournaments/tournament-1/bm',
       { waitUntil: 'domcontentloaded' },
     );
+    expect(targetPage.waitForFunction).toHaveBeenCalled();
     expect(targetPage.unroute).toHaveBeenCalledWith('**/api/**', expect.any(Function));
     expect(targetPage.close).toHaveBeenCalled();
-    expect(continueOrder).toEqual(['mode-duplicate']);
-    jest.useRealTimers();
   });
 
-  it('does not double-fulfill when timeout wins before the paired request arrives', async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(new Date('2026-05-11T00:00:00.000Z'));
+  it('fails closed when the qualification page requests the global player registry', async () => {
     const { suite } = await loadArchiveSuite({ BASE: 'https://preview.example.test' });
-    const timeoutMs = suite.QUALIFICATION_FETCH_TIMEOUT_MS;
-    const fulfillStatuses: number[] = [];
-    const continueOrder: string[] = [];
-    const pendingRequests: Array<{ predicate: (request: { url: () => string }) => boolean; resolve: (request: unknown) => void }> = [];
+    const fulfilled: string[] = [];
     let routeHandler: ((route: unknown) => Promise<void>) | null = null;
 
     const requestFor = (url: string) => ({ url: () => url });
     const routeFor = (kind: string, url: string) => ({
       request: () => requestFor(url),
-      fulfill: jest.fn(async (response) => {
-        fulfillStatuses.push(response.status);
+      fulfill: jest.fn(async () => {
+        fulfilled.push(kind);
       }),
-      continue: jest.fn(async () => {
-        continueOrder.push(kind);
-      }),
+      continue: jest.fn(async () => undefined),
     });
-    const resolveWaiters = (url: string) => {
-      const request = requestFor(url);
-      for (const waiter of pendingRequests) {
-        if (waiter.predicate(request)) waiter.resolve(request);
-      }
-    };
 
     const targetPage = {
       route: jest.fn(async (_pattern, handler) => {
         routeHandler = handler;
       }),
       unroute: jest.fn(async () => undefined),
-      waitForRequest: jest.fn((predicate) =>
-        new Promise((resolve) => pendingRequests.push({ predicate, resolve }))),
-      waitForFunction: jest.fn(async () => {
-        throw new Error('qualification hydration failed');
-      }),
+      waitForFunction: jest.fn(async () => undefined),
       bringToFront: jest.fn(async () => undefined),
       close: jest.fn(async () => undefined),
       goto: jest.fn(async () => {
         if (!routeHandler) throw new Error('route handler missing');
-        const modeUrl = 'https://preview.example.test/api/tournaments/tournament-1/bm';
-        const playersUrl = 'https://preview.example.test/api/players?limit=100';
-        resolveWaiters(modeUrl);
-        const modePromise = routeHandler(routeFor('mode', modeUrl));
-        await jest.advanceTimersByTimeAsync(timeoutMs);
-        await modePromise;
-        resolveWaiters(playersUrl);
-        await routeHandler(routeFor('players-late', playersUrl));
+        await routeHandler(routeFor(
+          'mode',
+          'https://preview.example.test/api/tournaments/tournament-1/bm',
+        ));
+        await routeHandler(routeFor(
+          'players',
+          'https://preview.example.test/api/players?limit=100',
+        ));
       }),
     };
     const page = {
@@ -268,12 +230,10 @@ describe('archive E2E fixtures', () => {
     };
 
     await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
-      .rejects.toThrow('qualification hydration failed');
-    expect(fulfillStatuses).toEqual([504]);
-    expect(continueOrder).toEqual(['players-late']);
+      .rejects.toThrow('requested global player registry');
+    expect(fulfilled).toEqual(['mode', 'players']);
     expect(targetPage.waitForFunction).toHaveBeenCalled();
     expect(targetPage.unroute).toHaveBeenCalledWith('**/api/**', expect.any(Function));
     expect(targetPage.close).toHaveBeenCalled();
-    jest.useRealTimers();
   });
 });
