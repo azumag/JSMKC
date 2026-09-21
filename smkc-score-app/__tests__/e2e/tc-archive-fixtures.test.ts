@@ -39,13 +39,14 @@ describe('archive E2E fixtures', () => {
     await suite.createCompletedPublicBmArchive({}, 'TCARC06', 'TC-ARC-06');
 
     expect(common.apiSetupBmGroup).toHaveBeenCalledWith(expect.anything(), 'tournament-1', expect.any(Array));
-    expect(common.apiPutAllBmQualScores).toHaveBeenCalledWith(
-      expect.anything(),
-      'tournament-1',
-      { score1: 3, score2: 1, randomize: false },
+    expect(common.apiPutAllBmQualScores).toHaveBeenCalledWith(expect.anything(), 'tournament-1', {
+      score1: 3,
+      score2: 1,
+      randomize: false,
+    });
+    expect(common.apiPutAllBmQualScores.mock.invocationCallOrder[0]).toBeLessThan(
+      common.apiUpdateTournament.mock.invocationCallOrder[0],
     );
-    expect(common.apiPutAllBmQualScores.mock.invocationCallOrder[0])
-      .toBeLessThan(common.apiUpdateTournament.mock.invocationCallOrder[0]);
     expect(common.apiUpdateTournament).toHaveBeenCalledWith(
       expect.anything(),
       'tournament-1',
@@ -64,10 +65,15 @@ describe('archive E2E fixtures', () => {
       }),
     });
 
-    await expect(suite.cleanupArchiveFixture({}, {
-      tournamentId: 'tournament-1',
-      players: [{ id: 'player-1' }, { id: 'player-2' }],
-    })).resolves.toBeUndefined();
+    await expect(
+      suite.cleanupArchiveFixture(
+        {},
+        {
+          tournamentId: 'tournament-1',
+          players: [{ id: 'player-1' }, { id: 'player-2' }],
+        },
+      ),
+    ).resolves.toBeUndefined();
 
     expect(common.apiDeleteTournament).toHaveBeenCalledWith(expect.anything(), 'tournament-1');
     expect(common.apiDeletePlayer).toHaveBeenCalledTimes(2);
@@ -81,31 +87,35 @@ describe('archive E2E fixtures', () => {
   it('classifies qualification page runtime fetch requests', async () => {
     const { suite } = await loadArchiveSuite();
 
-    expect(suite.requestKindForQualificationFetch(
-      'https://preview.example.test/api/tournaments/tournament-1/bm',
-      'tournament-1',
-      'bm',
-    )).toBe('mode');
-    expect(suite.requestKindForQualificationFetch(
-      'https://preview.example.test/api/players?limit=100',
-      'tournament-1',
-      'bm',
-    )).toBe('players');
-    expect(suite.requestKindForQualificationFetch(
-      'https://preview.example.test/api/players?limit=50',
-      'tournament-1',
-      'bm',
-    )).toBeNull();
+    expect(
+      suite.requestKindForQualificationFetch(
+        'https://preview.example.test/api/tournaments/tournament-1/bm',
+        'tournament-1',
+        'bm',
+      ),
+    ).toBe('mode');
+    expect(
+      suite.requestKindForQualificationFetch(
+        'https://preview.example.test/api/players?limit=100',
+        'tournament-1',
+        'bm',
+      ),
+    ).toBe('players');
+    expect(
+      suite.requestKindForQualificationFetch('https://preview.example.test/api/players?limit=50', 'tournament-1', 'bm'),
+    ).toBeNull();
   });
 
   it('uses the status field when summarizing archive failures', async () => {
     const { suite } = await loadArchiveSuite();
 
-    expect(suite.countArchiveFailures([
-      { tc: 'TC-ARC-01', status: 'PASS' },
-      { tc: 'TC-ARC-02', status: 'FAIL' },
-      { tc: 'TC-ARC-03', s: 'FAIL' },
-    ])).toBe(1);
+    expect(
+      suite.countArchiveFailures([
+        { tc: 'TC-ARC-01', status: 'PASS' },
+        { tc: 'TC-ARC-02', status: 'FAIL' },
+        { tc: 'TC-ARC-03', s: 'FAIL' },
+      ]),
+    ).toBe(1);
   });
 
   it('runs TA qualification hydration on an isolated fresh page and closes it', async () => {
@@ -124,22 +134,18 @@ describe('archive E2E fixtures', () => {
       goto: jest.fn(async () => undefined),
     };
 
-    await expect(suite.assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta'))
-      .resolves.toBe(0);
+    await expect(suite.assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta')).resolves.toBe(0);
 
     expect(rootPage.context).toHaveBeenCalled();
     expect(newPage).toHaveBeenCalled();
     expect(rootPage.goto).not.toHaveBeenCalled();
     expect(targetPage.bringToFront).toHaveBeenCalled();
-    expect(targetPage.goto).toHaveBeenCalledWith(
-      'https://preview.example.test/tournaments/tournament-1/ta',
-      { waitUntil: 'domcontentloaded' },
-    );
-    expect(targetPage.waitForFunction).toHaveBeenCalledWith(
-      expect.any(Function),
-      null,
-      { timeout: suite.QUALIFICATION_FETCH_TIMEOUT_MS },
-    );
+    expect(targetPage.goto).toHaveBeenCalledWith('https://preview.example.test/tournaments/tournament-1/ta', {
+      waitUntil: 'domcontentloaded',
+    });
+    expect(targetPage.waitForFunction).toHaveBeenCalledWith(expect.any(Function), null, {
+      timeout: suite.QUALIFICATION_FETCH_TIMEOUT_MS,
+    });
     expect(targetPage.close).toHaveBeenCalled();
   });
 
@@ -177,13 +183,11 @@ describe('archive E2E fixtures', () => {
       })),
     };
 
-    await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
-      .resolves.toBe(1);
+    await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm')).resolves.toBe(1);
     expect(fulfilled).toEqual(['mode']);
-    expect(targetPage.goto).toHaveBeenCalledWith(
-      'https://preview.example.test/tournaments/tournament-1/bm',
-      { waitUntil: 'domcontentloaded' },
-    );
+    expect(targetPage.goto).toHaveBeenCalledWith('https://preview.example.test/tournaments/tournament-1/bm', {
+      waitUntil: 'domcontentloaded',
+    });
     expect(targetPage.waitForFunction).toHaveBeenCalled();
     expect(targetPage.unroute).toHaveBeenCalledWith('**/api/**', expect.any(Function));
     expect(targetPage.close).toHaveBeenCalled();
@@ -213,14 +217,8 @@ describe('archive E2E fixtures', () => {
       close: jest.fn(async () => undefined),
       goto: jest.fn(async () => {
         if (!routeHandler) throw new Error('route handler missing');
-        await routeHandler(routeFor(
-          'mode',
-          'https://preview.example.test/api/tournaments/tournament-1/bm',
-        ));
-        await routeHandler(routeFor(
-          'players',
-          'https://preview.example.test/api/players?limit=100',
-        ));
+        await routeHandler(routeFor('mode', 'https://preview.example.test/api/tournaments/tournament-1/bm'));
+        await routeHandler(routeFor('players', 'https://preview.example.test/api/players?limit=100'));
       }),
     };
     const page = {
@@ -229,8 +227,9 @@ describe('archive E2E fixtures', () => {
       })),
     };
 
-    await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm'))
-      .rejects.toThrow('requested global player registry');
+    await expect(suite.assertQualificationFetchesStartInParallel(page, 'tournament-1', 'bm')).rejects.toThrow(
+      'requested global player registry',
+    );
     expect(fulfilled).toEqual(['mode', 'players']);
     expect(targetPage.waitForFunction).toHaveBeenCalled();
     expect(targetPage.unroute).toHaveBeenCalledWith('**/api/**', expect.any(Function));
