@@ -1,9 +1,12 @@
+const broadcastIntegerInputPattern = /^\+?\d+$/;
+
 export function isBroadcastIntegerInputValid(value: string): boolean {
   const trimmed = value.trim();
-  if (trimmed === "") return true;
+  if (trimmed === '') return true;
+  if (!broadcastIntegerInputPattern.test(trimmed)) return false;
 
   const parsed = Number(trimmed);
-  return Number.isInteger(parsed) && parsed >= 0;
+  return Number.isSafeInteger(parsed) && parsed >= 0;
 }
 
 export function invalidBroadcastIntegerInputLabels(
@@ -16,10 +19,8 @@ export function invalidBroadcastIntegerInputLabels(
 
 export function nullableBroadcastIntegerInput(value: string): number | null {
   const trimmed = value.trim();
-  if (trimmed === "") return null;
-
-  const parsed = Number(trimmed);
+  if (trimmed === '') return null;
   if (!isBroadcastIntegerInputValid(trimmed)) return null;
 
-  return parsed;
+  return Number(trimmed);
 }
