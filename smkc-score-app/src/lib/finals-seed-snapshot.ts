@@ -50,8 +50,10 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
     if (!entry || typeof entry !== 'object') return [];
     const candidate = entry as Partial<FinalsSeedSnapshotEntry>;
     if (
-      typeof candidate.seed !== 'number' ||
-      typeof candidate.originalSeed !== 'number' ||
+      !Number.isSafeInteger(candidate.seed) ||
+      (candidate.seed as number) <= 0 ||
+      !Number.isSafeInteger(candidate.originalSeed) ||
+      (candidate.originalSeed as number) <= 0 ||
       typeof candidate.playerId !== 'string' ||
       !candidate.player ||
       typeof candidate.player.id !== 'string'
