@@ -10,7 +10,13 @@ function isStringArgument(call: ts.CallExpression, value: string): boolean {
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {
-  const sourceFile = ts.createSourceFile('tc-1987-owner.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sourceFile = ts.createSourceFile(
+    'tc-1987-owner.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   let found = false;
 
   function visit(node: ts.Node) {
