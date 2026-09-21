@@ -5,8 +5,15 @@ export interface FinalsTargetContext {
   targetWins?: number | null;
 }
 
+const MAX_STORED_TARGET_WINS = 99;
+
 function storedTargetWins(context?: FinalsTargetContext): number | null {
-  return typeof context?.targetWins === 'number' && Number.isInteger(context.targetWins) && context.targetWins > 0
+  return (
+    typeof context?.targetWins === 'number' &&
+    Number.isSafeInteger(context.targetWins) &&
+    context.targetWins > 0 &&
+    context.targetWins <= MAX_STORED_TARGET_WINS
+  )
     ? context.targetWins
     : null;
 }
