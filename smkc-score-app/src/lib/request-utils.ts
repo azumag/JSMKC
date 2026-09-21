@@ -27,6 +27,16 @@ import { createLogger } from '@/lib/logger';
 /** Logger scoped to request utilities */
 const logger = createLogger('request-utils');
 
+function normalizeIdentifierHeader(value: string | null): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function getForwardedClientIdentifier(value: string | null): string | null {
+  if (!value) return null;
+  return normalizeIdentifierHeader(value.split(',')[0] ?? null);
+}
+
 // ============================================================
 // Client Identification
 // ============================================================
@@ -39,6 +49,10 @@ const logger = createLogger('request-utils');
  * 1. cf-connecting-ip: Cloudflare-specific header set by the trusted CDN/proxy
  * 2. x-real-ip: Reverse-proxy header trusted within the internal network
  * 3. x-forwarded-for: Fallback proxy header that can be spoofed by clients
+ *
+ * Blank/whitespace-only values are treated as absent. For x-forwarded-for,
+ * only the first element is considered; an empty first element fails closed
+ * instead of trusting a later proxy-added value.
  *
  * Falls back to 'unknown' if no IP can be determined, which should
  * not happen in production behind a properly configured proxy.
@@ -54,23 +68,23 @@ const logger = createLogger('request-utils');
  */
 export function getClientIdentifier(request: NextRequest): string {
   // cf-connecting-ip is set by Cloudflare's CDN/proxy and is trustworthy
-  const cfIp = request.headers.get('cf-connecting-ip');
+  const cfIp = normalizeIdentifierHeader(request.headers.get('cf-connecting-ip'));
   if (cfIp) {
     return cfIp;
   }
 
   // x-real-ip is set by Nginx and some other reverse proxies
   // Only trustworthy when request comes from known internal network
-  const realIp = request.headers.get('x-real-ip');
+  const realIp = normalizeIdentifierHeader(request.headers.get('x-real-ip'));
   if (realIp) {
     return realIp;
   }
 
   // x-forwarded-for can be spoofed by clients - use as last resort
   // Extract only the first IP (original client) and trim whitespace
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
+  const forwardedIp = getForwardedClientIdentifier(request.headers.get('x-forwarded-for'));
+  if (forwardedIp) {
+    return forwardedIp;
   }
 
   // Fallback when no identifying header is present.
@@ -112,19 +126,19 @@ export async function getServerSideIdentifier(): Promise<string> {
 
     // Same priority order as getClientIdentifier:
     // cf-connecting-ip (trusted) > x-real-ip (internal) > x-forwarded-for (untrusted)
-    const cfIp = headersList.get('cf-connecting-ip');
+    const cfIp = normalizeIdentifierHeader(headersList.get('cf-connecting-ip'));
     if (cfIp) {
       return cfIp;
     }
 
-    const realIp = headersList.get('x-real-ip');
+    const realIp = normalizeIdentifierHeader(headersList.get('x-real-ip'));
     if (realIp) {
       return realIp;
     }
 
-    const forwardedFor = headersList.get('x-forwarded-for');
-    if (forwardedFor) {
-      return forwardedFor.split(',')[0].trim();
+    const forwardedIp = getForwardedClientIdentifier(headersList.get('x-forwarded-for'));
+    if (forwardedIp) {
+      return forwardedIp;
     }
 
     return 'unknown';
