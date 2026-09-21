@@ -10,14 +10,14 @@ while production Worker builds are rate-gated to reduce paid Workers Build Minut
 Keep the existing `smkc` repository connection to `azumag/JSMKC` and `main`.
 The fixed production identity is:
 
-| Identity           | Required value                             |
-| ------------------ | ------------------------------------------ |
-| Account ID         | `b9ab93f1f71640b6965a60c646b2392b`       |
-| Worker             | `smkc`                                     |
-| Script tag         | `37f13913c5ef48419dc2b0b8946d76ed`       |
-| Build trigger UUID | `9655dde5-b315-4557-90ca-a9ada811bfaf`   |
-| Repository         | `azumag/JSMKC`                             |
-| Production branch  | `main`                                     |
+| Identity           | Required value                         |
+| ------------------ | -------------------------------------- |
+| Account ID         | `b9ab93f1f71640b6965a60c646b2392b`     |
+| Worker             | `smkc`                                 |
+| Script tag         | `37f13913c5ef48419dc2b0b8946d76ed`     |
+| Build trigger UUID | `9655dde5-b315-4557-90ca-a9ada811bfaf` |
+| Repository         | `azumag/JSMKC`                         |
+| Production branch  | `main`                                 |
 
 Do not substitute another account, Worker, script tag, trigger, repository, or
 branch when the expected production target cannot be read. An identity mismatch is
@@ -34,8 +34,8 @@ The production trigger contract is:
 | Root directory               | `smkc-score-app`      |
 | Build command                | `npm run build:cf`    |
 | Deploy command               | `npx wrangler deploy` |
-| Path includes                | `["*"]`              |
-| Path excludes                | `["*"]`              |
+| Path includes                | `["*"]`               |
+| Path excludes                | `["*"]`               |
 
 `path_excludes=["*"]` is intentional. It suppresses ordinary push-triggered
 production builds while keeping the `main` repository connection intact. Do not
