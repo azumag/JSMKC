@@ -55,6 +55,26 @@ describe('TC-2663 through TC-2668 ModePublishSwitch drift matchers', () => {
     expect(hasTc2666UpdatingDisabledContract(loading)).toBe(false);
   });
 
+  it('accepts a switch query stored in a local variable', () => {
+    const loading = asTest(`
+      mockUseModePublish.mockReturnValue({ ...defaultPublishState, loading: true });
+      const switchEl = screen.getByRole('switch');
+      expect(switchEl).toBeDisabled();
+      expect(screen.queryByText('Published')).toBeNull();
+      expect(screen.queryByText('Unpublished')).toBeNull();
+    `);
+    const wrongBinding = asTest(`
+      mockUseModePublish.mockReturnValue({ ...defaultPublishState, loading: true });
+      const button = screen.getByRole('button');
+      expect(button).toBeDisabled();
+      expect(screen.queryByText('Published')).toBeNull();
+      expect(screen.queryByText('Unpublished')).toBeNull();
+    `);
+
+    expect(hasTc2665LoadingDisabledContract(loading)).toBe(true);
+    expect(hasTc2665LoadingDisabledContract(wrongBinding)).toBe(false);
+  });
+
   it('requires click and toggle assertion in one executable test callback', () => {
     const complete = asTest(`
       await user.click(screen.getByRole('switch'));
