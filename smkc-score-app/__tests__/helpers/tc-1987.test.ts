@@ -20,6 +20,7 @@ describe('TC-1987 TV parser drift matcher', () => {
     `expect(parseTvNumberInput('def')).toBeNull();`,
     `expect(parseTvNumberInput('abc')).toBe(0);`,
     `parseTvNumberInput('abc');`,
+    `// expect(parseTvNumberInput('abc')).toBeNull();`,
   ])('rejects a source without the TC-1987 contract: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(false);
   });
