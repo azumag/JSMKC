@@ -20,7 +20,8 @@ describe('Cloudflare build cost policy documentation', () => {
   });
 
   it('pins manual starts to the validated main SHA and forbids blind retries', () => {
-    expect(policy).toContain('{"branch":"main","commit_hash":"<verified exact main SHA>"}');
+    expect(policy).toContain('"branch": "main"');
+    expect(policy).toContain('"commit_hash": "<verified exact main SHA>"');
     expect(policy).toContain('Do not omit `commit_hash`');
     expect(policy).toContain('same SHA whose CI and deploy-relevant diff were just');
     expect(policy).toContain('Do not send the start request a second time');
