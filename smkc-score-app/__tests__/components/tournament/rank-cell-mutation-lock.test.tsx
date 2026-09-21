@@ -130,4 +130,31 @@ describe('RankCell pending mutation lock', () => {
     expect(onSave).toHaveBeenCalledTimes(2);
     expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeInTheDocument();
   });
+
+  it('releases the lock after a rejected clear so the admin can retry', async () => {
+    const onSave = jest.fn().mockRejectedValueOnce(new Error('clear failed')).mockResolvedValue(false);
+
+    render(<RankCell qualificationId="qual-clear-reject" rankOverride={5} autoRank={3} isAdmin={true} onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear rank override' }));
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenLastCalledWith('qual-clear-reject', null);
+    expect(screen.getByRole('alert')).toHaveTextContent('common.networkError');
+    expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save rank' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Clear rank override' })).toBeEnabled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear rank override' }));
+    });
+
+    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onSave).toHaveBeenLastCalledWith('qual-clear-reject', null);
+    expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeInTheDocument();
+  });
 });
