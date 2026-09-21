@@ -160,7 +160,6 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         <div className="flex items-center gap-1">
           <Input
             type="number"
-            min={1}
             step={1}
             value={inputValue}
             aria-label={tRankCell('rankInput')}
