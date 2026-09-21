@@ -7,21 +7,12 @@ function isNamedCall(call: ts.CallExpression, name: string): boolean {
 function isStringArgument(call: ts.CallExpression, value: string): boolean {
   const [argument] = call.arguments;
   return (
-    call.arguments.length === 1 &&
-    argument !== undefined &&
-    ts.isStringLiteralLike(argument) &&
-    argument.text === value
+    call.arguments.length === 1 && argument !== undefined && ts.isStringLiteralLike(argument) && argument.text === value
   );
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {
-  const sourceFile = ts.createSourceFile(
-    'tc-1987-owner.tsx',
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX,
-  );
+  const sourceFile = ts.createSourceFile('tc-1987-owner.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let found = false;
 
   function visit(node: ts.Node) {
