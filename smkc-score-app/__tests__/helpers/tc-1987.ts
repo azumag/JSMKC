@@ -6,7 +6,12 @@ function isNamedCall(call: ts.CallExpression, name: string): boolean {
 
 function isStringArgument(call: ts.CallExpression, value: string): boolean {
   const [argument] = call.arguments;
-  return call.arguments.length === 1 && ts.isStringLiteralLike(argument) && argument.text === value;
+  return (
+    call.arguments.length === 1 &&
+    argument !== undefined &&
+    ts.isStringLiteralLike(argument) &&
+    argument.text === value
+  );
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {
