@@ -21,8 +21,7 @@ function objectHasStringProperty(node: ts.Node | undefined, property: string, va
   return node.properties.some((entry) => {
     if (!ts.isPropertyAssignment(entry)) return false;
     const name = entry.name;
-    const propertyName =
-      ts.isIdentifier(name) || ts.isStringLiteralLike(name) ? name.text : undefined;
+    const propertyName = ts.isIdentifier(name) || ts.isStringLiteralLike(name) ? name.text : undefined;
     return propertyName === property && ts.isStringLiteralLike(entry.initializer) && entry.initializer.text === value;
   });
 }
@@ -99,8 +98,11 @@ function isEnterKeyDown(call: ts.CallExpression): boolean {
   return objectHasStringProperty(call.arguments[1], 'key', 'Enter');
 }
 
-function hasRankCellSaveOutcome(source: string, qualificationId: string, expected: ExpectedRankValue): boolean {
-  const sourceFile = ts.createSourceFile('rank-cell-owner.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function testCaseHasRankCellSaveOutcome(
+  callback: ts.ArrowFunction | ts.FunctionExpression,
+  qualificationId: string,
+  expected: ExpectedRankValue,
+): boolean {
   let saveOutcome = false;
   let editorClosed = false;
   let enterKeyDown = false;
@@ -115,8 +117,36 @@ function hasRankCellSaveOutcome(source: string, qualificationId: string, expecte
     if (!(saveOutcome && editorClosed && enterKeyDown)) ts.forEachChild(node, visit);
   }
 
-  visit(sourceFile);
+  visit(callback.body);
   return saveOutcome && editorClosed && enterKeyDown;
+}
+
+function hasRankCellSaveOutcome(source: string, qualificationId: string, expected: ExpectedRankValue): boolean {
+  const sourceFile = ts.createSourceFile('rank-cell-owner.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found = false;
+
+  function visit(node: ts.Node) {
+    if (
+      ts.isCallExpression(node) &&
+      (isNamedCall(node, 'it') || isNamedCall(node, 'test')) &&
+      node.arguments.length >= 2
+    ) {
+      const callback = node.arguments[1];
+      if (
+        callback &&
+        (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) &&
+        testCaseHasRankCellSaveOutcome(callback, qualificationId, expected)
+      ) {
+        found = true;
+        return;
+      }
+    }
+
+    if (!found) ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return found;
 }
 
 export function hasTc2657EmptyRankClearContract(source: string): boolean {
