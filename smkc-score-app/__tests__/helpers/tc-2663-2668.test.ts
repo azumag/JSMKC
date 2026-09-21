@@ -8,13 +8,7 @@ import {
   hasTc2668AccessibleStateContract,
 } from './tc-2663-2668';
 
-const owner = readRepoFile(
-  'smkc-score-app',
-  '__tests__',
-  'components',
-  'tournament',
-  'mode-publish-switch.test.tsx',
-);
+const owner = readRepoFile('smkc-score-app', '__tests__', 'components', 'tournament', 'mode-publish-switch.test.tsx');
 
 const asTest = (body: string) => `it('contract', async () => {\n${body}\n});`;
 
