@@ -22,10 +22,12 @@ export const TA_TIME_INPUT_HELP_CLASS =
   "rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium leading-relaxed text-foreground";
 
 export function parseTvNumberInput(value: string): number | null {
-  // Keep radix explicit for predictable decimal parsing of values like "09".
-  if (!value) return null;
-  const tvNumber = parseInt(value, 10);
-  return Number.isNaN(tvNumber) ? null : tvNumber;
+  const normalized = value.trim();
+  if (normalized === "") return null;
+  if (!/^[+-]?\d+$/.test(normalized)) return null;
+
+  const tvNumber = Number(normalized);
+  return Number.isSafeInteger(tvNumber) ? tvNumber : null;
 }
 
 export const TA_TIME_ENTRY_ROW_CLASS =
