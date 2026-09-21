@@ -9,12 +9,8 @@ export function isBroadcastIntegerInputValid(value: string): boolean {
   return Number.isSafeInteger(parsed) && parsed >= 0;
 }
 
-export function invalidBroadcastIntegerInputLabels(
-  fields: Array<{ label: string; value: string }>,
-): string[] {
-  return fields
-    .filter(({ value }) => !isBroadcastIntegerInputValid(value))
-    .map(({ label }) => label);
+export function invalidBroadcastIntegerInputLabels(fields: Array<{ label: string; value: string }>): string[] {
+  return fields.filter(({ value }) => !isBroadcastIntegerInputValid(value)).map(({ label }) => label);
 }
 
 export function nullableBroadcastIntegerInput(value: string): number | null {
