@@ -55,6 +55,8 @@ describe('tc-all focused suite registration', () => {
 
     const targetPage = {
       bringToFront: jest.fn(async () => undefined),
+      route: jest.fn(async () => undefined),
+      unroute: jest.fn(async () => undefined),
       goto: jest.fn(async () => undefined),
       waitForFunction: jest.fn(async () => undefined),
       close: jest.fn(async () => undefined),
@@ -66,7 +68,7 @@ describe('tc-all focused suite registration', () => {
     };
 
     expect(rootPage.context).not.toHaveBeenCalled();
-    // 0 = detected-and-resolved violations count; the mock env triggers no parallel violations.
+    // 0 = no client-side mode request for the server-prefetched TA path and no global-player violation.
     await expect(assertQualificationFetchesStartInParallel(rootPage, 'tournament-1', 'ta')).resolves.toBe(0);
     expect(rootPage.context).toHaveBeenCalled();
     expect(newPage).toHaveBeenCalled();
