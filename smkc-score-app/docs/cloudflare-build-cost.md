@@ -28,6 +28,9 @@ remove the exclude because a normal `main` push was skipped, and do not substitu
 manual production build after every merge. A Cloudflare skip under this policy is
 not a GitHub CI failure.
 
+Non-production branch builds must remain disabled (`previews_enabled=false`). Do not
+enable preview builds as a workaround for the production push suppression policy.
+
 The trigger deploy command is `npx wrangler deploy`; do not replace it with
 `npm run deploy:cf`. Production D1 migration execution is governed separately and
 must not be silently coupled to this build-cost gate.
@@ -53,9 +56,22 @@ Before starting a production build:
 5. Immediately before the single allowed start, re-read the exact `main` SHA and
    Cloudflare build history so a concurrent push or build cannot be overlooked.
 
+When every gate passes, start the existing production trigger exactly once and pin
+both the branch and the already-verified commit in the request payload:
+
+```json
+{"branch":"main","commit_hash":"<verified exact main SHA>"}
+```
+
+Do not omit `commit_hash`, substitute a stale SHA, or rely on Cloudflare to resolve
+whatever branch tip happens to exist when the request is processed. The exact SHA in
+the payload must be the same SHA whose CI and deploy-relevant diff were just
+validated.
+
 An uncertain or timed-out start response must be reconciled against build history,
-not retried blindly. A failed production build leaves the last successful deployment
-in place until a new validated SHA is available.
+not retried blindly. Do not send the start request a second time merely because the
+first response is missing or ambiguous. A failed production build leaves the last
+successful deployment in place until a new validated SHA is available.
 
 This is a rolling rate/cost-control policy, not a Cloudflare billing cap and not a
 guarantee that only one build can occur in a calendar day.
