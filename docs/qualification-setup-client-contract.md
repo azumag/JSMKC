@@ -20,6 +20,10 @@ archive response は既存の archive-wide `allPlayers` snapshot を正本とし
 
 BM / MR / GP page client は live/archived qualification payload の `allPlayers` を直接 bounded seed として使う。旧 setup-player compatibility helper、snapshot cache、generation invalidation state、cache invalidation API はすべて削除済みで、通常 polling に player discovery transport を持たせない。
 
+### Archive E2E transport contract
+
+`TC-ARC-09` は qualification page が mode payload の `allPlayers` だけで hydrate できることと、BM / MR / GP の通常 qualification path が global `/api/players?limit=100` を要求しないことを実ブラウザの network interception で確認する。archive fallback は archive-wide `allPlayers` snapshot を引き続き利用し、新規 player discovery は dialog が open の間だけ bounded server-side search に委ねる。通常 polling へ global player registry fetch を戻す変更は static guard と archive E2E の両方で regression として扱う。
+
 ## Non-idempotent request ownership
 
 qualification setup POST は non-idempotent mutation であり、request を開始した `{tournamentId, mode}` identity にだけ所属する。
