@@ -42,6 +42,7 @@
 
 import { createLogger } from '@/lib/logger';
 import { generateBracketStructure, generatePlayoffStructure } from '@/lib/double-elimination';
+import { parsePersistedFinalsTargetWins } from '@/lib/finals-target-wins';
 import type { BracketMatch } from '@/types/bracket';
 import {
   FINALS_BRACKET_SLOTS,
@@ -688,15 +689,16 @@ function writeTargetWinsHeaders(
     const configured = data.finalsRoundSettings?.find(
       (setting) => setting.mode === mode && setting.stage === matches[0]?.stage && setting.round === round,
     )?.targetWins;
-    if (ref && typeof configured === 'number' && Number.isInteger(configured) && configured > 0) {
-      builder.setNumber(ref, configured);
+    const parsedConfigured = parsePersistedFinalsTargetWins(configured);
+    if (ref && parsedConfigured !== null) {
+      builder.setNumber(ref, parsedConfigured);
       continue;
     }
     const persistedValues = (source: CdmMatch[]) => [
       ...new Set(
         source
-          .map((match) => match.targetWins)
-          .filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0),
+          .map((match) => parsePersistedFinalsTargetWins(match.targetWins))
+          .filter((value): value is number => value !== null),
       ),
     ];
     // A format update deliberately leaves completed rows frozen. The header
