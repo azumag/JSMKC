@@ -1,3 +1,4 @@
+import { getCdmRoundRobinFixturePlan } from '@/lib/cdm-round-robin-fixtures';
 import { buildBalancedCdmSideOverridePlan } from '@/lib/qualification-schedule-comparison';
 
 export interface BalancedCdmSideSeedOverride {
@@ -16,7 +17,7 @@ export interface BalancedCdmSideSeedOverride {
  * no compatible CDM fixture (or the underlying pair sets are incompatible).
  */
 export function buildBalancedCdmSideSeedOverridePlan(playerCount: number): BalancedCdmSideSeedOverride[] | null {
-  if (!Number.isInteger(playerCount) || playerCount <= 0) return null;
+  if (!Number.isInteger(playerCount) || playerCount <= 0 || !getCdmRoundRobinFixturePlan(playerCount)) return null;
 
   const playerIds = Array.from({ length: playerCount }, (_, index) => `P${index + 1}`);
   const seedByPlayerId = new Map(playerIds.map((playerId, index) => [playerId, index + 1] as const));
