@@ -57,7 +57,6 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { POLLING_INTERVAL, TOTAL_MR_RACES, TV_NUMBER_OPTIONS } from '@/lib/constants';
-import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
@@ -150,14 +149,11 @@ export default function MatchRacePageClient({
   const [tvOverrides, setTvOverrides] = useState<Record<string, number | null>>({});
 
   /**
-   * Fetch MR data and player list concurrently.
-   * Called by the polling hook for real-time updates.
+   * Fetch MR qualification data. The response already carries the bounded player seed
+   * used by the setup dialog, so polling does not need a second player-list request.
    */
   const fetchTournamentData = useCallback(async () => {
-    const [mrResponse, playersResult] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/mr`),
-      fetchAllPlayersForSetup<Player>(),
-    ]);
+    const mrResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/mr`);
 
     if (!mrResponse.ok) {
       throw new Error(`Failed to fetch MR data: ${mrResponse.status}`);
@@ -165,7 +161,7 @@ export default function MatchRacePageClient({
 
     const mrJson = await mrResponse.json();
     const mrData = mrJson.data ?? mrJson;
-    const allPlayers = resolveAllPlayers(playersResult, mrData.allPlayers);
+    const allPlayers: Player[] = mrData.allPlayers ?? [];
 
     return {
       qualifications: mrData.qualifications || [],
@@ -746,7 +742,7 @@ export default function MatchRacePageClient({
               </CardHeader>
               <CardContent>
                 {(() => {
-                  /* Build player→group lookup for match filtering */
+                  /* Build player→group lookup for match filtering */}
                   const playerGroupMap = new Map<string, string>();
                   for (const q of qualifications) {
                     playerGroupMap.set(q.playerId, q.group);
@@ -754,7 +750,7 @@ export default function MatchRacePageClient({
                   const getMatchGroup = (m: MRMatch): string | undefined =>
                     playerGroupMap.get(m.player1Id) ?? playerGroupMap.get(m.player2Id);
 
-                  /* Apply group filter, then player filter */
+                  /* Apply group filter, then player filter */}
                   let filteredMatches =
                     matchGroupFilter === 'all' ? matches : matches.filter((m) => getMatchGroup(m) === matchGroupFilter);
                   if (matchPlayerFilter !== 'all') {
