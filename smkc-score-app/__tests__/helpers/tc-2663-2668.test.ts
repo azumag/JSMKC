@@ -88,7 +88,7 @@ describe('TC-2663 through TC-2668 ModePublishSwitch drift matchers', () => {
     expect(hasTc2667ToggleInvocationContract(split)).toBe(false);
   });
 
-  it('requires the stable switch name and aria-checked state in one executable test callback', () => {
+  it('requires aria-checked on the stably named publish switch', () => {
     const complete = asTest(`
       const switchEl = screen.getByRole("switch", { name: "Battle Mode publication" });
       expect(switchEl).toHaveAttribute("aria-checked", "false");
@@ -97,9 +97,15 @@ describe('TC-2663 through TC-2668 ModePublishSwitch drift matchers', () => {
       const switchEl = screen.getByRole('switch', { name: 'Published' });
       expect(switchEl).toHaveAttribute('aria-checked', 'false');
     `);
+    const wrongBinding = asTest(`
+      const publishSwitch = screen.getByRole('switch', { name: 'Battle Mode publication' });
+      const otherSwitch = screen.getByRole('switch', { name: 'Other switch' });
+      expect(otherSwitch).toHaveAttribute('aria-checked', 'false');
+    `);
 
     expect(hasTc2668AccessibleStateContract(complete)).toBe(true);
     expect(hasTc2668AccessibleStateContract(wrongName)).toBe(false);
+    expect(hasTc2668AccessibleStateContract(wrongBinding)).toBe(false);
   });
 
   it('does not accept compatibility comments as executable coverage', () => {
