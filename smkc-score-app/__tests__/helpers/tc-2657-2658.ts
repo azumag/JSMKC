@@ -122,7 +122,13 @@ function testCaseHasRankCellSaveOutcome(
 }
 
 function hasRankCellSaveOutcome(source: string, qualificationId: string, expected: ExpectedRankValue): boolean {
-  const sourceFile = ts.createSourceFile('rank-cell-owner.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const sourceFile = ts.createSourceFile(
+    'rank-cell-owner.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
   let found = false;
 
   function visit(node: ts.Node) {
