@@ -9,7 +9,7 @@
  *   TC-ARC-06  Archive BM match rows keep stage and public player payloads.
  *   TC-ARC-07  TA API falls back to archive when live tournament row is gone.
  *   TC-ARC-08  Two completed archives stay independently readable.
- *   TC-ARC-09  Qualification pages keep mode data and players fetches parallel.
+ *   TC-ARC-09  Qualification pages hydrate from mode allPlayers without global players fetches.
  *
  * Run: node e2e/tc-archive.js  (from smkc-score-app/)  or: npm run e2e:archive
  */
@@ -309,137 +309,53 @@ async function waitForQualificationPageHydration(page) {
 }
 
 async function assertQualificationFetchesStartInParallel(page, tournamentId, mode) {
-  /* Use a fresh page for this network-level assertion. The app intentionally
-   * deduplicates in-flight API GETs inside each browser realm; reusing the
-   * long-lived E2E page can make /api/players attach to an existing promise and
-   * therefore not emit a new request for this route probe. */
+  /* Historical export name retained for focused test compatibility. The current
+   * contract is isolation: qualification pages hydrate from the mode payload's
+   * bounded allPlayers seed and must not fetch the global player registry. */
   const targetPage = await page.context().newPage();
   await targetPage.bringToFront();
-  if (mode === 'ta') {
-    try {
-      /* TA is server-prefetched: the initial RSC payload includes the mode data
-       * and allPlayers fallback, so a client-side players request is not a
-       * correctness requirement. Verify the qualification page hydrates instead
-       * of forcing a redundant network shape. */
-      await targetPage.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
-      await waitForQualificationPageHydration(targetPage);
-      return 0;
-    } finally {
-      await targetPage.close().catch(() => {});
-    }
-  }
 
-  const starts = {};
-  const ignoredApiUrls = [];
-  const pending = {};
-  let released = false;
-  let releasePromise = null;
-  let timeout = null;
-
-  const payloads = {
-    mode: { data: qualificationModePayload(mode) },
-    players: { data: [] },
-  };
-
-  const releasePending = () => {
-    if (released) return releasePromise;
-    if (!pending.mode || !pending.players) return null;
-    released = true;
-    if (timeout) clearTimeout(timeout);
-    releasePromise = Promise.all(Object.entries(pending).map(([kind, item]) =>
-      item.route.fulfill({
+  const unexpectedPlayerRequests = [];
+  let modeRequests = 0;
+  const routeHandler = async (route) => {
+    const url = route.request().url();
+    const kind = requestKindForQualificationFetch(url, tournamentId, mode);
+    if (kind === 'players') {
+      unexpectedPlayerRequests.push(url);
+      await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(payloads[kind]),
-      }).finally(item.done),
-    )).catch((error) => {
-      console.error('TC-ARC-09 releasePending error:', error);
-    });
-    return releasePromise;
-  };
-
-  const routeHandler = (route) => {
-    const kind = requestKindForQualificationFetch(route.request().url(), tournamentId, mode);
-    if (!kind) {
-      const url = route.request().url();
-      if (url.includes('/api/') && ignoredApiUrls.length < 8) ignoredApiUrls.push(url);
-      return route.continue();
+        body: JSON.stringify({ data: [] }),
+      });
+      return;
     }
-    if (released) {
-      return route.continue();
+    if (kind === 'mode') {
+      modeRequests += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: qualificationModePayload(mode) }),
+      });
+      return;
     }
-    if (pending[kind]) {
-      return route.continue();
-    }
-    starts[kind] = starts[kind] ?? Date.now();
-    return new Promise((done) => {
-      pending[kind] = { route, done };
-      releasePending();
-    });
+    await route.continue();
   };
 
   await targetPage.route('**/api/**', routeHandler);
   try {
-    timeout = setTimeout(() => {
-      if (released) return;
-      released = true;
-      releasePromise = Promise.all(Object.values(pending).map((item) =>
-        item.route.fulfill({
-          status: 504,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'TC-ARC-09 timed out waiting for paired request' }),
-        }).finally(item.done),
-      )).catch((error) => {
-        console.error('TC-ARC-09 timeout fulfill error:', error);
-      });
-    }, QUALIFICATION_FETCH_TIMEOUT_MS);
-
-    const modeRequest = targetPage.waitForRequest(
-      (request) => requestKindForQualificationFetch(request.url(), tournamentId, mode) === 'mode',
-      { timeout: QUALIFICATION_FETCH_TIMEOUT_MS },
-    );
-    const playersRequest = targetPage.waitForRequest(
-      (request) => requestKindForQualificationFetch(request.url(), tournamentId, mode) === 'players',
-      { timeout: QUALIFICATION_FETCH_TIMEOUT_MS },
-    );
-
     await targetPage.goto(`${BASE}/tournaments/${tournamentId}/${mode}`, { waitUntil: 'domcontentloaded' });
-    await modeRequest;
-    await playersRequest.catch(() => null);
-    if (pending.mode && !pending.players && !released) {
-      released = true;
-      if (timeout) clearTimeout(timeout);
-      releasePromise = pending.mode.route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(payloads.mode),
-      }).finally(pending.mode.done).catch((error) => {
-        console.error('TC-ARC-09 mode-only release error:', error);
-      });
-    }
-    await releasePending();
+    await waitForQualificationPageHydration(targetPage);
 
-    if (starts.mode && !starts.players) {
-      /* If the route no longer needs /api/players, the test must still prove the
-       * mode payload's allPlayers fallback can hydrate the page. Without this
-       * wait, a broken client could skip the players request and still pass
-       * before React renders the failure state. */
-      await waitForQualificationPageHydration(targetPage);
-      return 0;
+    if (unexpectedPlayerRequests.length > 0) {
+      throw new Error(
+        `${mode}: qualification page requested global player registry (${unexpectedPlayerRequests.join(' ')})`,
+      );
     }
-
-    if (!starts.mode || !starts.players) {
-      const seen = Object.keys(starts).sort().join(',') || 'none';
-      const ignored = ignoredApiUrls.map((url) => new URL(url).pathname + new URL(url).search).join(' ');
-      throw new Error(`${mode}: missing mode or players request (seen=${seen}; ignored=${ignored || 'none'})`);
+    if (mode !== 'ta' && modeRequests === 0) {
+      throw new Error(`${mode}: qualification page did not request its mode payload`);
     }
-    const deltaMs = Math.abs(starts.mode - starts.players);
-    if (deltaMs > 1_000) {
-      throw new Error(`${mode}: request start delta ${deltaMs}ms exceeded 1000ms`);
-    }
-    return deltaMs;
+    return modeRequests;
   } finally {
-    if (timeout) clearTimeout(timeout);
     await targetPage.unroute('**/api/**', routeHandler).catch(() => {});
     await targetPage.close().catch(() => {});
   }
@@ -455,13 +371,13 @@ async function tcArc09(page) {
     });
     if (activated.s !== 200) throw new Error(`activation update failed (${activated.s})`);
 
-    const deltas = {};
+    const modeRequests = {};
     for (const mode of QUALIFICATION_MODES) {
-      deltas[mode] = await assertQualificationFetchesStartInParallel(page, tournamentId, mode);
+      modeRequests[mode] = await assertQualificationFetchesStartInParallel(page, tournamentId, mode);
     }
 
     log('TC-ARC-09', 'PASS',
-      `Modes hydrated from mode payload allPlayers when no players request was needed; any players request must start before the mode response resolves (${Object.entries(deltas).map(([mode, ms]) => `${mode}:${ms}ms`).join(' ')})`);
+      `Modes hydrated without global player registry fetches (${Object.entries(modeRequests).map(([mode, count]) => `${mode}:${count}`).join(' ')})`);
   } catch (error) {
     log('TC-ARC-09', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
