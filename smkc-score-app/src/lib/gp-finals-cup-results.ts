@@ -13,6 +13,10 @@ function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+function isUnsafeInteger(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && !Number.isSafeInteger(value);
+}
+
 function sumRacePoints(races: unknown, side: 1 | 2): number | null {
   if (!Array.isArray(races)) return null;
   let total = 0;
@@ -22,6 +26,7 @@ function sumRacePoints(races: unknown, side: 1 | 2): number | null {
     const entry = race as Record<string, unknown>;
     const existing = entry[side === 1 ? 'points1' : 'points2'];
 
+    if (isUnsafeInteger(existing)) return null;
     if (isNonNegativeSafeInteger(existing)) {
       total += existing;
       if (!Number.isSafeInteger(total)) return null;
@@ -51,6 +56,10 @@ export function normalizeGpFinalsCupResults(
     const raw = input[index] as GpCupResultInput;
     if (!raw || typeof raw !== 'object') {
       return { error: `cupResults[${index}] must be an object` };
+    }
+
+    if (isUnsafeInteger(raw.points1) || isUnsafeInteger(raw.points2)) {
+      return { error: `cupResults[${index}] requires non-negative integer points` };
     }
 
     const fallbackCup = CUPS[index % CUPS.length];
