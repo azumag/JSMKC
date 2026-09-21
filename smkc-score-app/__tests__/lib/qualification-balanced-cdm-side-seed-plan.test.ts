@@ -24,9 +24,10 @@ describe('buildBalancedCdmSideSeedOverridePlan', () => {
     }
   });
 
-  it('returns null for unsupported or invalid player counts', () => {
+  it('returns null for unsupported or invalid player counts without allocating unsupported fixture sizes', () => {
     expect(buildBalancedCdmSideSeedOverridePlan(13)).toBeNull();
     expect(buildBalancedCdmSideSeedOverridePlan(0)).toBeNull();
     expect(buildBalancedCdmSideSeedOverridePlan(7.5)).toBeNull();
+    expect(buildBalancedCdmSideSeedOverridePlan(Number.MAX_SAFE_INTEGER)).toBeNull();
   });
 });
