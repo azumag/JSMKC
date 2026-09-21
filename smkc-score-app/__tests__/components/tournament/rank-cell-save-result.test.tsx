@@ -75,6 +75,7 @@ describe('RankCell save result contract', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save rank' }));
     });
 
+    expect(onSave).toHaveBeenCalledWith('qual-void-save', 2);
     expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 
