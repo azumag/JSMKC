@@ -40,6 +40,7 @@ describe('RankCell save result contract', () => {
 
     expect(onSave).toHaveBeenCalledWith('qual-failed-save', 7);
     expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toHaveValue(7);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('keeps the editor open when clearing an override returns false', async () => {
@@ -57,6 +58,7 @@ describe('RankCell save result contract', () => {
 
     expect(onSave).toHaveBeenCalledWith('qual-failed-clear', null);
     expect(screen.getByRole('spinbutton', { name: 'Rank override' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('keeps Promise<void> callbacks backward-compatible as successful saves', async () => {
@@ -73,6 +75,22 @@ describe('RankCell save result contract', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save rank' }));
     });
 
+    expect(onSave).toHaveBeenCalledWith('qual-void-save', 2);
+    expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
+  });
+
+  it('keeps Promise<void> callbacks backward-compatible as successful clears', async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+
+    render(<RankCell qualificationId="qual-void-clear" rankOverride={4} autoRank={1} isAdmin={true} onSave={onSave} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear rank override' }));
+    });
+
+    expect(onSave).toHaveBeenCalledWith('qual-void-clear', null);
     expect(screen.queryByRole('spinbutton', { name: 'Rank override' })).toBeNull();
   });
 });
