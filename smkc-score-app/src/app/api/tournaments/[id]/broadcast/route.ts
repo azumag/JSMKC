@@ -11,25 +11,25 @@
  * from a wider events payload.
  */
 
-import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { resolveTournament } from "@/lib/tournament-identifier";
+import { NextRequest } from 'next/server';
+import prisma from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { resolveTournament } from '@/lib/tournament-identifier';
 import {
   createSuccessResponse,
   createErrorResponse,
   handleAuthzError,
   handleValidationError,
-} from "@/lib/error-handling";
-import { sanitizeInput } from "@/lib/sanitize";
-import { createLogger } from "@/lib/logger";
+} from '@/lib/error-handling';
+import { sanitizeInput } from '@/lib/sanitize';
+import { createLogger } from '@/lib/logger';
 import {
   isOverlayBroadcastLayoutInput,
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
-} from "@/lib/overlay/layout";
+} from '@/lib/overlay/layout';
 // InputJsonValue/InputJsonObject were removed from Prisma namespace in v6; import from runtime directly
-import type { InputJsonObject, InputJsonValue } from "@prisma/client/runtime/library";
+import type { InputJsonObject, InputJsonValue } from '@prisma/client/runtime/library';
 
 const MAX_NAME_LENGTH = 50;
 type BroadcastUpdateResponse = Partial<{
@@ -50,11 +50,8 @@ type BroadcastUpdateResponse = Partial<{
  * Returns the current overlay player names and match info.
  * Public — the overlay page reads this on each poll.
  */
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const logger = createLogger("broadcast-api");
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('broadcast-api');
   const { id } = await params;
 
   try {
@@ -72,12 +69,12 @@ export async function GET(
     });
 
     if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
 
     return createSuccessResponse({
-      player1Name: tournament.overlayPlayer1Name ?? "",
-      player2Name: tournament.overlayPlayer2Name ?? "",
+      player1Name: tournament.overlayPlayer1Name ?? '',
+      player2Name: tournament.overlayPlayer2Name ?? '',
       player1NoCamera: tournament.overlayPlayer1NoCamera ?? false,
       player2NoCamera: tournament.overlayPlayer2NoCamera ?? false,
       matchLabel: tournament.overlayMatchLabel ?? null,
@@ -87,17 +84,13 @@ export async function GET(
       layout: normalizeOverlayBroadcastLayout(tournament.overlayLayout),
     });
   } catch (error) {
-    logger.error("Failed to fetch broadcast state", { error, tournamentId: id });
-    return createErrorResponse("Failed to fetch broadcast state", 500);
+    logger.error('Failed to fetch broadcast state', { error, tournamentId: id });
+    return createErrorResponse('Failed to fetch broadcast state', 500);
   }
 }
 
 const MAX_LABEL_LENGTH = 50;
-const isNonNegativeInteger = (value: unknown) => (
-  typeof value === "number" &&
-  Number.isSafeInteger(value) &&
-  value >= 0
-);
+const isNonNegativeInteger = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
 /**
  * PUT /api/tournaments/[id]/broadcast
@@ -108,14 +101,11 @@ const isNonNegativeInteger = (value: unknown) => (
  * Body: { player1Name?, player2Name?, matchLabel?, player1Wins?, player2Wins?, matchFt?, layout? }
  * Any field may be omitted to leave it unchanged.
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const logger = createLogger("broadcast-api");
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const logger = createLogger('broadcast-api');
 
   const session = await auth();
-  if (!session?.user || session.user.role !== "admin") {
+  if (!session?.user || session.user.role !== 'admin') {
     return handleAuthzError();
   }
 
@@ -136,50 +126,50 @@ export async function PUT(
     } = body;
 
     /* Allow null/empty string to clear the field; reject only invalid types. */
-    if (player1Name !== undefined && player1Name !== null && typeof player1Name !== "string") {
-      return handleValidationError("player1Name must be a string", "player1Name");
+    if (player1Name !== undefined && player1Name !== null && typeof player1Name !== 'string') {
+      return handleValidationError('player1Name must be a string', 'player1Name');
     }
-    if (player2Name !== undefined && player2Name !== null && typeof player2Name !== "string") {
-      return handleValidationError("player2Name must be a string", "player2Name");
+    if (player2Name !== undefined && player2Name !== null && typeof player2Name !== 'string') {
+      return handleValidationError('player2Name must be a string', 'player2Name');
     }
-    if (typeof player1Name === "string" && player1Name.length > MAX_NAME_LENGTH) {
-      return handleValidationError(`player1Name must be at most ${MAX_NAME_LENGTH} characters`, "player1Name");
+    if (typeof player1Name === 'string' && player1Name.length > MAX_NAME_LENGTH) {
+      return handleValidationError(`player1Name must be at most ${MAX_NAME_LENGTH} characters`, 'player1Name');
     }
-    if (typeof player2Name === "string" && player2Name.length > MAX_NAME_LENGTH) {
-      return handleValidationError(`player2Name must be at most ${MAX_NAME_LENGTH} characters`, "player2Name");
+    if (typeof player2Name === 'string' && player2Name.length > MAX_NAME_LENGTH) {
+      return handleValidationError(`player2Name must be at most ${MAX_NAME_LENGTH} characters`, 'player2Name');
     }
-    if (player1NoCamera !== undefined && typeof player1NoCamera !== "boolean") {
-      return handleValidationError("player1NoCamera must be a boolean", "player1NoCamera");
+    if (player1NoCamera !== undefined && typeof player1NoCamera !== 'boolean') {
+      return handleValidationError('player1NoCamera must be a boolean', 'player1NoCamera');
     }
-    if (player2NoCamera !== undefined && typeof player2NoCamera !== "boolean") {
-      return handleValidationError("player2NoCamera must be a boolean", "player2NoCamera");
+    if (player2NoCamera !== undefined && typeof player2NoCamera !== 'boolean') {
+      return handleValidationError('player2NoCamera must be a boolean', 'player2NoCamera');
     }
-    if (matchLabel !== undefined && matchLabel !== null && typeof matchLabel !== "string") {
-      return handleValidationError("matchLabel must be a string", "matchLabel");
+    if (matchLabel !== undefined && matchLabel !== null && typeof matchLabel !== 'string') {
+      return handleValidationError('matchLabel must be a string', 'matchLabel');
     }
-    if (typeof matchLabel === "string" && matchLabel.length > MAX_LABEL_LENGTH) {
-      return handleValidationError(`matchLabel must be at most ${MAX_LABEL_LENGTH} characters`, "matchLabel");
+    if (typeof matchLabel === 'string' && matchLabel.length > MAX_LABEL_LENGTH) {
+      return handleValidationError(`matchLabel must be at most ${MAX_LABEL_LENGTH} characters`, 'matchLabel');
     }
     if (player1Wins !== undefined && player1Wins !== null && !isNonNegativeInteger(player1Wins)) {
-      return handleValidationError("player1Wins must be a non-negative integer", "player1Wins");
+      return handleValidationError('player1Wins must be a non-negative integer', 'player1Wins');
     }
     if (player2Wins !== undefined && player2Wins !== null && !isNonNegativeInteger(player2Wins)) {
-      return handleValidationError("player2Wins must be a non-negative integer", "player2Wins");
+      return handleValidationError('player2Wins must be a non-negative integer', 'player2Wins');
     }
     if (matchFt !== undefined && matchFt !== null && !isNonNegativeInteger(matchFt)) {
-      return handleValidationError("matchFt must be a non-negative integer", "matchFt");
+      return handleValidationError('matchFt must be a non-negative integer', 'matchFt');
     }
     if (layout !== undefined && layout !== null && !isOverlayBroadcastLayoutInput(layout)) {
       return handleValidationError(
-        "layout must contain supported overlay slots with x=0-1920 and y=0-1080 coordinates",
-        "layout",
+        'layout must contain supported overlay slots with x=0-1920 and y=0-1080 coordinates',
+        'layout',
       );
     }
 
     /* Single query: fold slug/id resolution + existence check (#692) */
     const tournament = await resolveTournament(id, { id: true });
     if (!tournament) {
-      return createErrorResponse("Tournament not found", 404);
+      return createErrorResponse('Tournament not found', 404);
     }
     const tournamentId = tournament.id;
 
@@ -217,7 +207,7 @@ export async function PUT(
     }
 
     if (Object.keys(updateData).length === 0) {
-      return handleValidationError("At least one field is required", "body");
+      return handleValidationError('At least one field is required', 'body');
     }
 
     await prisma.tournament.update({
@@ -227,10 +217,10 @@ export async function PUT(
 
     const responseData: BroadcastUpdateResponse = {};
     if (updateData.overlayPlayer1Name !== undefined) {
-      responseData.player1Name = typeof updateData.overlayPlayer1Name === "string" ? updateData.overlayPlayer1Name : "";
+      responseData.player1Name = typeof updateData.overlayPlayer1Name === 'string' ? updateData.overlayPlayer1Name : '';
     }
     if (updateData.overlayPlayer2Name !== undefined) {
-      responseData.player2Name = typeof updateData.overlayPlayer2Name === "string" ? updateData.overlayPlayer2Name : "";
+      responseData.player2Name = typeof updateData.overlayPlayer2Name === 'string' ? updateData.overlayPlayer2Name : '';
     }
     if (updateData.overlayPlayer1NoCamera !== undefined) {
       responseData.player1NoCamera = updateData.overlayPlayer1NoCamera === true;
@@ -239,16 +229,18 @@ export async function PUT(
       responseData.player2NoCamera = updateData.overlayPlayer2NoCamera === true;
     }
     if (updateData.overlayMatchLabel !== undefined) {
-      responseData.matchLabel = typeof updateData.overlayMatchLabel === "string" ? updateData.overlayMatchLabel : null;
+      responseData.matchLabel = typeof updateData.overlayMatchLabel === 'string' ? updateData.overlayMatchLabel : null;
     }
     if (updateData.overlayPlayer1Wins !== undefined) {
-      responseData.player1Wins = typeof updateData.overlayPlayer1Wins === "number" ? updateData.overlayPlayer1Wins : null;
+      responseData.player1Wins =
+        typeof updateData.overlayPlayer1Wins === 'number' ? updateData.overlayPlayer1Wins : null;
     }
     if (updateData.overlayPlayer2Wins !== undefined) {
-      responseData.player2Wins = typeof updateData.overlayPlayer2Wins === "number" ? updateData.overlayPlayer2Wins : null;
+      responseData.player2Wins =
+        typeof updateData.overlayPlayer2Wins === 'number' ? updateData.overlayPlayer2Wins : null;
     }
     if (updateData.overlayMatchFt !== undefined) {
-      responseData.matchFt = typeof updateData.overlayMatchFt === "number" ? updateData.overlayMatchFt : null;
+      responseData.matchFt = typeof updateData.overlayMatchFt === 'number' ? updateData.overlayMatchFt : null;
     }
     if (normalizedLayout !== undefined) {
       responseData.layout = normalizedLayout;
@@ -256,7 +248,7 @@ export async function PUT(
 
     return createSuccessResponse(responseData);
   } catch (error) {
-    logger.error("Failed to update broadcast state", { error, tournamentId: id });
-    return createErrorResponse("Failed to update broadcast state", 500);
+    logger.error('Failed to update broadcast state', { error, tournamentId: id });
+    return createErrorResponse('Failed to update broadcast state', 500);
   }
 }
