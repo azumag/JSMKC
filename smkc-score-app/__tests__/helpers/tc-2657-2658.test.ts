@@ -25,7 +25,9 @@ describe('TC-2657 / TC-2658 RankCell drift matchers', () => {
 
   it.each([
     asTest(`${enterKeyDown}\nexpect(noop).toHaveBeenCalledWith('qual-zero', 0);\n${editorClosed}`),
-    asTest(`fireEvent.keyDown(input, { key: "Enter" });\nexpect(noop).toHaveBeenCalledWith("qual-zero", 0);\n${editorClosed}`),
+    asTest(
+      `fireEvent.keyDown(input, { key: "Enter" });\nexpect(noop).toHaveBeenCalledWith("qual-zero", 0);\n${editorClosed}`,
+    ),
   ])('accepts equivalent TC-2658 formatting: %s', (source) => {
     expect(hasTc2658ZeroRankSaveContract(source)).toBe(true);
   });
