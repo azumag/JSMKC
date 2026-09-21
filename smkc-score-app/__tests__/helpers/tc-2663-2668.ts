@@ -49,7 +49,12 @@ function callbackHasCall(callback: TestCallback, predicate: (call: ts.CallExpres
   return found;
 }
 
-function isScreenTextExpectation(call: ts.CallExpression, query: 'getByText' | 'queryByText', text: string, matcher: string) {
+function isScreenTextExpectation(
+  call: ts.CallExpression,
+  query: 'getByText' | 'queryByText',
+  text: string,
+  matcher: string,
+) {
   if (
     !ts.isPropertyAccessExpression(call.expression) ||
     call.expression.name.text !== matcher ||
@@ -100,8 +105,9 @@ function isPublishStateOverride(call: ts.CallExpression, property: 'isPublic' | 
 
 function hasUnpublishedStateContract(callback: TestCallback): boolean {
   return (
-    callbackHasCall(callback, (call) => isScreenTextExpectation(call, 'getByText', 'Unpublished', 'toBeInTheDocument')) &&
-    callbackHasCall(callback, (call) => isScreenTextExpectation(call, 'queryByText', 'Published', 'toBeNull'))
+    callbackHasCall(callback, (call) =>
+      isScreenTextExpectation(call, 'getByText', 'Unpublished', 'toBeInTheDocument'),
+    ) && callbackHasCall(callback, (call) => isScreenTextExpectation(call, 'queryByText', 'Published', 'toBeNull'))
   );
 }
 
@@ -177,7 +183,8 @@ function hasAccessibleStateContract(callback: TestCallback): boolean {
   });
 
   const hasAriaChecked = callbackHasCall(callback, (call) => {
-    if (!ts.isPropertyAccessExpression(call.expression) || call.expression.name.text !== 'toHaveAttribute') return false;
+    if (!ts.isPropertyAccessExpression(call.expression) || call.expression.name.text !== 'toHaveAttribute')
+      return false;
     const [attributeArgument, valueArgument] = call.arguments;
     return (
       attributeArgument !== undefined &&
