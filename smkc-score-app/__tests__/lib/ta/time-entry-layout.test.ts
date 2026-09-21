@@ -9,64 +9,64 @@ import {
   TA_TIME_INPUT_HELP_CLASS,
   getTaTimeInputProps,
   parseTvNumberInput,
-} from "@/lib/ta/time-entry-layout";
+} from '@/lib/ta/time-entry-layout';
 
-describe("TA time entry layout", () => {
-  it("stacks cup cards on mobile and restores two columns from md", () => {
-    expect(TA_TIME_ENTRY_CUP_GRID_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["grid", "grid-cols-1", "md:grid-cols-2", "gap-4"]),
+describe('TA time entry layout', () => {
+  it('stacks cup cards on mobile and restores two columns from md', () => {
+    expect(TA_TIME_ENTRY_CUP_GRID_CLASS.split(' ')).toEqual(
+      expect.arrayContaining(['grid', 'grid-cols-1', 'md:grid-cols-2', 'gap-4']),
     );
-    expect(TA_TIME_ENTRY_CUP_GRID_CLASS).not.toContain("grid-cols-2 gap-4");
+    expect(TA_TIME_ENTRY_CUP_GRID_CLASS).not.toContain('grid-cols-2 gap-4');
   });
 
-  it("uses mobile numeric keyboard hints for TA time fields", () => {
+  it('uses mobile numeric keyboard hints for TA time fields', () => {
     expect(TA_TIME_INPUT_BASE_PROPS).toEqual({
-      inputMode: "decimal",
-      pattern: "[0-9:.]*",
-      autoComplete: "off",
+      inputMode: 'decimal',
+      pattern: '[0-9:.]*',
+      autoComplete: 'off',
     });
-    expect(getTaTimeInputProps("例: 123.45 または 1:23.45")).toEqual({
+    expect(getTaTimeInputProps('例: 123.45 または 1:23.45')).toEqual({
       ...TA_TIME_INPUT_BASE_PROPS,
-      title: "例: 123.45 または 1:23.45",
+      title: '例: 123.45 または 1:23.45',
     });
-    expect(TA_TIME_INPUT_HELP_CLASS.split(" ")).toEqual(
+    expect(TA_TIME_INPUT_HELP_CLASS.split(' ')).toEqual(
       expect.arrayContaining([
-        "rounded-md",
-        "border",
-        "bg-primary/5",
-        "px-3",
-        "py-2",
-        "text-sm",
-        "font-medium",
+        'rounded-md',
+        'border',
+        'bg-primary/5',
+        'px-3',
+        'py-2',
+        'text-sm',
+        'font-medium',
       ]),
     );
   });
 
-  it("keeps TA time entry player names on their own mobile row before sm layout", () => {
-    expect(TA_TIME_ENTRY_ROW_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["space-y-2", "sm:flex", "sm:space-y-0"]),
+  it('keeps TA time entry player names on their own mobile row before sm layout', () => {
+    expect(TA_TIME_ENTRY_ROW_CLASS.split(' ')).toEqual(
+      expect.arrayContaining(['space-y-2', 'sm:flex', 'sm:space-y-0']),
     );
-    expect(TA_TIME_ENTRY_PLAYER_NAME_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["block", "truncate", "text-base", "sm:text-sm"]),
-    );
-  });
-
-  it("player-label, controls, and input constants carry expected Tailwind tokens", () => {
-    expect(TA_TIME_ENTRY_PLAYER_LABEL_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["min-w-0", "sm:flex-1"]),
-    );
-    expect(TA_TIME_ENTRY_CONTROLS_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["sm:flex", "sm:shrink-0"]),
-    );
-    expect(TA_TIME_ENTRY_INPUT_CLASS.split(" ")).toEqual(
-      expect.arrayContaining(["font-mono", "text-sm"]),
+    expect(TA_TIME_ENTRY_PLAYER_NAME_CLASS.split(' ')).toEqual(
+      expect.arrayContaining(['block', 'truncate', 'text-base', 'sm:text-sm']),
     );
   });
 
-  it("parses TV number input with explicit radix", () => {
-    expect(parseTvNumberInput("3")).toBe(3);
-    expect(parseTvNumberInput("09")).toBe(9);
-    expect(parseTvNumberInput("")).toBeNull();
-    expect(parseTvNumberInput("abc")).toBeNull();
+  it('player-label, controls, and input constants carry expected Tailwind tokens', () => {
+    expect(TA_TIME_ENTRY_PLAYER_LABEL_CLASS.split(' ')).toEqual(
+      expect.arrayContaining(['min-w-0', 'sm:flex-1']),
+    );
+    expect(TA_TIME_ENTRY_CONTROLS_CLASS.split(' ')).toEqual(
+      expect.arrayContaining(['sm:flex', 'sm:shrink-0']),
+    );
+    expect(TA_TIME_ENTRY_INPUT_CLASS.split(' ')).toEqual(
+      expect.arrayContaining(['font-mono', 'text-sm']),
+    );
+  });
+
+  it('parses TV number input with explicit radix', () => {
+    expect(parseTvNumberInput('3')).toBe(3);
+    expect(parseTvNumberInput('09')).toBe(9);
+    expect(parseTvNumberInput('')).toBeNull();
+    expect(parseTvNumberInput('abc')).toBeNull();
   });
 });
