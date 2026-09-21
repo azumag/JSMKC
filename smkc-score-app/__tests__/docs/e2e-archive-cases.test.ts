@@ -41,9 +41,17 @@ describe('archive E2E case registration', () => {
   const casesPath = path.join(process.cwd(), '..', 'E2E_TEST_CASES.md');
   const cases = fs.readFileSync(casesPath, 'utf8');
   const tcArchive = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-archive.js'), 'utf8');
-  const qualificationPlayerTransportGuard = fs.readFileSync(
-    path.join(process.cwd(), '__tests__', 'static', 'qualification-page-player-transport.test.ts'),
-    'utf8',
+  const qualificationPlayerTransportTestPath = path.join(
+    process.cwd(),
+    '__tests__',
+    'static',
+    'qualification-page-player-transport.test.ts',
+  );
+  const retiredQualificationPageDataTestPath = path.join(
+    process.cwd(),
+    '__tests__',
+    'lib',
+    'qualification-page-data.test.ts',
   );
 
   it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07', 'TC-ARC-08', 'TC-ARC-09'])(
@@ -115,7 +123,7 @@ describe('archive E2E case registration', () => {
     expect(tcArchive).toContain('TC-ARC-09  Qualification pages hydrate from mode allPlayers without global players fetches.');
     expect(tcArchive).toContain("if (kind === 'players')");
     expect(tcArchive).toContain('unexpectedPlayerRequests');
-    expect(qualificationPlayerTransportGuard).toContain("expect(source).not.toContain('/api/players')");
-    expect(qualificationPlayerTransportGuard).toContain("expect(source).not.toContain('qualification-page-data')");
+    expect(fs.existsSync(qualificationPlayerTransportTestPath)).toBe(true);
+    expect(fs.existsSync(retiredQualificationPageDataTestPath)).toBe(false);
   });
 });
