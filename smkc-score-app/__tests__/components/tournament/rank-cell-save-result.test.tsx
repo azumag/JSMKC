@@ -81,9 +81,7 @@ describe('RankCell save result contract', () => {
   it('keeps Promise<void> callbacks backward-compatible as successful clears', async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
 
-    render(
-      <RankCell qualificationId="qual-void-clear" rankOverride={4} autoRank={1} isAdmin={true} onSave={onSave} />,
-    );
+    render(<RankCell qualificationId="qual-void-clear" rankOverride={4} autoRank={1} isAdmin={true} onSave={onSave} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
 
