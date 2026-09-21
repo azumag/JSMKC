@@ -4,6 +4,7 @@ import {
   getGpFinalsTargetWins,
   getMrFinalsMaxRounds,
   getMrFinalsTargetWins,
+  parsePersistedFinalsTargetWins,
 } from '@/lib/finals-target-wins';
 
 describe('finals-target-wins', () => {
@@ -104,4 +105,21 @@ describe('finals-target-wins', () => {
       expect(getGpFinalsMaxCups(context)).toBe(3);
     },
   );
+
+  it.each([
+    [1, 1],
+    [99, 99],
+    [0, null],
+    [100, null],
+    [-1, null],
+    [1.5, null],
+    [Number.NaN, null],
+    [Number.POSITIVE_INFINITY, null],
+    [Number.MAX_SAFE_INTEGER + 1, null],
+    ['7', null],
+    [null, null],
+    [undefined, null],
+  ])('parses persisted targetWins %p as %p', (value, expected) => {
+    expect(parsePersistedFinalsTargetWins(value)).toBe(expected);
+  });
 });
