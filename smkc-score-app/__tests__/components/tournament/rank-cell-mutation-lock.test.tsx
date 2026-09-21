@@ -134,7 +134,9 @@ describe('RankCell pending mutation lock', () => {
   it('releases the lock after a rejected clear so the admin can retry', async () => {
     const onSave = jest.fn().mockRejectedValueOnce(new Error('clear failed')).mockResolvedValue(false);
 
-    render(<RankCell qualificationId="qual-clear-reject" rankOverride={5} autoRank={3} isAdmin={true} onSave={onSave} />);
+    render(
+      <RankCell qualificationId="qual-clear-reject" rankOverride={5} autoRank={3} isAdmin={true} onSave={onSave} />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
 
