@@ -68,7 +68,6 @@ import {
 } from '@/lib/constants';
 import { formatGpPosition } from '@/lib/gp-utils';
 import { compareGpQualificationEntries } from '@/lib/gp-ranking';
-import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
@@ -191,14 +190,11 @@ export default function GrandPrixPageClient({
   const fmtPos = (position: number) => formatGpPosition(position, locale, tc('gameOver'));
 
   /**
-   * Fetch tournament GP data and player list in parallel.
-   * Returns qualification standings, matches, and all registered players.
+   * Fetch GP qualification data. The response already carries the bounded player seed
+   * used by the setup dialog, so polling does not need a second player-list request.
    */
   const fetchTournamentData = useCallback(async () => {
-    const [gpResponse, playersResult] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/gp`),
-      fetchAllPlayersForSetup<Player>(),
-    ]);
+    const gpResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/gp`);
 
     if (!gpResponse.ok) {
       throw new Error(`Failed to fetch GP data: ${gpResponse.status}`);
@@ -206,7 +202,7 @@ export default function GrandPrixPageClient({
 
     const gpJson = await gpResponse.json();
     const gpData = gpJson.data ?? gpJson;
-    const allPlayers = resolveAllPlayers(playersResult, gpData.allPlayers);
+    const allPlayers: Player[] = gpData.allPlayers ?? [];
 
     return {
       qualifications: gpData.qualifications || [],

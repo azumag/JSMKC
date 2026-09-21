@@ -9,23 +9,20 @@ function readRepoFile(...parts: string[]) {
 
 describe('qualification page player transport static guard', () => {
   it.each(['bm', 'mr', 'gp'] as const)(
-    'keeps %s qualification polling free of direct global player-list transport',
+    'keeps %s qualification polling on the bounded response seed without retired player helpers',
     (mode) => {
       const source = readRepoFile('smkc-score-app', 'src', 'app', 'tournaments', '[id]', mode, 'page-client.tsx');
 
       expect(source).toContain(`/api/tournaments/\${tournamentId}/${mode}`);
       expect(source).not.toContain('/api/players');
+      expect(source).not.toContain('qualification-page-data');
+      expect(source).not.toContain('fetchAllPlayersForSetup');
+      expect(source).not.toContain('resolveAllPlayers');
     },
   );
 
-  it('keeps the temporary setup-player compatibility helper transport-free while it exists', () => {
+  it('keeps the retired qualification page compatibility helper deleted', () => {
     const helperPath = path.join(root, 'smkc-score-app', 'src', 'lib', 'qualification-page-data.ts');
-
-    if (!fs.existsSync(helperPath)) return;
-
-    const source = fs.readFileSync(helperPath, 'utf8');
-    expect(source).not.toMatch(/\bfetch\s*\(/);
-    expect(source).not.toContain('fetchWithRetry');
-    expect(source).toContain('return null;');
+    expect(fs.existsSync(helperPath)).toBe(false);
   });
 });
