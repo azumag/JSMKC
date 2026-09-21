@@ -3,7 +3,13 @@ import { readRepoFile } from '../helpers/e2e-cases';
 describe('Cloudflare build cost policy documentation', () => {
   const policy = readRepoFile('smkc-score-app', 'docs', 'cloudflare-build-cost.md');
 
-  it('pins the production trigger and intentional push suppression contract', () => {
+  it('pins the production identity and intentional push suppression contract', () => {
+    expect(policy).toContain('`b9ab93f1f71640b6965a60c646b2392b`');
+    expect(policy).toContain('`smkc`');
+    expect(policy).toContain('`37f13913c5ef48419dc2b0b8946d76ed`');
+    expect(policy).toContain('`9655dde5-b315-4557-90ca-a9ada811bfaf`');
+    expect(policy).toContain('`azumag/JSMKC`');
+    expect(policy).toContain('`main`');
     expect(policy).toContain('`smkc-score-app`');
     expect(policy).toContain('`npm run build:cf`');
     expect(policy).toContain('`npx wrangler deploy`');
@@ -14,6 +20,9 @@ describe('Cloudflare build cost policy documentation', () => {
 
   it('documents the rolling production gate without claiming a hard billing cap', () => {
     expect(policy).toContain('rolling 24-hour');
+    expect(policy).toContain('`queued`, `initializing`, or `running`');
+    expect(policy).toContain('`605d4579-b9a7-4941-a9b6-582b22b35d4d`');
+    expect(policy).toContain('single documented exception');
     expect(policy).toContain('Docs/tests-only changes do not justify a production build');
     expect(policy).toContain('Do not periodically retry a SHA that already failed in production');
     expect(policy).toContain('not a Cloudflare billing cap');
@@ -25,6 +34,14 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('Do not omit `commit_hash`');
     expect(policy).toContain('same SHA whose CI and deploy-relevant diff were just');
     expect(policy).toContain('Do not send the start request a second time');
+    expect(policy).toContain('Record the returned build UUID');
+  });
+
+  it('requires deployment reconciliation before reporting production success', () => {
+    expect(policy).toContain('not, by itself, proof that production deployment');
+    expect(policy).toContain('latest production deployment');
+    expect(policy).toContain('active version');
+    expect(policy).toContain('preserve\nthe last successful production deployment');
   });
 
   it('documents Build watch path exceptions and their safe handling', () => {
