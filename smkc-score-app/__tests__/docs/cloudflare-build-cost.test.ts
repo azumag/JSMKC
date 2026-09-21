@@ -8,6 +8,7 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('`npm run build:cf`');
     expect(policy).toContain('`npx wrangler deploy`');
     expect(policy).toContain('`path_excludes=["*"]`');
+    expect(policy).toContain('Non-production branch builds must remain disabled (`previews_enabled=false`)');
     expect(policy).toContain('not a GitHub CI failure');
   });
 
@@ -16,6 +17,13 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('Docs/tests-only changes do not justify a production build');
     expect(policy).toContain('Do not periodically retry a SHA that already failed in production');
     expect(policy).toContain('not a Cloudflare billing cap');
+  });
+
+  it('pins manual starts to the validated main SHA and forbids blind retries', () => {
+    expect(policy).toContain('{"branch":"main","commit_hash":"<verified exact main SHA>"}');
+    expect(policy).toContain('Do not omit `commit_hash`');
+    expect(policy).toContain('same SHA whose CI and deploy-relevant diff were just');
+    expect(policy).toContain('Do not send the start request a second time');
   });
 
   it('documents Build watch path exceptions and their safe handling', () => {
