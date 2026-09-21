@@ -40,6 +40,11 @@ describe('archiveCaseSection', () => {
 describe('archive E2E case registration', () => {
   const casesPath = path.join(process.cwd(), '..', 'E2E_TEST_CASES.md');
   const cases = fs.readFileSync(casesPath, 'utf8');
+  const tcArchive = fs.readFileSync(path.join(process.cwd(), 'e2e', 'tc-archive.js'), 'utf8');
+  const qualificationPlayerTransportGuard = fs.readFileSync(
+    path.join(process.cwd(), '__tests__', 'static', 'qualification-page-player-transport.test.ts'),
+    'utf8',
+  );
 
   it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07', 'TC-ARC-08', 'TC-ARC-09'])(
     'documents %s as a runnable archive script case',
@@ -99,16 +104,18 @@ describe('archive E2E case registration', () => {
     expect(section).toMatch(/smkc-archives(?!-preview)/);
   });
 
-  it('documents TC-ARC-09 as qualification page parallel fetch coverage', () => {
+  it('ties TC-ARC-09 to the bounded qualification-player transport contract', () => {
     const section = archiveCaseSection(cases, 'TC-ARC-09');
 
     expect(section).toContain('TA/BM/MR/GP');
-    expect(section).toContain('players API が必要な場合は mode API と並列');
-    expect(section).toContain('mode API 単独の `allPlayers` payload');
     expect(section).toContain('Playwright');
     expect(section).toContain('route interception');
-    expect(section).toContain('/api/players?limit=100');
     expect(section).toContain('archive fallback');
-    expect(section).toContain('smkc-score-app/__tests__/lib/qualification-page-data.test.ts');
+
+    expect(tcArchive).toContain('TC-ARC-09  Qualification pages hydrate from mode allPlayers without global players fetches.');
+    expect(tcArchive).toContain("if (kind === 'players')");
+    expect(tcArchive).toContain('unexpectedPlayerRequests');
+    expect(qualificationPlayerTransportGuard).toContain("expect(source).not.toContain('/api/players')");
+    expect(qualificationPlayerTransportGuard).toContain("expect(source).not.toContain('qualification-page-data')");
   });
 });
