@@ -22,19 +22,20 @@ describe('normalizeGpFinalsCupResults', () => {
     });
   });
 
-  it('rejects unsafe explicit points instead of persisting a precision-lost integer', () => {
+  it('rejects unsafe explicit points instead of falling back to otherwise valid races', () => {
     expect(
       normalizeGpFinalsCupResults([
         {
           cup: 'Flower',
           points1: Number.MAX_SAFE_INTEGER + 1,
           points2: 0,
+          races: [{ position1: 1, position2: 2 }],
         },
       ]),
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
-  it('rejects unsafe per-race points when no valid position fallback exists', () => {
+  it('rejects unsafe per-race points instead of falling back to a valid position', () => {
     expect(
       normalizeGpFinalsCupResults([
         {
@@ -42,6 +43,8 @@ describe('normalizeGpFinalsCupResults', () => {
             {
               points1: Number.MAX_SAFE_INTEGER + 1,
               points2: 0,
+              position1: 1,
+              position2: 2,
             },
           ],
         },
