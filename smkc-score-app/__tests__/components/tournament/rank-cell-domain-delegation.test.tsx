@@ -29,7 +29,9 @@ describe('RankCell API-owned rank domain', () => {
   it('delegates a negative safe integer instead of enforcing a client-side rank minimum', async () => {
     const onSave = jest.fn().mockResolvedValue(true);
 
-    render(<RankCell qualificationId="qual-negative" rankOverride={null} autoRank={3} isAdmin={true} onSave={onSave} />);
+    render(
+      <RankCell qualificationId="qual-negative" rankOverride={null} autoRank={3} isAdmin={true} onSave={onSave} />,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit rank' }));
     const input = screen.getByRole('spinbutton', { name: 'Rank override' });
