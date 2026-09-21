@@ -78,7 +78,17 @@ function isSwitchRoleQuery(call: ts.CallExpression): boolean {
   return roleArgument !== undefined && ts.isStringLiteralLike(roleArgument) && roleArgument.text === 'switch';
 }
 
-function callbackDeclaresSwitchIdentifier(callback: TestCallback, identifier: string): boolean {
+function isNamedSwitchRoleQuery(call: ts.CallExpression): boolean {
+  if (!isSwitchRoleQuery(call)) return false;
+  const [, optionsArgument] = call.arguments;
+  return objectHasLiteralProperty(optionsArgument, 'name', 'Battle Mode publication');
+}
+
+function callbackDeclaresQueryIdentifier(
+  callback: TestCallback,
+  identifier: string,
+  predicate: (call: ts.CallExpression) => boolean,
+): boolean {
   let found = false;
 
   function visit(node: ts.Node) {
@@ -89,7 +99,7 @@ function callbackDeclaresSwitchIdentifier(callback: TestCallback, identifier: st
       node.name.text === identifier &&
       node.initializer &&
       ts.isCallExpression(node.initializer) &&
-      isSwitchRoleQuery(node.initializer)
+      predicate(node.initializer)
     ) {
       found = true;
       return;
@@ -99,6 +109,18 @@ function callbackDeclaresSwitchIdentifier(callback: TestCallback, identifier: st
 
   visit(callback.body);
   return found;
+}
+
+function expectationTargetsQuery(
+  callback: TestCallback,
+  expectArgument: ts.Expression,
+  predicate: (call: ts.CallExpression) => boolean,
+): boolean {
+  if (ts.isCallExpression(expectArgument)) return predicate(expectArgument);
+  if (ts.isIdentifier(expectArgument)) {
+    return callbackDeclaresQueryIdentifier(callback, expectArgument.text, predicate);
+  }
+  return false;
 }
 
 function callbackHasSwitchExpectation(callback: TestCallback, matcher: string): boolean {
@@ -113,11 +135,11 @@ function callbackHasSwitchExpectation(callback: TestCallback, matcher: string): 
 
     const expectCall = call.expression.expression;
     const [expectArgument] = expectCall.arguments;
-    if (!isNamedCall(expectCall, 'expect') || !expectArgument) return false;
-
-    if (ts.isCallExpression(expectArgument)) return isSwitchRoleQuery(expectArgument);
-    if (ts.isIdentifier(expectArgument)) return callbackDeclaresSwitchIdentifier(callback, expectArgument.text);
-    return false;
+    return (
+      isNamedCall(expectCall, 'expect') &&
+      expectArgument !== undefined &&
+      expectationTargetsQuery(callback, expectArgument, isSwitchRoleQuery)
+    );
   });
 }
 
@@ -170,8 +192,7 @@ function hasToggleInvocationContract(callback: TestCallback): boolean {
   const hasClick = callbackHasCall(callback, (call) => {
     if (!ts.isPropertyAccessExpression(call.expression) || call.expression.name.text !== 'click') return false;
     const [argument] = call.arguments;
-    if (!argument || !ts.isCallExpression(argument) || !isSwitchRoleQuery(argument)) return false;
-    return true;
+    return argument !== undefined && ts.isCallExpression(argument) && isSwitchRoleQuery(argument);
   });
 
   const hasToggleAssertion = callbackHasCall(callback, (call) => {
@@ -201,22 +222,22 @@ function hasToggleInvocationContract(callback: TestCallback): boolean {
 }
 
 function hasAccessibleStateContract(callback: TestCallback): boolean {
-  const hasNamedSwitch = callbackHasCall(callback, (call) => {
-    if (!isPropertyCall(call, 'screen', 'getByRole')) return false;
-    const [roleArgument, optionsArgument] = call.arguments;
-    return (
-      roleArgument !== undefined &&
-      ts.isStringLiteralLike(roleArgument) &&
-      roleArgument.text === 'switch' &&
-      objectHasLiteralProperty(optionsArgument, 'name', 'Battle Mode publication')
-    );
-  });
-
-  const hasAriaChecked = callbackHasCall(callback, (call) => {
-    if (!ts.isPropertyAccessExpression(call.expression) || call.expression.name.text !== 'toHaveAttribute')
+  return callbackHasCall(callback, (call) => {
+    if (
+      !ts.isPropertyAccessExpression(call.expression) ||
+      call.expression.name.text !== 'toHaveAttribute' ||
+      !ts.isCallExpression(call.expression.expression)
+    ) {
       return false;
+    }
+
+    const expectCall = call.expression.expression;
+    const [expectArgument] = expectCall.arguments;
     const [attributeArgument, valueArgument] = call.arguments;
     return (
+      isNamedCall(expectCall, 'expect') &&
+      expectArgument !== undefined &&
+      expectationTargetsQuery(callback, expectArgument, isNamedSwitchRoleQuery) &&
       attributeArgument !== undefined &&
       valueArgument !== undefined &&
       ts.isStringLiteralLike(attributeArgument) &&
@@ -225,8 +246,6 @@ function hasAccessibleStateContract(callback: TestCallback): boolean {
       valueArgument.text === 'false'
     );
   });
-
-  return hasNamedSwitch && hasAriaChecked;
 }
 
 function sourceHasTestCallback(source: string, predicate: CallbackPredicate): boolean {
