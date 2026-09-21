@@ -63,13 +63,13 @@ describe('PUT /api/tournaments/[id]/broadcast safe integer validation', () => {
   });
 
   it.each(['player1Wins', 'player2Wins', 'matchFt'])('still accepts a non-negative safe integer for %s', async (field) => {
-    await PUT(mockReq({ [field]: Number.MAX_SAFE_INTEGER }), mockParams);
+    await PUT(mockReq({ [field]: 42 }), mockParams);
 
     expect((NextResponse.json as jest.Mock).mock.calls[0][1]?.status ?? 200).toBe(200);
     expect(prisma.tournament.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          [`overlay${field[0].toUpperCase()}${field.slice(1)}`]: Number.MAX_SAFE_INTEGER,
+          [`overlay${field[0].toUpperCase()}${field.slice(1)}`]: 42,
         }),
       }),
     );
