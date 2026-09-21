@@ -8,6 +8,21 @@ while production Worker builds are rate-gated to reduce paid Workers Build Minut
 ## Production trigger configuration
 
 Keep the existing `smkc` repository connection to `azumag/JSMKC` and `main`.
+The fixed production identity is:
+
+| Identity           | Required value                             |
+| ------------------ | ------------------------------------------ |
+| Account ID         | `b9ab93f1f71640b6965a60c646b2392b`       |
+| Worker             | `smkc`                                     |
+| Script tag         | `37f13913c5ef48419dc2b0b8946d76ed`       |
+| Build trigger UUID | `9655dde5-b315-4557-90ca-a9ada811bfaf`   |
+| Repository         | `azumag/JSMKC`                             |
+| Production branch  | `main`                                     |
+
+Do not substitute another account, Worker, script tag, trigger, repository, or
+branch when the expected production target cannot be read. An identity mismatch is
+a reason to stop production promotion rather than infer or repair the target.
+
 The production trigger contract is:
 
 | Setting                      | Required value        |
@@ -19,8 +34,8 @@ The production trigger contract is:
 | Root directory               | `smkc-score-app`      |
 | Build command                | `npm run build:cf`    |
 | Deploy command               | `npx wrangler deploy` |
-| Path includes                | `["*"]`               |
-| Path excludes                | `["*"]`               |
+| Path includes                | `["*"]`              |
+| Path excludes                | `["*"]`              |
 
 `path_excludes=["*"]` is intentional. It suppresses ordinary push-triggered
 production builds while keeping the `main` repository connection intact. Do not
@@ -45,6 +60,10 @@ Before starting a production build:
 1. Enforce a rolling 24-hour window across production build attempts. Success,
    failure, and cancellation all count unless a specific validation-only build is
    explicitly documented as excluded. A skipped build does not count as an attempt.
+   Do not start while any production build is `queued`, `initializing`, or `running`.
+   The cancelled validation-only build
+   `605d4579-b9a7-4941-a9b6-582b22b35d4d` is the single documented exception to the
+   attempt history; do not generalize that exclusion to other cancelled builds.
 2. Require the exact current `main` SHA and successful repository CI, including the
    production Next.js build check. Missing, failed, or still-running validation is a
    reason not to start production.
@@ -73,8 +92,15 @@ validated.
 
 An uncertain or timed-out start response must be reconciled against build history,
 not retried blindly. Do not send the start request a second time merely because the
-first response is missing or ambiguous. A failed production build leaves the last
-successful deployment in place until a new validated SHA is available.
+first response is missing or ambiguous. Record the returned build UUID when the
+start is accepted, and do not launch an additional production build or retry from
+that run.
+
+A successful Workers build is not, by itself, proof that production deployment
+succeeded. Reconcile the successful build with the latest production deployment and
+its active version before reporting production success. If the build fails, preserve
+the last successful production deployment and wait for a new validated SHA rather
+than retrying the failed SHA.
 
 This is a rolling rate/cost-control policy, not a Cloudflare billing cap and not a
 guarantee that only one build can occur in a calendar day.
