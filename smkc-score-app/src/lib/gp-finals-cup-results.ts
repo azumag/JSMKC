@@ -41,9 +41,10 @@ function sumRacePoints(races: unknown, side: 1 | 2): number | null {
   return total;
 }
 
-export function normalizeGpFinalsCupResults(
-  input: unknown,
-): { results?: Array<Record<string, unknown>>; error?: string } {
+export function normalizeGpFinalsCupResults(input: unknown): {
+  results?: Array<Record<string, unknown>>;
+  error?: string;
+} {
   if (!Array.isArray(input) || input.length === 0) {
     return { error: 'cupResults must be a non-empty array' };
   }
