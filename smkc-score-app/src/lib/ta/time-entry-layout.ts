@@ -1,14 +1,14 @@
-import type { ComponentPropsWithoutRef } from "react";
-import type { Input } from "@/components/ui/input";
+import type { ComponentPropsWithoutRef } from 'react';
+import type { Input } from '@/components/ui/input';
 
-export const TA_TIME_ENTRY_CUP_GRID_CLASS = "grid grid-cols-1 gap-4 md:grid-cols-2";
+export const TA_TIME_ENTRY_CUP_GRID_CLASS = 'grid grid-cols-1 gap-4 md:grid-cols-2';
 
 export type TaTimeInputProps = Partial<ComponentPropsWithoutRef<typeof Input>>;
 
 export const TA_TIME_INPUT_BASE_PROPS = {
-  inputMode: "decimal",
-  pattern: "[0-9:.]*",
-  autoComplete: "off",
+  inputMode: 'decimal',
+  pattern: '[0-9:.]*',
+  autoComplete: 'off',
 } as const;
 
 export function getTaTimeInputProps(title: string) {
@@ -19,11 +19,11 @@ export function getTaTimeInputProps(title: string) {
 }
 
 export const TA_TIME_INPUT_HELP_CLASS =
-  "rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium leading-relaxed text-foreground";
+  'rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm font-medium leading-relaxed text-foreground';
 
 export function parseTvNumberInput(value: string): number | null {
   const normalized = value.trim();
-  if (normalized === "") return null;
+  if (normalized === '') return null;
   if (!/^[+-]?\d+$/.test(normalized)) return null;
 
   const tvNumber = Number(normalized);
@@ -31,13 +31,13 @@ export function parseTvNumberInput(value: string): number | null {
 }
 
 export const TA_TIME_ENTRY_ROW_CLASS =
-  "rounded-md border bg-background/60 p-3 space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0 sm:border-0 sm:bg-transparent sm:p-0";
+  'rounded-md border bg-background/60 p-3 space-y-2 sm:flex sm:items-center sm:gap-2 sm:space-y-0 sm:border-0 sm:bg-transparent sm:p-0';
 
-export const TA_TIME_ENTRY_PLAYER_LABEL_CLASS = "min-w-0 sm:flex-1";
+export const TA_TIME_ENTRY_PLAYER_LABEL_CLASS = 'min-w-0 sm:flex-1';
 
-export const TA_TIME_ENTRY_PLAYER_NAME_CLASS = "block truncate text-base sm:text-sm";
+export const TA_TIME_ENTRY_PLAYER_NAME_CLASS = 'block truncate text-base sm:text-sm';
 
 export const TA_TIME_ENTRY_CONTROLS_CLASS =
-  "grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:shrink-0";
+  'grid grid-cols-[4.5rem_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:shrink-0';
 
-export const TA_TIME_ENTRY_INPUT_CLASS = "font-mono text-sm w-full sm:w-32";
+export const TA_TIME_ENTRY_INPUT_CLASS = 'font-mono text-sm w-full sm:w-32';
