@@ -8,6 +8,6 @@ describe('RankCell input constraint ownership', () => {
     expect(source).toContain('type="number"');
     expect(source).toContain('step={1}');
     expect(source).toContain('API layer owns minimum-rank validation');
-    expect(source).not.toContain('min={1}');
+    expect(source).not.toMatch(/\bmin\s*=/);
   });
 });
