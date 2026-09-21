@@ -60,7 +60,10 @@ When every gate passes, start the existing production trigger exactly once and p
 both the branch and the already-verified commit in the request payload:
 
 ```json
-{"branch":"main","commit_hash":"<verified exact main SHA>"}
+{
+  "branch": "main",
+  "commit_hash": "<verified exact main SHA>"
+}
 ```
 
 Do not omit `commit_hash`, substitute a stale SHA, or rely on Cloudflare to resolve
