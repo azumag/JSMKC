@@ -58,7 +58,7 @@ async function createCompletedPublicBmArchive(page, prefix, caseName) {
   const players = [];
   let tournamentId = null;
   try {
-    players.push(...await createPlayers(page, prefix, 4));
+    players.push(...(await createPlayers(page, prefix, 4)));
     tournamentId = await apiCreateTournament(page, `E2E ${caseName} ${Date.now()}`);
     const setup = await apiSetupBmGroup(page, tournamentId, bmAssignments(players));
     if (setup.s !== 201) throw new Error(`BM setup failed (${setup.s})`);
@@ -95,7 +95,9 @@ async function cleanupArchiveFixture(page, fixture) {
   const results = await Promise.allSettled(deletions.map((deletion) => deletion.promise));
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
-      console.warn(`[tc-archive] cleanup failed for ${deletions[index].label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      console.warn(
+        `[tc-archive] cleanup failed for ${deletions[index].label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+      );
     }
   });
 }
@@ -104,7 +106,8 @@ async function tcArc01(page) {
   const stamp = Date.now();
   try {
     const response = await apiJson(page, `/api/tournaments/missing-archive-${stamp}/archive`);
-    log('TC-ARC-01',
+    log(
+      'TC-ARC-01',
       response.status === 404 && response.body?.code === 'NOT_FOUND' ? 'PASS' : 'FAIL',
       `status=${response.status} code=${response.body?.code}`,
     );
@@ -118,7 +121,8 @@ async function tcArc02(page) {
   try {
     tournamentId = await apiCreateTournament(page, `E2E TC-ARC-02 ${Date.now()}`);
     const response = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
-    log('TC-ARC-02',
+    log(
+      'TC-ARC-02',
       response.status === 409 && response.body?.code === 'CONFLICT' ? 'PASS' : 'FAIL',
       `status=${response.status} code=${response.body?.code}`,
     );
@@ -134,7 +138,7 @@ async function tcArc03(page) {
   try {
     fixture = await createCompletedPublicBmArchive(page, 'TCARC03', 'TC-ARC-03');
     const { tournamentId, post, get, archive } = fixture;
-    const ok = (
+    const ok =
       post.status === 200 &&
       get.status === 200 &&
       archive?.archived === true &&
@@ -142,11 +146,13 @@ async function tcArc03(page) {
       Array.isArray(archive?.tournament?.publicModes) &&
       archive.tournament.publicModes.includes('bm') &&
       Array.isArray(archive?.modes?.bm?.matches) &&
-      Array.isArray(archive?.overallRanking?.rankings)
-    );
+      Array.isArray(archive?.overallRanking?.rankings);
 
-    log('TC-ARC-03', ok ? 'PASS' : 'FAIL',
-      `post=${post.status} get=${get.status} publicModes=${archive?.tournament?.publicModes?.join(',') || ''}`);
+    log(
+      'TC-ARC-03',
+      ok ? 'PASS' : 'FAIL',
+      `post=${post.status} get=${get.status} publicModes=${archive?.tournament?.publicModes?.join(',') || ''}`,
+    );
   } catch (error) {
     log('TC-ARC-03', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -159,7 +165,7 @@ async function tcArc06(page) {
   try {
     fixture = await createCompletedPublicBmArchive(page, 'TCARC06', 'TC-ARC-06');
     const archivedMatch = fixture.archive?.modes?.bm?.matches?.[0];
-    const typedMatchOk = (
+    const typedMatchOk =
       fixture.get.status === 200 &&
       archivedMatch?.stage === 'qualification' &&
       archivedMatch?.score1 === 3 &&
@@ -167,10 +173,12 @@ async function tcArc06(page) {
       typeof archivedMatch?.player1?.id === 'string' &&
       typeof archivedMatch?.player2?.id === 'string' &&
       typeof archivedMatch?.player1?.name === 'string' &&
-      typeof archivedMatch?.player2?.nickname === 'string'
+      typeof archivedMatch?.player2?.nickname === 'string';
+    log(
+      'TC-ARC-06',
+      typedMatchOk ? 'PASS' : 'FAIL',
+      `stage=${archivedMatch?.stage || ''} score=${archivedMatch?.score1}-${archivedMatch?.score2} p1=${archivedMatch?.player1?.id || ''} p2=${archivedMatch?.player2?.id || ''}`,
     );
-    log('TC-ARC-06', typedMatchOk ? 'PASS' : 'FAIL',
-      `stage=${archivedMatch?.stage || ''} score=${archivedMatch?.score1}-${archivedMatch?.score2} p1=${archivedMatch?.player1?.id || ''} p2=${archivedMatch?.player2?.id || ''}`);
   } catch (error) {
     log('TC-ARC-06', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -189,18 +197,20 @@ async function tcArc08(page) {
     const second = await apiJson(page, `/api/tournaments/${secondFixture.tournamentId}/archive`);
     const firstId = first.body?.data?.tournament?.id;
     const secondId = second.body?.data?.tournament?.id;
-    const ok = (
+    const ok =
       first.status === 200 &&
       second.status === 200 &&
       first.body?.data?.archived === true &&
       second.body?.data?.archived === true &&
       firstId === firstFixture.tournamentId &&
       secondId === secondFixture.tournamentId &&
-      firstId !== secondId
-    );
+      firstId !== secondId;
 
-    log('TC-ARC-08', ok ? 'PASS' : 'FAIL',
-      `first=${first.status}:${firstId || ''} second=${second.status}:${secondId || ''}`);
+    log(
+      'TC-ARC-08',
+      ok ? 'PASS' : 'FAIL',
+      `first=${first.status}:${firstId || ''} second=${second.status}:${secondId || ''}`,
+    );
   } catch (error) {
     log('TC-ARC-08', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -228,16 +238,18 @@ async function tcArc07(page) {
     tournamentDeleted = true;
     const response = await apiJson(page, `/api/tournaments/${tournamentId}/ta`);
 
-    const ok = (
+    const ok =
       post.status === 200 &&
       response.status === 200 &&
       response.body?.data?.archived === true &&
       Array.isArray(response.body?.data?.entries) &&
       Array.isArray(response.body?.data?.courses) &&
-      Array.isArray(response.body?.data?.allPlayers)
+      Array.isArray(response.body?.data?.allPlayers);
+    log(
+      'TC-ARC-07',
+      ok ? 'PASS' : 'FAIL',
+      `post=${post.status} get=${response.status} archived=${response.body?.data?.archived}`,
     );
-    log('TC-ARC-07', ok ? 'PASS' : 'FAIL',
-      `post=${post.status} get=${response.status} archived=${response.body?.data?.archived}`);
   } catch (error) {
     log('TC-ARC-07', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -262,7 +274,8 @@ async function tcArc04(page) {
 
     const post = await apiJson(page, `/api/tournaments/${tournamentId}/archive`, { method: 'POST' });
     const response = await apiJson(page, `/api/tournaments/${tournamentId}/archive`);
-    log('TC-ARC-04',
+    log(
+      'TC-ARC-04',
       post.status === 200 && response.status === 403 && response.body?.code === 'FORBIDDEN' ? 'PASS' : 'FAIL',
       `post=${post.status} get=${response.status} code=${response.body?.code}`,
     );
@@ -300,12 +313,16 @@ function requestKindForQualificationFetch(url, tournamentId, mode) {
 }
 
 async function waitForQualificationPageHydration(page) {
-  await page.waitForFunction(() => {
-    const text = document.body.innerText;
-    return text.length > 0 && !text.includes('Failed to fetch') && !text.includes('再試行');
-  }, null, {
-    timeout: QUALIFICATION_FETCH_TIMEOUT_MS,
-  });
+  await page.waitForFunction(
+    () => {
+      const text = document.body.innerText;
+      return text.length > 0 && !text.includes('Failed to fetch') && !text.includes('再試行');
+    },
+    null,
+    {
+      timeout: QUALIFICATION_FETCH_TIMEOUT_MS,
+    },
+  );
 }
 
 async function assertQualificationFetchesStartInParallel(page, tournamentId, mode) {
@@ -376,8 +393,13 @@ async function tcArc09(page) {
       modeRequests[mode] = await assertQualificationFetchesStartInParallel(page, tournamentId, mode);
     }
 
-    log('TC-ARC-09', 'PASS',
-      `Modes hydrated without global player registry fetches (${Object.entries(modeRequests).map(([mode, count]) => `${mode}:${count}`).join(' ')})`);
+    log(
+      'TC-ARC-09',
+      'PASS',
+      `Modes hydrated without global player registry fetches (${Object.entries(modeRequests)
+        .map(([mode, count]) => `${mode}:${count}`)
+        .join(' ')})`,
+    );
   } catch (error) {
     log('TC-ARC-09', 'FAIL', error instanceof Error ? error.message : String(error));
   } finally {
@@ -417,7 +439,7 @@ async function main() {
       headless: process.env.E2E_HEADLESS === '1',
       viewport: { width: 1280, height: 720 },
     });
-    const page = browser.pages()[0] || await browser.newPage();
+    const page = browser.pages()[0] || (await browser.newPage());
     page.setDefaultTimeout(envMs('E2E_ACTION_TIMEOUT_MS', 30 * 1000));
     page.setDefaultNavigationTimeout(envMs('E2E_NAV_TIMEOUT_MS', 30 * 1000));
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
