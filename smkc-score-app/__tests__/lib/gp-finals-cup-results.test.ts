@@ -89,7 +89,7 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
-  it.each([-1, 9, Number.MAX_SAFE_INTEGER])('rejects out-of-range derived race position %s', (position1) => {
+  it.each([-1, 9, 1.5, Number.MAX_SAFE_INTEGER + 1])('rejects invalid derived race position %s', (position1) => {
     expect(
       normalizeGpFinalsCupResults([
         {
