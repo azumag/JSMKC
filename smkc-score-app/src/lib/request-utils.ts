@@ -146,8 +146,11 @@ export async function getServerSideIdentifier(): Promise<string> {
   } catch (error) {
     // headers() can throw if called outside a request context
     // (e.g., during static generation). Return 'unknown' to be safe.
+    // Do not persist raw error messages here: framework/runtime errors can
+    // include request data or internal details that are irrelevant to this
+    // low-severity diagnostic path.
     logger.debug('Failed to get server-side identifier', {
-      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'UnknownError',
     });
     return 'unknown';
   }

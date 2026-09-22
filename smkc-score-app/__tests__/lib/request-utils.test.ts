@@ -7,6 +7,7 @@
  * - blank identifier headers fall through instead of becoming empty keys
  * - x-forwarded-for extracts only the first IP in a comma-separated list
  * - server-side identifier resolution follows the same normalization contract
+ * - server-side identifier failures do not log raw error messages
  * - Falls back to 'unknown' when no usable header is present
  * - getUserAgent trims values and maps absent/blank headers to 'unknown'
  *
@@ -20,11 +21,18 @@
 jest.unmock('@/lib/request-utils');
 // getServerSideIdentifier uses next/headers; mock it to avoid import errors
 jest.mock('next/headers', () => ({ headers: jest.fn() }));
-jest.mock('@/lib/logger', () => ({ createLogger: () => ({ debug: jest.fn(), error: jest.fn() }) }));
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({ debug: jest.fn(), error: jest.fn() })),
+}));
 
 import { getClientIdentifier, getServerSideIdentifier, getUserAgent } from '@/lib/request-utils';
 
 const nextHeadersMock = jest.requireMock('next/headers') as { headers: jest.Mock };
+const loggerModuleMock = jest.requireMock('@/lib/logger') as { createLogger: jest.Mock };
+const requestUtilsLogger = loggerModuleMock.createLogger.mock.results[0].value as {
+  debug: jest.Mock;
+  error: jest.Mock;
+};
 
 function makeHeaderReader(entries: Record<string, string>) {
   // Lowercase all keys so that case-insensitive lookup in the impl always matches.
@@ -98,6 +106,7 @@ describe('getClientIdentifier', () => {
 describe('getServerSideIdentifier', () => {
   beforeEach(() => {
     nextHeadersMock.headers.mockReset();
+    requestUtilsLogger.debug.mockClear();
   });
 
   it('uses the same blank-header fallback and trimming as getClientIdentifier', async () => {
@@ -116,6 +125,16 @@ describe('getServerSideIdentifier', () => {
     nextHeadersMock.headers.mockResolvedValue(makeHeaderReader({ 'x-forwarded-for': ' , 13.14.15.16' }));
 
     await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+  });
+
+  it('returns unknown without logging a raw headers error message', async () => {
+    nextHeadersMock.headers.mockRejectedValue(new Error('request token=super-secret'));
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+    expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
+      errorName: 'Error',
+    });
+    expect(JSON.stringify(requestUtilsLogger.debug.mock.calls)).not.toContain('super-secret');
   });
 });
 
