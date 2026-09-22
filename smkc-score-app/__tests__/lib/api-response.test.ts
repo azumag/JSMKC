@@ -20,17 +20,14 @@ describe('extractArrayDataOrNull', () => {
     expect(extractArrayDataOrNull({ success, data: { data: [{ id: '1' }], meta: {} } })).toBeNull();
   });
 
-  it.each([false, null, 'true', 1, undefined])(
-    'rejects nested wrappers with malformed success flag: %p',
-    (success) => {
-      expect(
-        extractArrayDataOrNull({
-          success: true,
-          data: { success, data: [{ id: '1' }], meta: {} },
-        }),
-      ).toBeNull();
-    },
-  );
+  it.each([false, null, 'true', 1, undefined])('rejects nested wrappers with malformed success flag: %p', (success) => {
+    expect(
+      extractArrayDataOrNull({
+        success: true,
+        data: { success, data: [{ id: '1' }], meta: {} },
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('extractArrayData', () => {
