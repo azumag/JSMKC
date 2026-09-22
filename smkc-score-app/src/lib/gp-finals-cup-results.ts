@@ -64,7 +64,11 @@ export function normalizeGpFinalsCupResults(input: unknown): {
     }
 
     const fallbackCup = CUPS[index % CUPS.length];
-    const cup = typeof raw.cup === 'string' && raw.cup.length > 0 ? raw.cup : fallbackCup;
+    const hasExplicitCup = raw.cup !== undefined;
+    if (hasExplicitCup && (typeof raw.cup !== 'string' || !CUPS.includes(raw.cup as (typeof CUPS)[number]))) {
+      return { error: `cupResults[${index}].cup must be a valid cup` };
+    }
+    const cup = hasExplicitCup ? (raw.cup as (typeof CUPS)[number]) : fallbackCup;
     const racePoints1 = sumRacePoints(raw.races, 1);
     const racePoints2 = sumRacePoints(raw.races, 2);
     const points1 = isNonNegativeSafeInteger(raw.points1) ? raw.points1 : racePoints1;
