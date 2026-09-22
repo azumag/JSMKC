@@ -11,16 +11,25 @@
 
 /** Minimal entry shape required for pair computation */
 export interface PairPlayer {
-  id: string;       // entry id
+  id: string; // entry id
   playerId: string;
   seeding: number | null; // lower = stronger; null = unranked (placed last)
+}
+
+/**
+ * Keep auto-pairing aligned with the TA API contract: persisted seedings are
+ * finite non-negative integers. Malformed imported/local values are treated as
+ * unranked instead of being allowed to return NaN from the sort comparator.
+ */
+function isValidSeeding(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 /**
  * Compute balanced pairs using snake pairing by seeding.
  *
  * Algorithm (§3.1):
- *   1. Sort entries by seeding ascending (null → last, treated as Infinity)
+ *   1. Sort entries by seeding ascending (null/malformed → last, treated as Infinity)
  *   2. Pair sorted[0]+sorted[N-1], sorted[1]+sorted[N-2], ...
  *
  * This minimises the average skill gap across all pairs.
@@ -31,8 +40,8 @@ export interface PairPlayer {
  */
 export function computeAutoPairs<T extends PairPlayer>(players: T[]): Array<[T, T]> {
   const sorted = [...players].sort((a, b) => {
-    const sa = a.seeding ?? Infinity;
-    const sb = b.seeding ?? Infinity;
+    const sa = isValidSeeding(a.seeding) ? a.seeding : Infinity;
+    const sb = isValidSeeding(b.seeding) ? b.seeding : Infinity;
     // Secondary sort by playerId ensures deterministic output when seeding is equal
     return sa - sb || a.playerId.localeCompare(b.playerId);
   });
@@ -46,10 +55,11 @@ export function computeAutoPairs<T extends PairPlayer>(players: T[]): Array<[T, 
 
 /**
  * Apply snake-pair computation over setup-dialog entries and return an updated
- * list with `partnerId` set for every entry that has a numeric seeding.
+ * list with `partnerId` set for every entry that has a valid numeric seeding.
  *
- * Entries without a seeding keep their existing `partnerId` untouched so that
- * manual assignments for unranked rows survive a seeding edit elsewhere.
+ * Entries without a valid seeding keep their existing `partnerId` untouched so
+ * that manual assignments for unranked or malformed rows survive a seeding edit
+ * elsewhere.
  */
 export interface SetupEntryLike {
   playerId: string;
@@ -59,7 +69,7 @@ export interface SetupEntryLike {
 
 export function applyAutoPairsToSetup<T extends SetupEntryLike>(entries: T[]): T[] {
   const seeded = entries
-    .filter((e) => typeof e.seeding === "number")
+    .filter((e) => isValidSeeding(e.seeding))
     .map((e) => ({ id: e.playerId, playerId: e.playerId, seeding: e.seeding ?? null }));
   const partnerMap = new Map<string, string>();
   for (const [a, b] of computeAutoPairs(seeded)) {
@@ -67,8 +77,6 @@ export function applyAutoPairsToSetup<T extends SetupEntryLike>(entries: T[]): T
     partnerMap.set(b.playerId, a.playerId);
   }
   return entries.map((e) =>
-    typeof e.seeding === "number"
-      ? { ...e, partnerId: partnerMap.get(e.playerId) ?? null }
-      : e,
+    isValidSeeding(e.seeding) ? { ...e, partnerId: partnerMap.get(e.playerId) ?? null } : e,
   );
 }
