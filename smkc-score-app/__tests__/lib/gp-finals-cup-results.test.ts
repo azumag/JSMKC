@@ -108,6 +108,19 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, '15', null])(
+    'rejects malformed explicit per-race points %p instead of falling back to a valid position',
+    (points1) => {
+      expect(
+        normalizeGpFinalsCupResults([
+          {
+            races: [{ points1, points2: 0, position1: 1, position2: 2 }],
+          },
+        ]),
+      ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
+    },
+  );
+
   it('rejects a race-points sum that exceeds the safe integer range', () => {
     expect(
       normalizeGpFinalsCupResults([
