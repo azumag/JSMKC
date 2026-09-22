@@ -60,7 +60,12 @@ export function normalizeGpFinalsCupResults(input: unknown): {
       return { error: `cupResults[${index}] must be an object` };
     }
 
-    if (isUnsafeInteger(raw.points1) || isUnsafeInteger(raw.points2)) {
+    const hasExplicitPoints1 = raw.points1 !== undefined;
+    const hasExplicitPoints2 = raw.points2 !== undefined;
+    if (
+      (hasExplicitPoints1 && !isNonNegativeSafeInteger(raw.points1)) ||
+      (hasExplicitPoints2 && !isNonNegativeSafeInteger(raw.points2))
+    ) {
       return { error: `cupResults[${index}] requires non-negative integer points` };
     }
 
@@ -72,8 +77,8 @@ export function normalizeGpFinalsCupResults(input: unknown): {
     const cup = hasExplicitCup ? (raw.cup as (typeof CUPS)[number]) : fallbackCup;
     const racePoints1 = sumRacePoints(raw.races, 1);
     const racePoints2 = sumRacePoints(raw.races, 2);
-    const points1 = isNonNegativeSafeInteger(raw.points1) ? raw.points1 : racePoints1;
-    const points2 = isNonNegativeSafeInteger(raw.points2) ? raw.points2 : racePoints2;
+    const points1 = hasExplicitPoints1 ? (raw.points1 as number) : racePoints1;
+    const points2 = hasExplicitPoints2 ? (raw.points2 as number) : racePoints2;
 
     if (
       points1 === null ||
