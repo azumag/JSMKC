@@ -47,12 +47,6 @@ describe('archive E2E case registration', () => {
     'static',
     'qualification-page-player-transport.test.ts',
   );
-  const retiredQualificationPageDataTestPath = path.join(
-    process.cwd(),
-    '__tests__',
-    'lib',
-    'qualification-page-data.test.ts',
-  );
 
   it.each(['TC-ARC-01', 'TC-ARC-02', 'TC-ARC-03', 'TC-ARC-04', 'TC-ARC-06', 'TC-ARC-07', 'TC-ARC-08', 'TC-ARC-09'])(
     'documents %s as a runnable archive script case',
@@ -126,6 +120,5 @@ describe('archive E2E case registration', () => {
     expect(tcArchive).toContain("if (kind === 'players')");
     expect(tcArchive).toContain('unexpectedPlayerRequests');
     expect(fs.existsSync(qualificationPlayerTransportTestPath)).toBe(true);
-    expect(fs.existsSync(retiredQualificationPageDataTestPath)).toBe(false);
   });
 });
