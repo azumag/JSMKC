@@ -7,7 +7,7 @@
  * - blank identifier headers fall through instead of becoming empty keys
  * - x-forwarded-for extracts only the first IP in a comma-separated list
  * - server-side identifier resolution follows the same normalization contract
- * - server-side identifier failures do not log raw error messages
+ * - server-side identifier failures do not log raw error messages or custom error names
  * - Falls back to 'unknown' when no usable header is present
  * - getUserAgent trims values and maps absent/blank headers to 'unknown'
  *
@@ -133,6 +133,27 @@ describe('getServerSideIdentifier', () => {
     await expect(getServerSideIdentifier()).resolves.toBe('unknown');
     expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
       errorName: 'Error',
+    });
+    expect(JSON.stringify(requestUtilsLogger.debug.mock.calls)).not.toContain('super-secret');
+  });
+
+  it('retains a safe standard error classification', async () => {
+    nextHeadersMock.headers.mockRejectedValue(new TypeError('invalid headers context'));
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+    expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
+      errorName: 'TypeError',
+    });
+  });
+
+  it('normalizes a custom Error.name instead of logging it verbatim', async () => {
+    const error = new Error('request headers unavailable');
+    error.name = 'SecretError-token=super-secret';
+    nextHeadersMock.headers.mockRejectedValue(error);
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+    expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
+      errorName: 'UnknownError',
     });
     expect(JSON.stringify(requestUtilsLogger.debug.mock.calls)).not.toContain('super-secret');
   });

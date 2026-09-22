@@ -27,6 +27,16 @@ import { createLogger } from '@/lib/logger';
 /** Logger scoped to request utilities */
 const logger = createLogger('request-utils');
 
+const SAFE_ERROR_NAMES = new Set([
+  'Error',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+]);
+
 function normalizeIdentifierHeader(value: string | null): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
@@ -35,6 +45,11 @@ function normalizeIdentifierHeader(value: string | null): string | null {
 function getForwardedClientIdentifier(value: string | null): string | null {
   if (!value) return null;
   return normalizeIdentifierHeader(value.split(',')[0] ?? null);
+}
+
+function getSafeErrorName(error: unknown): string {
+  if (!(error instanceof Error)) return 'UnknownError';
+  return SAFE_ERROR_NAMES.has(error.name) ? error.name : 'UnknownError';
 }
 
 // ============================================================
@@ -146,11 +161,11 @@ export async function getServerSideIdentifier(): Promise<string> {
   } catch (error) {
     // headers() can throw if called outside a request context
     // (e.g., during static generation). Return 'unknown' to be safe.
-    // Do not persist raw error messages here: framework/runtime errors can
-    // include request data or internal details that are irrelevant to this
-    // low-severity diagnostic path.
+    // Do not persist raw error messages or arbitrary custom error names here:
+    // framework/runtime errors can include request data or internal details that
+    // are irrelevant to this low-severity diagnostic path.
     logger.debug('Failed to get server-side identifier', {
-      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorName: getSafeErrorName(error),
     });
     return 'unknown';
   }
