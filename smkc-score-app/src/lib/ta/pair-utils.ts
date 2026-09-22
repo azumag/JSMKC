@@ -76,7 +76,5 @@ export function applyAutoPairsToSetup<T extends SetupEntryLike>(entries: T[]): T
     partnerMap.set(a.playerId, b.playerId);
     partnerMap.set(b.playerId, a.playerId);
   }
-  return entries.map((e) =>
-    isValidSeeding(e.seeding) ? { ...e, partnerId: partnerMap.get(e.playerId) ?? null } : e,
-  );
+  return entries.map((e) => (isValidSeeding(e.seeding) ? { ...e, partnerId: partnerMap.get(e.playerId) ?? null } : e));
 }
