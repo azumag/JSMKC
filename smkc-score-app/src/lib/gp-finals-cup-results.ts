@@ -65,10 +65,7 @@ export function normalizeGpFinalsCupResults(input: unknown): {
 
     const fallbackCup = CUPS[index % CUPS.length];
     const hasExplicitCup = raw.cup !== undefined;
-    if (
-      hasExplicitCup &&
-      (typeof raw.cup !== 'string' || !CUPS.includes(raw.cup as (typeof CUPS)[number]))
-    ) {
+    if (hasExplicitCup && (typeof raw.cup !== 'string' || !CUPS.includes(raw.cup as (typeof CUPS)[number]))) {
       return { error: `cupResults[${index}].cup must be a valid cup` };
     }
     const cup = hasExplicitCup ? (raw.cup as (typeof CUPS)[number]) : fallbackCup;
