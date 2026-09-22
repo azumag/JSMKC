@@ -151,29 +151,26 @@ export function computeCurrentPhaseFormat(input: ComputeCurrentPhaseInput): stri
 
   if (latestFinalsRound && latestFinalsMode) {
     if (latestFinalsMode === 'bm') {
-      const targetWins =
-        latestFinalsTargetWins ??
-        getBmFinalsTargetWins({
-          round: latestFinalsRound,
-          stage: latestFinalsStage,
-        });
+      const targetWins = getBmFinalsTargetWins({
+        round: latestFinalsRound,
+        stage: latestFinalsStage,
+        targetWins: latestFinalsTargetWins,
+      });
       return `First to ${targetWins}`;
     }
     if (latestFinalsMode === 'mr') {
-      const targetWins =
-        latestFinalsTargetWins ??
-        getMrFinalsTargetWins({
-          round: latestFinalsRound,
-          stage: latestFinalsStage,
-        });
-      return `First to ${targetWins}`;
-    }
-    const targetWins =
-      latestFinalsTargetWins ??
-      getGpFinalsTargetWins({
+      const targetWins = getMrFinalsTargetWins({
         round: latestFinalsRound,
         stage: latestFinalsStage,
+        targetWins: latestFinalsTargetWins,
       });
+      return `First to ${targetWins}`;
+    }
+    const targetWins = getGpFinalsTargetWins({
+      round: latestFinalsRound,
+      stage: latestFinalsStage,
+      targetWins: latestFinalsTargetWins,
+    });
     return `First to ${targetWins}`;
   }
 
