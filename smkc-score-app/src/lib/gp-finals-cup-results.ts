@@ -60,6 +60,11 @@ export function normalizeGpFinalsCupResults(input: unknown): {
       return { error: `cupResults[${index}] must be an object` };
     }
 
+    const hasExplicitRaces = raw.races !== undefined;
+    if (hasExplicitRaces && !Array.isArray(raw.races)) {
+      return { error: `cupResults[${index}].races must be an array` };
+    }
+
     const hasExplicitPoints1 = raw.points1 !== undefined;
     const hasExplicitPoints2 = raw.points2 !== undefined;
     if (

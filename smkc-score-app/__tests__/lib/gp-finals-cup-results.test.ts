@@ -46,6 +46,22 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0].cup must be a valid cup' });
   });
 
+  it.each([{ unexpected: true }, 'not-an-array', null])(
+    'rejects malformed explicit races %p even when explicit points are valid',
+    (races) => {
+      expect(
+        normalizeGpFinalsCupResults([
+          {
+            cup: 'Mushroom',
+            points1: 45,
+            points2: 36,
+            races,
+          },
+        ]),
+      ).toEqual({ error: 'cupResults[0].races must be an array' });
+    },
+  );
+
   it('rejects unsafe explicit points instead of falling back to otherwise valid races', () => {
     expect(
       normalizeGpFinalsCupResults([
