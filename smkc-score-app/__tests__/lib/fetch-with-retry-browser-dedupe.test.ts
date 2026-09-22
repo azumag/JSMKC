@@ -1,14 +1,11 @@
 import { fetchWithRetry } from '@/lib/fetch-with-retry';
 
 function makeFetchResponse(): Response {
-  const body = new Uint8Array([123, 125]).buffer;
-  return {
+  return new Response(new Uint8Array([123, 125]), {
     status: 200,
     statusText: 'OK',
-    ok: true,
-    headers: new Headers({ 'content-type': 'application/json' }),
-    arrayBuffer: jest.fn(async () => body),
-  } as unknown as Response;
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 function deferred<T>() {
@@ -60,6 +57,48 @@ describe('fetchWithRetry browser GET dedupe', () => {
     expect(firstResponse.status).toBe(200);
     expect(secondResponse.status).toBe(200);
     expect(firstResponse).not.toBe(secondResponse);
+  });
+
+  it('preserves fetch-owned response metadata for every deduped caller', async () => {
+    const pending = deferred<Response>();
+    fetchSpy.mockReturnValue(pending.promise);
+
+    const upstream = makeFetchResponse();
+    const metadata = {
+      url: 'http://localhost/api/final-destination',
+      redirected: true,
+      type: 'basic' as ResponseType,
+    };
+    Object.defineProperties(upstream, {
+      url: { configurable: true, value: metadata.url },
+      redirected: { configurable: true, value: metadata.redirected },
+      type: { configurable: true, value: metadata.type },
+    });
+    const nativeClone = upstream.clone.bind(upstream);
+    const cloneSpy = jest.spyOn(upstream, 'clone').mockImplementation(() => {
+      const clone = nativeClone();
+      Object.defineProperties(clone, {
+        url: { configurable: true, value: metadata.url },
+        redirected: { configurable: true, value: metadata.redirected },
+        type: { configurable: true, value: metadata.type },
+      });
+      return clone;
+    });
+
+    const first = fetchWithRetry('/api/redirected-dedupe');
+    const second = fetchWithRetry('/api/redirected-dedupe');
+
+    pending.resolve(upstream);
+    const [firstResponse, secondResponse] = await Promise.all([first, second]);
+
+    expect(cloneSpy).toHaveBeenCalledTimes(2);
+    expect(firstResponse).not.toBe(secondResponse);
+    expect(firstResponse.url).toBe(metadata.url);
+    expect(secondResponse.url).toBe(metadata.url);
+    expect(firstResponse.redirected).toBe(true);
+    expect(secondResponse.redirected).toBe(true);
+    expect(firstResponse.type).toBe('basic');
+    expect(secondResponse.type).toBe('basic');
   });
 
   it.each([204, 205, 304])('preserves bodyless HTTP %i responses for concurrent callers', async (status) => {
