@@ -160,6 +160,20 @@ describe('extractPaginationMeta', () => {
     expect(extractPaginationMeta({ success: true, data: { data: [], meta: invalidMeta } })).toBeNull();
   });
 
+  it('rejects pagination limits above the server maximum even when metadata arithmetic is consistent', () => {
+    const oversizedLimit = { total: 202, page: 1, limit: 101, totalPages: 2 };
+
+    expect(extractPaginationMeta({ data: [], meta: oversizedLimit })).toBeNull();
+    expect(extractPaginationMeta({ success: true, data: { data: [], meta: oversizedLimit } })).toBeNull();
+  });
+
+  it('accepts the server maximum pagination limit', () => {
+    const maxLimit = { total: 200, page: 1, limit: 100, totalPages: 2 };
+
+    expect(extractPaginationMeta({ data: [], meta: maxLimit })).toEqual(maxLimit);
+    expect(extractPaginationMeta({ success: true, data: { data: [], meta: maxLimit } })).toEqual(maxLimit);
+  });
+
   it.each([
     { ...meta, totalPages: 2 },
     { ...meta, totalPages: 4 },
