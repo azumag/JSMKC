@@ -1,4 +1,5 @@
 import { CUPS, DRIVER_POINTS } from '@/lib/constants';
+import { validateGPRacePosition } from '@/lib/score-validation';
 
 type GpCupResultInput = {
   cup?: unknown;
@@ -34,8 +35,8 @@ function sumRacePoints(races: unknown, side: 1 | 2): number | null {
     }
 
     const position = entry[side === 1 ? 'position1' : 'position2'];
-    if (!Number.isInteger(position)) return null;
-    total += DRIVER_POINTS[Number(position)] ?? 0;
+    if (typeof position !== 'number' || !validateGPRacePosition(position).isValid) return null;
+    total += DRIVER_POINTS[position] ?? 0;
   }
 
   return total;
