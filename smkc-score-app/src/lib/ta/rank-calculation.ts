@@ -19,14 +19,14 @@
  * This module is called after every time entry update to keep rankings current.
  */
 
-import { COURSES } from "@/lib/constants";
+import { COURSES } from '@/lib/constants';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
-import { timeToMs } from "@/lib/ta/time-utils";
-import { calculateAllCourseScores } from "@/lib/ta/qualification-scoring";
-import { PrismaClient } from "@prisma/client";
+import { timeToMs } from '@/lib/ta/time-utils';
+import { calculateAllCourseScores } from '@/lib/ta/qualification-scoring';
+import { PrismaClient } from '@prisma/client';
 // Prisma.sql was removed from the Prisma namespace stub in v6; sqltag is the underlying
 // tagged template implementation exported from the runtime library.
-import { sqltag as sql } from "@prisma/client/runtime/library";
+import { sqltag as sql } from '@prisma/client/runtime/library';
 
 /**
  * Represents a tournament entry with its calculated total time and scoring data.
@@ -138,11 +138,14 @@ export function calculateEntryTotal(entry: {
  * @returns New sorted array of entries
  */
 export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWithTotal[] {
-  if (stage === "revival_1" || stage === "revival_2") {
+  if (stage === 'revival_1' || stage === 'revival_2') {
     // Revival rounds: filter to entries with valid times, sort by fastest
     return entries
       .filter((e) => e.totalTime !== null)
-      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
+      .sort((a, b) => {
+        const timeDifference = (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
+        return timeDifference !== 0 ? timeDifference : a.id.localeCompare(b.id);
+      });
   } else {
     // Qualification: sort by qualification points descending, then total time ascending
     // All entries are included (even those with 0 points) so they appear in standings
@@ -188,8 +191,8 @@ export function assignRanks(sortedEntries: EntryWithTotal[]): Map<string, number
  */
 export async function recalculateRanks(
   tournamentId: string,
-  stage: string = "qualification",
-  prisma: PrismaClient
+  stage: string = 'qualification',
+  prisma: PrismaClient,
 ): Promise<void> {
   // Fetch all entries for this tournament stage including player data
   const entries = await prisma.tTEntry.findMany({
@@ -198,7 +201,14 @@ export async function recalculateRanks(
   });
 
   // Calculate total time for each entry from individual course times
-  const typedEntries = entries as Array<{ id: string; times: unknown; lives: number; eliminated: boolean; stage: string; playerId: string }>;
+  const typedEntries = entries as Array<{
+    id: string;
+    times: unknown;
+    lives: number;
+    eliminated: boolean;
+    stage: string;
+    playerId: string;
+  }>;
   const entriesWithTotal = typedEntries.map((entry) =>
     calculateEntryTotal({
       times: entry.times as Record<string, string> | null,
@@ -206,11 +216,11 @@ export async function recalculateRanks(
       eliminated: entry.eliminated,
       id: entry.id,
       stage: entry.stage,
-    })
+    }),
   );
 
   // For qualification stage: calculate per-course scores and total qualification points
-  if (stage === "qualification") {
+  if (stage === 'qualification') {
     const scoringEntries = typedEntries.map((entry) => ({
       id: entry.id,
       times: entry.times as Record<string, string> | null,
@@ -242,7 +252,7 @@ export async function recalculateRanks(
     qualificationPoints: entry.qualificationPoints,
   }));
 
-  if (stage === "qualification") {
+  if (stage === 'qualification') {
     await prisma.$executeRaw`
       WITH updates AS (
         SELECT
@@ -288,12 +298,8 @@ export async function recalculateRanks(
  * keeps the delete path to a single D1 statement instead of repeatedly
  * rewriting every calculated field in small parameter-limited batches.
  */
-export async function rerankStageAfterDelete(
-  tournamentId: string,
-  stage: string,
-  prisma: PrismaClient
-): Promise<void> {
-  if (stage === "revival_1" || stage === "revival_2") {
+export async function rerankStageAfterDelete(tournamentId: string, stage: string, prisma: PrismaClient): Promise<void> {
+  if (stage === 'revival_1' || stage === 'revival_2') {
     await prisma.$executeRaw`
       WITH ranked AS (
         SELECT
