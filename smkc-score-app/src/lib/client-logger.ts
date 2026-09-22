@@ -53,11 +53,7 @@ const createTestLogger = (_serviceName: string) => {
  * @returns Logger object with error, warn, info, and debug methods
  */
 export const createLogger = (options: LoggerOptions) => {
-  const {
-    serviceName,
-    enableServerAggregation = false,
-    serverEndpoint = '/api/client-errors'
-  } = options;
+  const { serviceName, enableServerAggregation = false, serverEndpoint = '/api/client-errors' } = options;
 
   // Return silent test logger in test environment to avoid noise
   if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') {
@@ -82,7 +78,7 @@ export const createLogger = (options: LoggerOptions) => {
       await fetch(serverEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: serializeMeta({
           level,
           serviceName,
           message,
@@ -94,7 +90,7 @@ export const createLogger = (options: LoggerOptions) => {
           },
         }),
         keepalive: true,
-      }).catch(err => {
+      }).catch((err) => {
         // Prevent error aggregation errors from causing infinite loops
         console.warn('[client-logger] Failed to send error to server:', err);
       });
