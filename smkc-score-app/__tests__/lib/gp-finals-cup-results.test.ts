@@ -59,6 +59,22 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, '45', null])(
+    'rejects malformed explicit points %p instead of deriving over them',
+    (points1) => {
+      expect(
+        normalizeGpFinalsCupResults([
+          {
+            cup: 'Flower',
+            points1,
+            points2: 0,
+            races: [{ position1: 1, position2: 2 }],
+          },
+        ]),
+      ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
+    },
+  );
+
   it('rejects unsafe per-race points instead of falling back to a valid position', () => {
     expect(
       normalizeGpFinalsCupResults([
