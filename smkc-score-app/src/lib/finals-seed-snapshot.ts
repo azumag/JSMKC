@@ -80,16 +80,12 @@ export function isCompleteFinalsSeedSnapshot(value: unknown): value is FinalsSee
   if (entrantCount !== 8 && entrantCount !== 16 && entrantCount !== 24) return false;
 
   const playerIds = new Set(entries.map((entry) => entry.playerId));
-  const structuralSeeds = new Set(entries.map((entry) => entry.seed));
   const originalSeeds = new Set(entries.map((entry) => entry.originalSeed));
   return (
     playerIds.size === entrantCount &&
-    structuralSeeds.size === entrantCount &&
     originalSeeds.size === entrantCount &&
-    Array.from(
-      { length: entrantCount },
-      (_, index) => structuralSeeds.has(index + 1) && originalSeeds.has(index + 1),
-    ).every(Boolean)
+    entries.every((entry) => entry.seed <= entrantCount) &&
+    Array.from({ length: entrantCount }, (_, index) => originalSeeds.has(index + 1)).every(Boolean)
   );
 }
 
