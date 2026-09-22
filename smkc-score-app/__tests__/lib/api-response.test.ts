@@ -19,6 +19,15 @@ describe('extractArrayDataOrNull', () => {
     expect(extractArrayDataOrNull({ success, data: [{ id: '1' }] })).toBeNull();
     expect(extractArrayDataOrNull({ success, data: { data: [{ id: '1' }], meta: {} } })).toBeNull();
   });
+
+  it.each([false, null, 'true', 1, undefined])('rejects nested wrappers with malformed success flag: %p', (success) => {
+    expect(
+      extractArrayDataOrNull({
+        success: true,
+        data: { success, data: [{ id: '1' }], meta: {} },
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('extractArrayData', () => {
@@ -112,6 +121,18 @@ describe('extractPaginationMeta', () => {
     (success) => {
       expect(extractPaginationMeta({ success, data: [], meta })).toBeNull();
       expect(extractPaginationMeta({ success, data: { data: [], meta } })).toBeNull();
+    },
+  );
+
+  it.each([false, null, 'true', 1, undefined])(
+    'rejects nested pagination wrappers with malformed success flag: %p',
+    (success) => {
+      expect(
+        extractPaginationMeta({
+          success: true,
+          data: { success, data: [], meta },
+        }),
+      ).toBeNull();
     },
   );
 
