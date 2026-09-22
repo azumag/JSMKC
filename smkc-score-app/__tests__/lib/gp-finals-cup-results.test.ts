@@ -89,6 +89,36 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
+  it.each([-1, 9, Number.MAX_SAFE_INTEGER])('rejects out-of-range derived race position %s', (position1) => {
+    expect(
+      normalizeGpFinalsCupResults([
+        {
+          races: [{ position1, position2: 1 }],
+        },
+      ]),
+    ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
+  });
+
+  it('preserves legal legacy game-over and eighth-place positions', () => {
+    expect(
+      normalizeGpFinalsCupResults([
+        {
+          races: [{ position1: 0, position2: 8 }],
+        },
+      ]),
+    ).toEqual({
+      results: [
+        {
+          cup: 'Mushroom',
+          points1: 0,
+          points2: 0,
+          winner: null,
+          races: [{ position1: 0, position2: 8 }],
+        },
+      ],
+    });
+  });
+
   it('keeps deriving points from race positions when explicit points are absent', () => {
     expect(
       normalizeGpFinalsCupResults([
