@@ -80,11 +80,11 @@ export function timeToMs(time: string): number | null {
  * Example: 83456ms -> "1:23.46"
  *
  * @param ms - Milliseconds to convert
- * @returns Formatted time string, or "-" if input is null
+ * @returns Formatted time string, or "-" if input is missing or invalid
  */
 export function msToDisplayTime(ms: number | null): string {
-  // Return dash for null values (no time recorded)
-  if (ms === null) return '-';
+  // Fail closed for missing, non-finite, or negative persisted/display values.
+  if (ms === null || !Number.isFinite(ms) || ms < 0) return '-';
 
   const roundedCentiseconds = Math.round(ms / 10);
   const totalSeconds = Math.floor(roundedCentiseconds / 100);
