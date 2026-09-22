@@ -30,6 +30,7 @@
  */
 
 import type { Phase3Rules } from './battle-royale';
+import { TA_ROUND_LIFE_LOSS_MAX, TA_ROUND_LIFE_LOSS_MIN } from './battle-royale-constants';
 import { orderResultsWithSuddenDeathChain } from './sudden-death-order';
 
 export type Phase3LifeRules = Pick<Phase3Rules, 'initialLives'>;
@@ -109,6 +110,24 @@ function orderRoundResults(round: Phase3RoundLike): Phase3RoundResultLike[] {
   return orderResultsWithSuddenDeathChain([...round.results], resolvedSuddenDeathResults);
 }
 
+/**
+ * Persisted/imported rounds may predate current validation or be malformed.
+ * Replay accepts only the same bounded integer contract as the write path and
+ * otherwise uses the historical default of one life, avoiding NaN propagation
+ * or accidental life gains from invalid negative values.
+ */
+function replayLifeLoss(value: number | null | undefined): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < TA_ROUND_LIFE_LOSS_MIN ||
+    value > TA_ROUND_LIFE_LOSS_MAX
+  ) {
+    return TA_ROUND_LIFE_LOSS_MIN;
+  }
+  return value;
+}
+
 export function replayPhase3Lives(
   rounds: readonly Phase3RoundLike[],
   playerIds: Iterable<string>,
@@ -180,7 +199,7 @@ export function replayPhase3Lives(
     const ordered = orderRoundResults(round);
     const bottomHalf = ordered.slice(Math.ceil(ordered.length / 2));
     const lostThisRound = new Set<string>();
-    const lifeLoss = typeof round.lifeLoss === 'number' ? round.lifeLoss : 1;
+    const lifeLoss = replayLifeLoss(round.lifeLoss);
     for (const result of bottomHalf) {
       // A player already eliminated in an earlier round can still appear in
       // this round's results (e.g. a stale/duplicate submission); they have
