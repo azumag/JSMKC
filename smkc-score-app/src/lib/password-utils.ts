@@ -66,8 +66,13 @@ export const READABLE_PASSWORD_CHARSET =
  *
  * @param length - Desired password length (default: 12 characters)
  * @returns A random password string of the specified length
+ * @throws RangeError when length is not a positive safe integer
  */
 export function generateSecurePassword(length: number = 12): string {
+  if (!Number.isSafeInteger(length) || length <= 0) {
+    throw new RangeError('Password length must be a positive safe integer');
+  }
+
   // Use the Web Crypto API for cryptographically secure randomness.
   // globalThis.crypto is available in browsers, Node.js, and
   // Cloudflare Workers, unlike the Node-specific crypto module import.
