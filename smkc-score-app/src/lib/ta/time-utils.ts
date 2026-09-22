@@ -236,8 +236,20 @@ export function validateRequiredCourses(times: Record<string, string> | null, re
  * doesn't match the fastest-first convention used everywhere else in the
  * UI (issue: TA finals sudden-death round history not sorted by time).
  *
+ * Malformed persisted/imported times are kept for visibility but sorted after
+ * finite non-negative times so they cannot disturb the fastest-first order.
  * Returns a new array — the input is never mutated.
  */
 export function sortResultsByTime<T extends { timeMs: number }>(results: T[]): T[] {
-  return [...results].sort((a, b) => a.timeMs - b.timeMs);
+  const isSortableTime = (timeMs: number) => Number.isFinite(timeMs) && timeMs >= 0;
+
+  return [...results].sort((a, b) => {
+    const aIsSortable = isSortableTime(a.timeMs);
+    const bIsSortable = isSortableTime(b.timeMs);
+
+    if (aIsSortable && bIsSortable) return a.timeMs - b.timeMs;
+    if (aIsSortable) return -1;
+    if (bIsSortable) return 1;
+    return 0;
+  });
 }
