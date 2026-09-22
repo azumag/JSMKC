@@ -30,15 +30,19 @@ export async function resolveTournamentId(identifier: string): Promise<string> {
       select: { id: true },
     });
 
-    return tournament?.id ?? identifier;
+    if (tournament?.id) return tournament.id;
   } catch {
-    // On DB error, validate identifier format before returning it.
-    // Invalid identifiers could indicate injection attempts or malformed input.
-    if (!isValidTournamentSlug(identifier)) {
-      throw new Error(`Invalid tournament identifier: ${identifier}`);
-    }
-    return identifier;
+    // A database read failure may still fall back to a validated identifier so
+    // callers retain the existing degraded-mode behavior.
   }
+
+  // Whether the lookup missed normally or failed, never pass a malformed raw
+  // identifier downstream. CUID-style ids, canonical slugs, and UUID-format
+  // ids all satisfy the same validator used by the previous DB-error fallback.
+  if (!isValidTournamentSlug(identifier)) {
+    throw new Error(`Invalid tournament identifier: ${identifier}`);
+  }
+  return identifier;
 }
 
 export function getTournamentUrlIdentifier(tournament: { id: string; slug?: string | null }): string {
