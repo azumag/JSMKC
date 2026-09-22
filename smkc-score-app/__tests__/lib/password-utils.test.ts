@@ -7,12 +7,7 @@
  * letters, digits, and special characters.
  */
 import { describe, it, expect } from '@jest/globals';
-import {
-  generateSecurePassword,
-  hashPassword,
-  READABLE_PASSWORD_CHARSET,
-  verifyPassword,
-} from '@/lib/password-utils';
+import { generateSecurePassword, hashPassword, READABLE_PASSWORD_CHARSET, verifyPassword } from '@/lib/password-utils';
 import bcrypt from 'bcryptjs';
 
 const EXPECTED_READABLE_PASSWORD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
@@ -35,6 +30,14 @@ describe('Password Utilities', () => {
       const password = generateSecurePassword(1);
       expect(password).toHaveLength(1);
       expect(typeof password).toBe('string');
+    });
+
+    it('should reject non-positive or non-safe-integer lengths', () => {
+      const invalidLengths = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1];
+
+      for (const length of invalidLengths) {
+        expect(() => generateSecurePassword(length)).toThrow(RangeError);
+      }
     });
 
     it('should match the intended readable character set exactly', () => {

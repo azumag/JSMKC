@@ -273,6 +273,26 @@ describe('TA Time Utils', () => {
       expect(sortResultsByTime(results).map((r) => r.playerId)).toEqual(['p2', 'p3', 'p1']);
     });
 
+    it('should keep malformed timeMs values after valid results without disturbing valid order', () => {
+      const results = [
+        { playerId: 'nan', timeMs: Number.NaN },
+        { playerId: 'slow', timeMs: 90000 },
+        { playerId: 'negative', timeMs: -1 },
+        { playerId: 'fast', timeMs: 50000 },
+        { playerId: 'infinity', timeMs: Number.POSITIVE_INFINITY },
+        { playerId: 'negative-infinity', timeMs: Number.NEGATIVE_INFINITY },
+      ];
+
+      expect(sortResultsByTime(results).map((r) => r.playerId)).toEqual([
+        'fast',
+        'slow',
+        'nan',
+        'negative',
+        'infinity',
+        'negative-infinity',
+      ]);
+    });
+
     it('should not mutate the input array', () => {
       const results = [
         { playerId: 'p1', timeMs: 90000 },

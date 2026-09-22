@@ -41,7 +41,7 @@ export function extractArrayDataOrNull<T>(payload: unknown): T[] | null {
     return data as T[];
   }
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== 'object' || hasInvalidSuccessFlag(data)) {
     return null;
   }
 
@@ -68,12 +68,18 @@ export interface PaginationMeta {
   totalPages: number;
 }
 
+const MAX_PAGINATION_LIMIT = 100;
+
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1;
+}
+
+function isValidPaginationLimit(value: unknown): value is number {
+  return isPositiveInteger(value) && value <= MAX_PAGINATION_LIMIT;
 }
 
 function isPaginationMeta(value: unknown): value is PaginationMeta {
@@ -86,7 +92,7 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
   if (
     !isNonNegativeInteger(meta.total) ||
     !isPositiveInteger(meta.page) ||
-    !isPositiveInteger(meta.limit) ||
+    !isValidPaginationLimit(meta.limit) ||
     !isPositiveInteger(meta.totalPages)
   ) {
     return false;
@@ -103,11 +109,11 @@ function isPaginationMeta(value: unknown): value is PaginationMeta {
 
 /**
  * Extracts pagination metadata from supported paginated API response shapes.
- * Metadata is accepted only when all numeric fields are safe integers and
- * `totalPages` is consistent with the server pagination contract
- * (`Math.ceil(total / limit) || 1`). An out-of-range current `page` remains
- * valid so callers can clamp it to the final page. Wrappers that explicitly
- * provide `success` must use `success: true`.
+ * Metadata is accepted only when all numeric fields are safe integers, `limit`
+ * matches the server-side 1..100 contract, and `totalPages` is consistent with
+ * the server pagination contract (`Math.ceil(total / limit) || 1`). An
+ * out-of-range current `page` remains valid so callers can clamp it to the final
+ * page. Wrappers that explicitly provide `success` must use `success: true`.
  *
  * Metadata must be colocated with the array shape it describes. This prevents
  * malformed mixed wrappers from pairing a nested data array with unrelated
@@ -129,7 +135,7 @@ export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
     return isPaginationMeta(directMeta) ? directMeta : null;
   }
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== 'object' || hasInvalidSuccessFlag(data)) {
     return null;
   }
 

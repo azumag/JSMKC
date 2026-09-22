@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { parsePersistedFinalsTargetWins } from '@/lib/finals-target-wins';
 
 type RoundMatch = {
   id: string;
@@ -31,16 +32,12 @@ export function FinalsRoundSettings({
   const pendingRoundMatches = matches.filter(
     (candidate) => candidate.stage === match.stage && candidate.round === match.round && !candidate.completed,
   );
-  const activeTargetWins =
-    pendingRoundMatches.find(
-      (candidate): candidate is RoundMatch & { targetWins: number } =>
-        typeof candidate.targetWins === 'number' && candidate.targetWins > 0,
-    )?.targetWins ?? effectiveTargetWins;
-  const pendingFormats = new Set(
-    pendingRoundMatches
-      .map((candidate) => candidate.targetWins)
-      .filter((value): value is number => typeof value === 'number' && value > 0),
+  const normalizedPendingTargetWins = pendingRoundMatches.map((candidate) =>
+    parsePersistedFinalsTargetWins(candidate.targetWins),
   );
+  const activeTargetWins =
+    normalizedPendingTargetWins.find((value): value is number => value !== null) ?? effectiveTargetWins;
+  const pendingFormats = new Set(normalizedPendingTargetWins.filter((value): value is number => value !== null));
   const [targetWins, setTargetWins] = useState(String(activeTargetWins));
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);

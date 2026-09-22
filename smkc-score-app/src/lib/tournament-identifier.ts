@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import prisma from '@/lib/prisma';
 
 export const TOURNAMENT_SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -11,10 +11,10 @@ const UUID_REGEX = /^[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}
 export function normalizeTournamentSlug(slug: unknown): string | null | undefined {
   if (slug === undefined) return undefined;
   if (slug === null) return null;
-  if (typeof slug !== "string") return undefined;
+  if (typeof slug !== 'string') return undefined;
 
   const normalized = slug.trim().toLowerCase();
-  return normalized === "" ? null : normalized;
+  return normalized === '' ? null : normalized;
 }
 
 export function isValidTournamentSlug(slug: string): boolean {
@@ -30,19 +30,24 @@ export async function resolveTournamentId(identifier: string): Promise<string> {
       select: { id: true },
     });
 
-    return tournament?.id ?? identifier;
+    if (tournament?.id) return tournament.id;
   } catch {
-    // On DB error, validate identifier format before returning it.
-    // Invalid identifiers could indicate injection attempts or malformed input.
-    if (!isValidTournamentSlug(identifier)) {
-      throw new Error(`Invalid tournament identifier: ${identifier}`);
-    }
-    return identifier;
+    // A database read failure may still fall back to a validated identifier so
+    // callers retain the existing degraded-mode behavior.
   }
+
+  // Whether the lookup missed normally or failed, never pass a malformed raw
+  // identifier downstream. CUID-style ids, canonical slugs, and UUID-format
+  // ids all satisfy the same validator used by the previous DB-error fallback.
+  if (!isValidTournamentSlug(identifier)) {
+    throw new Error(`Invalid tournament identifier: ${identifier}`);
+  }
+  return identifier;
 }
 
 export function getTournamentUrlIdentifier(tournament: { id: string; slug?: string | null }): string {
-  return tournament.slug || tournament.id;
+  const slug = tournament.slug;
+  return typeof slug === 'string' && isValidTournamentSlug(slug) ? slug : tournament.id;
 }
 
 /**
@@ -62,14 +67,11 @@ export function getTournamentUrlIdentifier(tournament: { id: string; slug?: stri
  * 404 or fall back to the raw identifier.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export async function resolveTournament(
-  identifier: string,
-  select: Record<string, boolean>,
-): Promise<any | null> {
+export async function resolveTournament(identifier: string, select: Record<string, boolean>): Promise<any | null> {
   // The select must include `id` so the caller can keep using the resolved
   // id for downstream queries — but we don't override the caller's intent
   // when they've already opted in.
-  const finalSelect = ('id' in select ? select : { ...select, id: true });
+  const finalSelect = 'id' in select ? select : { ...select, id: true };
   const tournament = await prisma.tournament.findFirst({
     where: { OR: [{ id: identifier }, { slug: identifier }] },
     select: finalSelect,

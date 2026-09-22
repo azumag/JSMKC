@@ -80,11 +80,11 @@ export function timeToMs(time: string): number | null {
  * Example: 83456ms -> "1:23.46"
  *
  * @param ms - Milliseconds to convert
- * @returns Formatted time string, or "-" if input is null
+ * @returns Formatted time string, or "-" if input is missing or invalid
  */
 export function msToDisplayTime(ms: number | null): string {
-  // Return dash for null values (no time recorded)
-  if (ms === null) return '-';
+  // Fail closed for missing, non-finite, or negative persisted/display values.
+  if (ms === null || !Number.isFinite(ms) || ms < 0) return '-';
 
   const roundedCentiseconds = Math.round(ms / 10);
   const totalSeconds = Math.floor(roundedCentiseconds / 100);
@@ -236,8 +236,20 @@ export function validateRequiredCourses(times: Record<string, string> | null, re
  * doesn't match the fastest-first convention used everywhere else in the
  * UI (issue: TA finals sudden-death round history not sorted by time).
  *
+ * Malformed persisted/imported times are kept for visibility but sorted after
+ * finite non-negative times so they cannot disturb the fastest-first order.
  * Returns a new array — the input is never mutated.
  */
 export function sortResultsByTime<T extends { timeMs: number }>(results: T[]): T[] {
-  return [...results].sort((a, b) => a.timeMs - b.timeMs);
+  const isSortableTime = (timeMs: number) => Number.isFinite(timeMs) && timeMs >= 0;
+
+  return [...results].sort((a, b) => {
+    const aIsSortable = isSortableTime(a.timeMs);
+    const bIsSortable = isSortableTime(b.timeMs);
+
+    if (aIsSortable && bIsSortable) return a.timeMs - b.timeMs;
+    if (aIsSortable) return -1;
+    if (bIsSortable) return 1;
+    return 0;
+  });
 }

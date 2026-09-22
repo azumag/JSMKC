@@ -15,7 +15,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,6 +83,21 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
   const [inputError, setInputError] = useState(false);
   // Unexpected rejected callbacks show a safe localized error; API failures normally return false instead.
   const [saveError, setSaveError] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  // State alone is not a sufficient re-entry lock because two events can run before React commits a render.
+  const mutationPendingRef = useRef(false);
+
+  const beginMutation = () => {
+    if (mutationPendingRef.current) return false;
+    mutationPendingRef.current = true;
+    setIsSaving(true);
+    return true;
+  };
+
+  const finishMutation = () => {
+    mutationPendingRef.current = false;
+    setIsSaving(false);
+  };
 
   const openEdit = () => {
     setInputValue(rankOverride?.toString() ?? '');
@@ -98,6 +113,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
       setInputError(true);
       return;
     }
+    if (!beginMutation()) return;
 
     setInputError(false);
     try {
@@ -112,12 +128,16 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         action: 'save',
       });
       setSaveError(true);
+    } finally {
+      finishMutation();
     }
   };
 
   const commitClear = async () => {
     setInputError(false);
     setSaveError(false);
+    if (!beginMutation()) return;
+
     try {
       const saved = await onSave(qualificationId, null);
       if (saved !== false) setIsEditing(false);
@@ -128,6 +148,8 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         action: 'clear',
       });
       setSaveError(true);
+    } finally {
+      finishMutation();
     }
   };
 
@@ -138,17 +160,18 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
         <div className="flex items-center gap-1">
           <Input
             type="number"
-            min={1}
             step={1}
             value={inputValue}
             aria-label={tRankCell('rankInput')}
             aria-invalid={inputError || undefined}
+            disabled={isSaving}
             onChange={(e) => {
               setInputValue(e.target.value);
               setInputError(false);
             }}
             className="w-14 h-7 text-center text-sm p-1"
             onKeyDown={(e) => {
+              if (isSaving) return;
               if (e.key === 'Enter') commitSave();
               if (e.key === 'Escape') setIsEditing(false);
             }}
@@ -160,6 +183,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
             className="h-7 px-1 text-xs"
             onClick={commitSave}
             aria-label={tRankCell('saveRank')}
+            disabled={isSaving}
           >
             ✓
           </Button>
@@ -171,6 +195,7 @@ export function RankCell({ qualificationId, rankOverride, autoRank, isAdmin, onS
               className="h-7 px-1 text-xs text-destructive"
               onClick={commitClear}
               aria-label={tRankCell('clearRankOverride')}
+              disabled={isSaving}
             >
               ✕
             </Button>

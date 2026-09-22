@@ -19,6 +19,15 @@ describe('extractArrayDataOrNull', () => {
     expect(extractArrayDataOrNull({ success, data: [{ id: '1' }] })).toBeNull();
     expect(extractArrayDataOrNull({ success, data: { data: [{ id: '1' }], meta: {} } })).toBeNull();
   });
+
+  it.each([false, null, 'true', 1, undefined])('rejects nested wrappers with malformed success flag: %p', (success) => {
+    expect(
+      extractArrayDataOrNull({
+        success: true,
+        data: { success, data: [{ id: '1' }], meta: {} },
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('extractArrayData', () => {
@@ -115,6 +124,18 @@ describe('extractPaginationMeta', () => {
     },
   );
 
+  it.each([false, null, 'true', 1, undefined])(
+    'rejects nested pagination wrappers with malformed success flag: %p',
+    (success) => {
+      expect(
+        extractPaginationMeta({
+          success: true,
+          data: { success, data: [], meta },
+        }),
+      ).toBeNull();
+    },
+  );
+
   it('falls back to null when pagination metadata is missing', () => {
     expect(extractPaginationMeta([{ id: '1' }])).toBeNull();
     expect(extractPaginationMeta({ success: true, data: [{ id: '1' }] })).toBeNull();
@@ -137,6 +158,20 @@ describe('extractPaginationMeta', () => {
   ])('rejects invalid numeric pagination metadata: %p', (invalidMeta) => {
     expect(extractPaginationMeta({ data: [], meta: invalidMeta })).toBeNull();
     expect(extractPaginationMeta({ success: true, data: { data: [], meta: invalidMeta } })).toBeNull();
+  });
+
+  it('rejects pagination limits above the server maximum even when metadata arithmetic is consistent', () => {
+    const oversizedLimit = { total: 202, page: 1, limit: 101, totalPages: 2 };
+
+    expect(extractPaginationMeta({ data: [], meta: oversizedLimit })).toBeNull();
+    expect(extractPaginationMeta({ success: true, data: { data: [], meta: oversizedLimit } })).toBeNull();
+  });
+
+  it('accepts the server maximum pagination limit', () => {
+    const maxLimit = { total: 200, page: 1, limit: 100, totalPages: 2 };
+
+    expect(extractPaginationMeta({ data: [], meta: maxLimit })).toEqual(maxLimit);
+    expect(extractPaginationMeta({ success: true, data: { data: [], meta: maxLimit } })).toEqual(maxLimit);
   });
 
   it.each([

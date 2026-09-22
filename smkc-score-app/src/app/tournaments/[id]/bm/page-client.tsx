@@ -16,7 +16,7 @@
  * - Loading skeleton for initial page load
  *
  * Data flow:
- * - Fetches BM qualification data + all players via usePolling hook
+ * - Fetches BM qualification data via usePolling; the response carries a bounded allPlayers seed
  * - Standings are displayed per-group, sorted by score then point differential
  * - Matches show completion status and allow score entry/editing
  */
@@ -61,7 +61,6 @@ import {
   findUnresolvedTies,
 } from '@/lib/ranking-utils';
 import { POLLING_INTERVAL, TV_NUMBER_OPTIONS } from '@/lib/constants';
-import { fetchAllPlayersForSetup, resolveAllPlayers } from '@/lib/qualification-page-data';
 import { usePolling } from '@/lib/hooks/usePolling';
 import type { QualInitialData } from '@/lib/api-factories/qual-initial-data';
 import { useQualificationActions } from '@/lib/hooks/useQualificationActions';
@@ -160,14 +159,11 @@ export default function BattleModePageClient({
   const [tvOverrides, setTvOverrides] = useState<Record<string, number | null>>({});
 
   /**
-   * Fetch both BM qualification data and all players in parallel.
-   * This is the polling function called at the standard interval for live updates.
+   * Fetch BM qualification data. The response already carries the bounded player seed
+   * used by the setup dialog, so polling does not need a second player-list request.
    */
   const fetchTournamentData = useCallback(async () => {
-    const [bmResponse, playersResult] = await Promise.all([
-      fetchWithRetry(`/api/tournaments/${tournamentId}/bm`),
-      fetchAllPlayersForSetup<Player>(),
-    ]);
+    const bmResponse = await fetchWithRetry(`/api/tournaments/${tournamentId}/bm`);
 
     if (!bmResponse.ok) {
       throw new Error(`Failed to fetch BM data: ${bmResponse.status}`);
@@ -175,7 +171,7 @@ export default function BattleModePageClient({
 
     const bmJson = await bmResponse.json();
     const bmData = bmJson.data ?? bmJson;
-    const allPlayers = resolveAllPlayers(playersResult, bmData.allPlayers);
+    const allPlayers: Player[] = bmData.allPlayers ?? [];
 
     return {
       qualifications: bmData.qualifications || [],

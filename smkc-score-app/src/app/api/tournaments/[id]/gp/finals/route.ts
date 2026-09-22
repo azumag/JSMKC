@@ -7,85 +7,9 @@
 
 import { withApiTiming } from '@/lib/perf/api-timing';
 import { createFinalsHandlers } from '@/lib/api-factories/finals-route';
+import { normalizeGpFinalsCupResults } from '@/lib/gp-finals-cup-results';
 import { getGpFinalsTargetWins } from '@/lib/finals-target-wins';
-import { CUPS, DRIVER_POINTS } from '@/lib/constants';
 import { gpQualificationOrderBy } from '@/lib/gp-ranking';
-
-type GpCupResultInput = {
-  cup?: unknown;
-  points1?: unknown;
-  points2?: unknown;
-  races?: unknown;
-};
-
-// GP finals normally resolves within a few FT2/FT3 cups; 20 leaves generous
-// headroom for tied cups while rejecting malformed oversized payloads early.
-const MAX_GP_CUP_RESULTS = 20;
-
-function sumRacePoints(races: unknown, side: 1 | 2): number | null {
-  if (!Array.isArray(races)) return null;
-  let total = 0;
-  for (const race of races) {
-    if (!race || typeof race !== 'object') return null;
-    const entry = race as Record<string, unknown>;
-    const existing = entry[side === 1 ? 'points1' : 'points2'];
-    if (Number.isInteger(existing) && Number(existing) >= 0) {
-      total += Number(existing);
-      continue;
-    }
-    const position = entry[side === 1 ? 'position1' : 'position2'];
-    if (!Number.isInteger(position)) return null;
-    total += DRIVER_POINTS[Number(position)] ?? 0;
-  }
-  return total;
-}
-
-function normalizeCupResults(input: unknown): { results?: Array<Record<string, unknown>>; error?: string } {
-  if (!Array.isArray(input) || input.length === 0) {
-    return { error: 'cupResults must be a non-empty array' };
-  }
-  if (input.length > MAX_GP_CUP_RESULTS) {
-    return { error: `cupResults must not exceed ${MAX_GP_CUP_RESULTS} entries` };
-  }
-
-  const results: Array<Record<string, unknown>> = [];
-  for (let index = 0; index < input.length; index++) {
-    const raw = input[index] as GpCupResultInput;
-    if (!raw || typeof raw !== 'object') {
-      return { error: `cupResults[${index}] must be an object` };
-    }
-
-    const fallbackCup = CUPS[index % CUPS.length];
-    const cup = typeof raw.cup === 'string' && raw.cup.length > 0 ? raw.cup : fallbackCup;
-    const racePoints1 = sumRacePoints(raw.races, 1);
-    const racePoints2 = sumRacePoints(raw.races, 2);
-    const points1 = Number.isInteger(raw.points1) && Number(raw.points1) >= 0 ? Number(raw.points1) : racePoints1;
-    const points2 = Number.isInteger(raw.points2) && Number(raw.points2) >= 0 ? Number(raw.points2) : racePoints2;
-
-    if (
-      points1 === null ||
-      points2 === null ||
-      !Number.isInteger(points1) ||
-      !Number.isInteger(points2) ||
-      points1 < 0 ||
-      points2 < 0
-    ) {
-      return { error: `cupResults[${index}] requires non-negative integer points` };
-    }
-    const p1 = points1;
-    const p2 = points2;
-
-    results.push({
-      cup,
-      points1: p1,
-      points2: p2,
-      winner: p1 > p2 ? 1 : p2 > p1 ? 2 : null,
-      ...(Array.isArray(raw.races) ? { races: raw.races } : {}),
-    });
-  }
-
-  return { results };
-}
 
 const {
   GET: _GET,
@@ -118,7 +42,7 @@ const {
     });
 
     if (body.cupResults !== undefined) {
-      const normalized = normalizeCupResults(body.cupResults);
+      const normalized = normalizeGpFinalsCupResults(body.cupResults);
       if (normalized.error || !normalized.results) {
         return { error: normalized.error ?? 'Invalid cupResults', field: 'cupResults' };
       }

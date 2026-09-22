@@ -85,10 +85,10 @@ export interface PaginationOptions {
  * Processes and validates pagination options into safe query parameters.
  *
  * Applies defaults and constraints:
- * - Page defaults to 1, minimum is 1 (no zero or negative pages)
+ * - Page defaults to 1, minimum is 1, and must remain a safe integer
  * - Limit defaults to 50, minimum is 1, maximum is 100
  * - Non-finite values fall back to their defaults
- * - Unsafe offsets fall back to the first page
+ * - Unsafe pages or offsets fall back to the first page
  * - Calculates the `skip` value for Prisma's offset-based pagination
  *
  * The maximum limit of 100 prevents clients from requesting excessive
@@ -121,7 +121,8 @@ export function getPaginationParams(options?: PaginationOptions): {
 
   // Fail closed to the documented defaults for non-finite values before
   // flooring/clamping. This prevents Infinity from reaching Prisma as skip/take.
-  const normalizedPage = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  const flooredPage = Number.isFinite(parsedPage) ? Math.max(1, Math.floor(parsedPage)) : 1;
+  const normalizedPage = Number.isSafeInteger(flooredPage) ? flooredPage : 1;
   const limit = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, Math.floor(parsedLimit))) : 50;
 
   // Prisma offsets must remain safe finite integers. Extremely large but finite

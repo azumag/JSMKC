@@ -1,12 +1,15 @@
 /**
- * Tests for request-utils: getClientIdentifier and getUserAgent.
+ * Tests for request-utils client identifiers and user agent handling.
  *
  * Covers:
  * - CF header takes priority over x-real-ip and x-forwarded-for
  * - x-real-ip takes priority over x-forwarded-for
- * - x-forwarded-for extracts first IP in comma-separated list
- * - Falls back to 'unknown' when no header is present
- * - getUserAgent returns header value or 'unknown'
+ * - blank identifier headers fall through instead of becoming empty keys
+ * - x-forwarded-for extracts only the first IP in a comma-separated list
+ * - server-side identifier resolution follows the same normalization contract
+ * - server-side identifier failures do not log raw error messages or custom error names
+ * - Falls back to 'unknown' when no usable header is present
+ * - getUserAgent trims values and maps absent/blank headers to 'unknown'
  *
  * Note: We mock next/server to control NextRequest's headers.get behavior
  * so each test runs against a predictable header map rather than the real
@@ -18,25 +21,36 @@
 jest.unmock('@/lib/request-utils');
 // getServerSideIdentifier uses next/headers; mock it to avoid import errors
 jest.mock('next/headers', () => ({ headers: jest.fn() }));
-jest.mock('@/lib/logger', () => ({ createLogger: () => ({ debug: jest.fn(), error: jest.fn() }) }));
+jest.mock('@/lib/logger', () => ({
+  createLogger: jest.fn(() => ({ debug: jest.fn(), error: jest.fn() })),
+}));
 
-import { getClientIdentifier, getUserAgent } from '@/lib/request-utils';
+import { getClientIdentifier, getServerSideIdentifier, getUserAgent } from '@/lib/request-utils';
+
+const nextHeadersMock = jest.requireMock('next/headers') as { headers: jest.Mock };
+const loggerModuleMock = jest.requireMock('@/lib/logger') as { createLogger: jest.Mock };
+const requestUtilsLogger = loggerModuleMock.createLogger.mock.results[0].value as {
+  debug: jest.Mock;
+  error: jest.Mock;
+};
+
+function makeHeaderReader(entries: Record<string, string>) {
+  // Lowercase all keys so that case-insensitive lookup in the impl always matches.
+  const map = new Map<string, string>(Object.entries(entries).map(([k, v]) => [k.toLowerCase(), v]));
+  return { get: (name: string) => map.get(name.toLowerCase()) ?? null };
+}
 
 /** Minimal NextRequest-shaped object with only the headers.get the unit cares about. */
 function makeRequest(entries: Record<string, string>) {
-  // Lowercase all keys so that case-insensitive lookup in the impl always matches.
-  const map = new Map<string, string>(
-    Object.entries(entries).map(([k, v]) => [k.toLowerCase(), v])
-  );
   return {
-    headers: { get: (name: string) => map.get(name.toLowerCase()) ?? null },
+    headers: makeHeaderReader(entries),
   } as Parameters<typeof getClientIdentifier>[0];
 }
 
 describe('getClientIdentifier', () => {
-  it('returns cf-connecting-ip when present (highest priority)', () => {
+  it('returns trimmed cf-connecting-ip when present (highest priority)', () => {
     const req = makeRequest({
-      'cf-connecting-ip': '1.2.3.4',
+      'cf-connecting-ip': '  1.2.3.4  ',
       'x-real-ip': '5.6.7.8',
       'x-forwarded-for': '9.10.11.12',
     });
@@ -51,6 +65,23 @@ describe('getClientIdentifier', () => {
     expect(getClientIdentifier(req)).toBe('5.6.7.8');
   });
 
+  it('treats a blank cf-connecting-ip as absent and falls through to x-real-ip', () => {
+    const req = makeRequest({
+      'cf-connecting-ip': '   ',
+      'x-real-ip': '  5.6.7.8  ',
+      'x-forwarded-for': '9.10.11.12',
+    });
+    expect(getClientIdentifier(req)).toBe('5.6.7.8');
+  });
+
+  it('treats a blank x-real-ip as absent and falls through to x-forwarded-for', () => {
+    const req = makeRequest({
+      'x-real-ip': '\t ',
+      'x-forwarded-for': '9.10.11.12, 13.14.15.16',
+    });
+    expect(getClientIdentifier(req)).toBe('9.10.11.12');
+  });
+
   it('returns first IP from x-forwarded-for when higher-priority headers are absent', () => {
     const req = makeRequest({ 'x-forwarded-for': '9.10.11.12, 13.14.15.16' });
     expect(getClientIdentifier(req)).toBe('9.10.11.12');
@@ -61,20 +92,86 @@ describe('getClientIdentifier', () => {
     expect(getClientIdentifier(req)).toBe('9.10.11.12');
   });
 
+  it('fails closed when the first x-forwarded-for element is blank', () => {
+    const req = makeRequest({ 'x-forwarded-for': '   , 13.14.15.16' });
+    expect(getClientIdentifier(req)).toBe('unknown');
+  });
+
   it('returns "unknown" when no identifying header is present', () => {
     const req = makeRequest({});
     expect(getClientIdentifier(req)).toBe('unknown');
   });
 });
 
+describe('getServerSideIdentifier', () => {
+  beforeEach(() => {
+    nextHeadersMock.headers.mockReset();
+    requestUtilsLogger.debug.mockClear();
+  });
+
+  it('uses the same blank-header fallback and trimming as getClientIdentifier', async () => {
+    nextHeadersMock.headers.mockResolvedValue(
+      makeHeaderReader({
+        'cf-connecting-ip': '  ',
+        'x-real-ip': '  5.6.7.8  ',
+        'x-forwarded-for': '9.10.11.12',
+      }),
+    );
+
+    await expect(getServerSideIdentifier()).resolves.toBe('5.6.7.8');
+  });
+
+  it('fails closed when the first x-forwarded-for element is blank', async () => {
+    nextHeadersMock.headers.mockResolvedValue(makeHeaderReader({ 'x-forwarded-for': ' , 13.14.15.16' }));
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+  });
+
+  it('returns unknown without logging a raw headers error message', async () => {
+    nextHeadersMock.headers.mockRejectedValue(new Error('request token=super-secret'));
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+    expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
+      errorName: 'Error',
+    });
+    expect(JSON.stringify(requestUtilsLogger.debug.mock.calls)).not.toContain('super-secret');
+  });
+
+  it('retains a safe standard error classification', async () => {
+    nextHeadersMock.headers.mockRejectedValue(new TypeError('invalid headers context'));
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+    expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
+      errorName: 'TypeError',
+    });
+  });
+
+  it('normalizes a custom Error.name instead of logging it verbatim', async () => {
+    const error = new Error('request headers unavailable');
+    error.name = 'SecretError-token=super-secret';
+    nextHeadersMock.headers.mockRejectedValue(error);
+
+    await expect(getServerSideIdentifier()).resolves.toBe('unknown');
+    expect(requestUtilsLogger.debug).toHaveBeenCalledWith('Failed to get server-side identifier', {
+      errorName: 'UnknownError',
+    });
+    expect(JSON.stringify(requestUtilsLogger.debug.mock.calls)).not.toContain('super-secret');
+  });
+});
+
 describe('getUserAgent', () => {
-  it('returns user-agent header value', () => {
-    const req = makeRequest({ 'user-agent': 'Mozilla/5.0 Playwright' });
+  it('returns a trimmed user-agent header value', () => {
+    const req = makeRequest({ 'user-agent': '  Mozilla/5.0 Playwright  ' });
     expect(getUserAgent(req)).toBe('Mozilla/5.0 Playwright');
   });
 
   it('returns "unknown" when user-agent header is absent', () => {
     const req = makeRequest({});
+    expect(getUserAgent(req)).toBe('unknown');
+  });
+
+  it('returns "unknown" when user-agent header is whitespace-only', () => {
+    const req = makeRequest({ 'user-agent': ' \t ' });
     expect(getUserAgent(req)).toBe('unknown');
   });
 });

@@ -40,6 +40,14 @@ function isInProgressTournamentStatus(status: unknown): status is 'draft' | 'act
   return status === 'draft' || status === 'active';
 }
 
+function isPositiveSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 export function getFinalsSeedSnapshotField(mode: FinalsSeedMode): FinalsSeedSnapshotField {
   return `${mode}FinalsSeedSnapshot` as FinalsSeedSnapshotField;
 }
@@ -50,11 +58,12 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
     if (!entry || typeof entry !== 'object') return [];
     const candidate = entry as Partial<FinalsSeedSnapshotEntry>;
     if (
-      typeof candidate.seed !== 'number' ||
-      typeof candidate.originalSeed !== 'number' ||
-      typeof candidate.playerId !== 'string' ||
+      !isPositiveSafeInteger(candidate.seed) ||
+      !isPositiveSafeInteger(candidate.originalSeed) ||
+      !isNonEmptyString(candidate.playerId) ||
       !candidate.player ||
-      typeof candidate.player.id !== 'string'
+      !isNonEmptyString(candidate.player.id) ||
+      candidate.player.id !== candidate.playerId
     ) {
       return [];
     }

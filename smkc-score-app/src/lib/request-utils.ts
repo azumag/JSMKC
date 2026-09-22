@@ -27,6 +27,31 @@ import { createLogger } from '@/lib/logger';
 /** Logger scoped to request utilities */
 const logger = createLogger('request-utils');
 
+const SAFE_ERROR_NAMES = new Set([
+  'Error',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+]);
+
+function normalizeIdentifierHeader(value: string | null): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function getForwardedClientIdentifier(value: string | null): string | null {
+  if (!value) return null;
+  return normalizeIdentifierHeader(value.split(',')[0] ?? null);
+}
+
+function getSafeErrorName(error: unknown): string {
+  if (!(error instanceof Error)) return 'UnknownError';
+  return SAFE_ERROR_NAMES.has(error.name) ? error.name : 'UnknownError';
+}
+
 // ============================================================
 // Client Identification
 // ============================================================
@@ -39,6 +64,10 @@ const logger = createLogger('request-utils');
  * 1. cf-connecting-ip: Cloudflare-specific header set by the trusted CDN/proxy
  * 2. x-real-ip: Reverse-proxy header trusted within the internal network
  * 3. x-forwarded-for: Fallback proxy header that can be spoofed by clients
+ *
+ * Blank/whitespace-only values are treated as absent. For x-forwarded-for,
+ * only the first element is considered; an empty first element fails closed
+ * instead of trusting a later proxy-added value.
  *
  * Falls back to 'unknown' if no IP can be determined, which should
  * not happen in production behind a properly configured proxy.
@@ -54,23 +83,23 @@ const logger = createLogger('request-utils');
  */
 export function getClientIdentifier(request: NextRequest): string {
   // cf-connecting-ip is set by Cloudflare's CDN/proxy and is trustworthy
-  const cfIp = request.headers.get('cf-connecting-ip');
+  const cfIp = normalizeIdentifierHeader(request.headers.get('cf-connecting-ip'));
   if (cfIp) {
     return cfIp;
   }
 
   // x-real-ip is set by Nginx and some other reverse proxies
   // Only trustworthy when request comes from known internal network
-  const realIp = request.headers.get('x-real-ip');
+  const realIp = normalizeIdentifierHeader(request.headers.get('x-real-ip'));
   if (realIp) {
     return realIp;
   }
 
   // x-forwarded-for can be spoofed by clients - use as last resort
   // Extract only the first IP (original client) and trim whitespace
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
+  const forwardedIp = getForwardedClientIdentifier(request.headers.get('x-forwarded-for'));
+  if (forwardedIp) {
+    return forwardedIp;
   }
 
   // Fallback when no identifying header is present.
@@ -82,13 +111,14 @@ export function getClientIdentifier(request: NextRequest): string {
  * Extracts the User-Agent string from a NextRequest object.
  *
  * Used for audit logging to track which browser/client made the request.
- * Returns 'unknown' if the header is not present.
+ * Leading/trailing whitespace is removed, and a missing or whitespace-only
+ * header is normalized to 'unknown' so audit rows never store a blank agent.
  *
  * @param request - The NextRequest object from the API route handler
- * @returns The User-Agent string
+ * @returns The normalized User-Agent string
  */
 export function getUserAgent(request: NextRequest): string {
-  return request.headers.get('user-agent') || 'unknown';
+  return normalizeIdentifierHeader(request.headers.get('user-agent')) ?? 'unknown';
 }
 
 /**
@@ -112,27 +142,30 @@ export async function getServerSideIdentifier(): Promise<string> {
 
     // Same priority order as getClientIdentifier:
     // cf-connecting-ip (trusted) > x-real-ip (internal) > x-forwarded-for (untrusted)
-    const cfIp = headersList.get('cf-connecting-ip');
+    const cfIp = normalizeIdentifierHeader(headersList.get('cf-connecting-ip'));
     if (cfIp) {
       return cfIp;
     }
 
-    const realIp = headersList.get('x-real-ip');
+    const realIp = normalizeIdentifierHeader(headersList.get('x-real-ip'));
     if (realIp) {
       return realIp;
     }
 
-    const forwardedFor = headersList.get('x-forwarded-for');
-    if (forwardedFor) {
-      return forwardedFor.split(',')[0].trim();
+    const forwardedIp = getForwardedClientIdentifier(headersList.get('x-forwarded-for'));
+    if (forwardedIp) {
+      return forwardedIp;
     }
 
     return 'unknown';
   } catch (error) {
     // headers() can throw if called outside a request context
     // (e.g., during static generation). Return 'unknown' to be safe.
+    // Do not persist raw error messages or arbitrary custom error names here:
+    // framework/runtime errors can include request data or internal details that
+    // are irrelevant to this low-severity diagnostic path.
     logger.debug('Failed to get server-side identifier', {
-      error: error instanceof Error ? error.message : String(error),
+      errorName: getSafeErrorName(error),
     });
     return 'unknown';
   }

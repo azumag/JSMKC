@@ -4,6 +4,7 @@ import {
   getGpFinalsTargetWins,
   getMrFinalsMaxRounds,
   getMrFinalsTargetWins,
+  parsePersistedFinalsTargetWins,
 } from '@/lib/finals-target-wins';
 
 describe('finals-target-wins', () => {
@@ -80,5 +81,45 @@ describe('finals-target-wins', () => {
     expect(getGpFinalsTargetWins(configured)).toBe(7);
     expect(getMrFinalsMaxRounds(configured)).toBe(13);
     expect(getGpFinalsMaxCups(configured)).toBe(13);
+  });
+
+  it('accepts the maximum persisted target wins value', () => {
+    const configured = { stage: 'finals', round: 'winners_r1', targetWins: 99 };
+
+    expect(getBmFinalsTargetWins(configured)).toBe(99);
+    expect(getMrFinalsTargetWins(configured)).toBe(99);
+    expect(getGpFinalsTargetWins(configured)).toBe(99);
+    expect(getMrFinalsMaxRounds(configured)).toBe(197);
+    expect(getGpFinalsMaxCups(configured)).toBe(197);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 100, Number.MAX_SAFE_INTEGER + 1])(
+    'falls back to round defaults for invalid persisted targetWins %p',
+    (targetWins) => {
+      const context = { stage: 'finals', round: 'winners_r1', targetWins };
+
+      expect(getBmFinalsTargetWins(context)).toBe(5);
+      expect(getMrFinalsTargetWins(context)).toBe(5);
+      expect(getGpFinalsTargetWins(context)).toBe(2);
+      expect(getMrFinalsMaxRounds(context)).toBe(9);
+      expect(getGpFinalsMaxCups(context)).toBe(3);
+    },
+  );
+
+  it.each([
+    [1, 1],
+    [99, 99],
+    [0, null],
+    [100, null],
+    [-1, null],
+    [1.5, null],
+    [Number.NaN, null],
+    [Number.POSITIVE_INFINITY, null],
+    [Number.MAX_SAFE_INTEGER + 1, null],
+    ['7', null],
+    [null, null],
+    [undefined, null],
+  ])('parses persisted targetWins %p as %p', (value, expected) => {
+    expect(parsePersistedFinalsTargetWins(value)).toBe(expected);
   });
 });

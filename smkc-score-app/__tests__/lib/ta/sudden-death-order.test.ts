@@ -80,6 +80,65 @@ describe('orderResultsWithSuddenDeathChain', () => {
     expect(ordered.map((r) => r.playerId)).toEqual(['a', 'b']);
   });
 
+  it('keeps malformed base times after finite non-negative results', () => {
+    const ordered = orderResultsWithSuddenDeathChain(
+      [
+        { playerId: 'bad-nan', timeMs: Number.NaN },
+        { playerId: 'valid-slow', timeMs: 100 },
+        { playerId: 'bad-infinity', timeMs: Number.POSITIVE_INFINITY },
+        { playerId: 'bad-negative', timeMs: -1 },
+        { playerId: 'valid-fast', timeMs: 90 },
+      ],
+      [],
+    );
+
+    expect(ordered.map((r) => r.playerId)).toEqual([
+      'valid-fast',
+      'valid-slow',
+      'bad-nan',
+      'bad-infinity',
+      'bad-negative',
+    ]);
+  });
+
+  it('puts a valid sudden-death result ahead of a malformed shared result', () => {
+    const ordered = orderResultsWithSuddenDeathChain(
+      [
+        { playerId: 'a', timeMs: 100 },
+        { playerId: 'b', timeMs: 100 },
+      ],
+      [
+        [
+          { playerId: 'a', timeMs: Number.NaN },
+          { playerId: 'b', timeMs: 150 },
+        ],
+      ],
+    );
+
+    expect(ordered.map((r) => r.playerId)).toEqual(['b', 'a']);
+  });
+
+  it('falls back to an earlier shared result when the latest pair is malformed', () => {
+    const ordered = orderResultsWithSuddenDeathChain(
+      [
+        { playerId: 'a', timeMs: 100 },
+        { playerId: 'b', timeMs: 100 },
+      ],
+      [
+        [
+          { playerId: 'a', timeMs: 120 },
+          { playerId: 'b', timeMs: 110 },
+        ],
+        [
+          { playerId: 'a', timeMs: Number.POSITIVE_INFINITY },
+          { playerId: 'b', timeMs: -1 },
+        ],
+      ],
+    );
+
+    expect(ordered.map((r) => r.playerId)).toEqual(['b', 'a']);
+  });
+
   it('handles an empty base array', () => {
     expect(orderResultsWithSuddenDeathChain([], [[{ playerId: 'a', timeMs: 1 }]])).toEqual([]);
   });
