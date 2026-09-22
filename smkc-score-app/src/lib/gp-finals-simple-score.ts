@@ -1,8 +1,4 @@
-export function isValidGpFinalsSimpleScore(
-  score1: number | null,
-  score2: number | null,
-  targetWins: number,
-): boolean {
+export function isValidGpFinalsSimpleScore(score1: number | null, score2: number | null, targetWins: number): boolean {
   if (
     !Number.isSafeInteger(score1) ||
     !Number.isSafeInteger(score2) ||
