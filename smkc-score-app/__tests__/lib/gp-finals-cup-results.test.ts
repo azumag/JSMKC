@@ -1,6 +1,16 @@
 import { normalizeGpFinalsCupResults } from '@/lib/gp-finals-cup-results';
 
 describe('normalizeGpFinalsCupResults', () => {
+  it('rejects empty cupResults collections', () => {
+    expect(normalizeGpFinalsCupResults([])).toEqual({ error: 'cupResults must be a non-empty array' });
+  });
+
+  it('rejects cupResults collections above the bounded payload size', () => {
+    const results = Array.from({ length: 21 }, () => ({ points1: 1, points2: 0 }));
+
+    expect(normalizeGpFinalsCupResults(results)).toEqual({ error: 'cupResults must not exceed 20 entries' });
+  });
+
   it('preserves valid explicit cup points and winner resolution', () => {
     expect(
       normalizeGpFinalsCupResults([
@@ -75,7 +85,7 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, '45', null])(
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1, 1.5, '45', null])(
     'rejects malformed explicit points %p instead of deriving over them',
     (points1) => {
       expect(
@@ -108,7 +118,7 @@ describe('normalizeGpFinalsCupResults', () => {
     ).toEqual({ error: 'cupResults[0] requires non-negative integer points' });
   });
 
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5, '15', null])(
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1, 1.5, '15', null])(
     'rejects malformed explicit per-race points %p instead of falling back to a valid position',
     (points1) => {
       expect(
