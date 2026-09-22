@@ -8,6 +8,7 @@
  * where ta-elimination-phase.tsx emitted exactly that useless line.
  */
 import { serializeMeta } from '@/lib/client-logger';
+import { readRepoFile } from '../helpers/e2e-cases';
 
 describe('client-logger serializeMeta', () => {
   it('serializes plain objects with JSON semantics', () => {
@@ -39,5 +40,12 @@ describe('client-logger serializeMeta', () => {
     expect(parsed.errors).toHaveLength(2);
     expect(parsed.errors[0].message).toBe('a');
     expect(parsed.errors[1].message).toBe('b');
+  });
+
+  it('uses the Error-aware serializer for the server aggregation request body', () => {
+    const source = readRepoFile('smkc-score-app', 'src', 'lib', 'client-logger.ts');
+
+    expect(source).toContain('body: serializeMeta({');
+    expect(source).not.toContain('body: JSON.stringify({');
   });
 });
