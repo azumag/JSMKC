@@ -41,7 +41,7 @@ export function extractArrayDataOrNull<T>(payload: unknown): T[] | null {
     return data as T[];
   }
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== 'object' || hasInvalidSuccessFlag(data)) {
     return null;
   }
 
@@ -129,7 +129,7 @@ export function extractPaginationMeta(payload: unknown): PaginationMeta | null {
     return isPaginationMeta(directMeta) ? directMeta : null;
   }
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== 'object' || hasInvalidSuccessFlag(data)) {
     return null;
   }
 
