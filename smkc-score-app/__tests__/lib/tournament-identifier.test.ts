@@ -24,9 +24,16 @@ describe('tournament-identifier', () => {
     expect(isValidTournamentSlug('jsmkc 2026')).toBe(false);
   });
 
-  it('returns slug when building tournament URL identifier', () => {
+  it('uses only valid persisted slugs when building tournament URL identifiers', () => {
     expect(getTournamentUrlIdentifier({ id: 't1', slug: 'jsmkc2026' })).toBe('jsmkc2026');
+    expect(getTournamentUrlIdentifier({ id: 't1', slug: '123E4567-E89B-12D3-A456-426614174000' })).toBe(
+      '123E4567-E89B-12D3-A456-426614174000',
+    );
     expect(getTournamentUrlIdentifier({ id: 't1', slug: null })).toBe('t1');
+    expect(getTournamentUrlIdentifier({ id: 't1', slug: '' })).toBe('t1');
+    expect(getTournamentUrlIdentifier({ id: 't1', slug: '   ' })).toBe('t1');
+    expect(getTournamentUrlIdentifier({ id: 't1', slug: 'JSMKC2026' })).toBe('t1');
+    expect(getTournamentUrlIdentifier({ id: 't1', slug: 'jsmkc 2026' })).toBe('t1');
   });
 
   it('resolves tournament id from slug when found', async () => {
