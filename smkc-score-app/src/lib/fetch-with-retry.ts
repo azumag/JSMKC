@@ -15,12 +15,7 @@
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 500;
 
-type ResponseSnapshot = {
-  body: ArrayBuffer | null;
-  init: ResponseInit;
-};
-
-const inFlightApiGets = new Map<string, Promise<ResponseSnapshot>>();
+const inFlightApiGets = new Map<string, Promise<Response>>();
 
 function isRequestInput(input: RequestInfo | URL): input is Request {
   return typeof Request !== 'undefined' && input instanceof Request;
@@ -60,10 +55,6 @@ function hasRequestSpecificInit(init?: RequestInit): boolean {
   return Object.keys(init).some((key) => key !== 'method');
 }
 
-function responseStatusForbidsBody(status: number): boolean {
-  return status === 204 || status === 205 || status === 304;
-}
-
 /**
  * Only plain browser GETs are safe to coalesce by URL.
  *
@@ -94,24 +85,6 @@ function dedupeKey(input: RequestInfo | URL): string {
         : new URL(input.url, window.location.href);
 
   return url.href;
-}
-
-function responseFromSnapshot(snapshot: ResponseSnapshot): Response {
-  return new Response(snapshot.body === null ? null : snapshot.body.slice(0), snapshot.init);
-}
-
-async function snapshotResponse(response: Response): Promise<ResponseSnapshot> {
-  return {
-    // Fetch responses with these status codes are bodyless by definition. Even
-    // an empty ArrayBuffer is still a body to the Response constructor and
-    // would make reconstruction throw for 204/205/304.
-    body: responseStatusForbidsBody(response.status) ? null : await response.arrayBuffer(),
-    init: {
-      status: response.status,
-      statusText: response.statusText,
-      headers: new Headers(response.headers),
-    },
-  };
 }
 
 async function waitForRetry(input: RequestInfo | URL, init?: RequestInit): Promise<void> {
@@ -151,7 +124,7 @@ export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestIni
     let request = inFlightApiGets.get(key);
 
     if (!request) {
-      request = fetchWithRetryRaw(input, init).then(snapshotResponse);
+      request = fetchWithRetryRaw(input, init);
       inFlightApiGets.set(key, request);
       const cleanup = () => {
         if (inFlightApiGets.get(key) === request) {
@@ -163,7 +136,10 @@ export async function fetchWithRetry(input: RequestInfo | URL, init?: RequestIni
       void request.then(cleanup, cleanup);
     }
 
-    return responseFromSnapshot(await request);
+    // Clone the native response for each caller instead of rebuilding it from
+    // body/status/headers. This keeps each body independently readable while
+    // preserving fetch-owned metadata such as url, redirected, and type.
+    return (await request).clone();
   }
 
   return fetchWithRetryRaw(input, init);
