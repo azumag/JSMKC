@@ -7,7 +7,7 @@ const entry = (seed: number, originalSeed: number) => ({
   player: { id: `p${originalSeed}`, name: `P${originalSeed}` },
 });
 
-describe('persisted finals seed snapshot numeric validation', () => {
+describe('persisted finals seed snapshot validation', () => {
   it.each([
     ['zero', 0],
     ['negative', -1],
@@ -30,13 +30,30 @@ describe('persisted finals seed snapshot numeric validation', () => {
     expect(parseFinalsSeedSnapshot([entry(1, invalidOriginalSeed)])).toEqual([]);
   });
 
-  it('keeps a valid positive safe-integer entry', () => {
+  it.each([
+    ['empty playerId', { ...entry(1, 1), playerId: '' }],
+    ['whitespace playerId', { ...entry(1, 1), playerId: '   ' }],
+    ['empty embedded player id', { ...entry(1, 1), player: { id: '', name: 'P1' } }],
+    ['whitespace embedded player id', { ...entry(1, 1), player: { id: '   ', name: 'P1' } }],
+    ['mismatched player ids', { ...entry(1, 1), player: { id: 'other-player', name: 'P1' } }],
+  ])('rejects invalid player identity: %s', (_label, invalidEntry) => {
+    expect(parseFinalsSeedSnapshot([invalidEntry])).toEqual([]);
+  });
+
+  it('keeps a valid positive safe-integer entry with matching player identity', () => {
     expect(parseFinalsSeedSnapshot([entry(3, 7)])).toEqual([entry(3, 7)]);
   });
 
   it('does not treat a snapshot with an invalid structural seed as authoritative', () => {
     const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
     snapshot[0] = entry(Number.NaN, 1);
+
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
+  it('does not treat a snapshot with mismatched player identity as authoritative', () => {
+    const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[0] = { ...snapshot[0], player: { id: 'other-player', name: 'P1' } };
 
     expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
   });
