@@ -27,7 +27,15 @@ import { createLogger } from '@/lib/logger';
 /** Logger scoped to request utilities */
 const logger = createLogger('request-utils');
 
-const SAFE_ERROR_NAMES = new Set(['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError']);
+const SAFE_ERROR_NAMES = new Set([
+  'Error',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+]);
 
 function normalizeIdentifierHeader(value: string | null): string | null {
   const normalized = value?.trim();
