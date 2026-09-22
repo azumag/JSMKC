@@ -86,8 +86,9 @@ export function isCompleteFinalsSeedSnapshot(value: unknown): value is FinalsSee
     playerIds.size === entrantCount &&
     structuralSeeds.size === entrantCount &&
     originalSeeds.size === entrantCount &&
-    Array.from({ length: entrantCount }, (_, index) =>
-      structuralSeeds.has(index + 1) && originalSeeds.has(index + 1),
+    Array.from(
+      { length: entrantCount },
+      (_, index) => structuralSeeds.has(index + 1) && originalSeeds.has(index + 1),
     ).every(Boolean)
   );
 }
