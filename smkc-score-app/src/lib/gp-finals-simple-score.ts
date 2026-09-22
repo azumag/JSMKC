@@ -4,8 +4,14 @@ export function isValidGpFinalsSimpleScore(
   targetWins: number,
 ): boolean {
   if (
+    !Number.isSafeInteger(score1) ||
+    !Number.isSafeInteger(score2) ||
+    !Number.isSafeInteger(targetWins) ||
     score1 === null ||
     score2 === null ||
+    score1 < 0 ||
+    score2 < 0 ||
+    targetWins <= 0 ||
     score1 > targetWins ||
     score2 > targetWins
   ) {
