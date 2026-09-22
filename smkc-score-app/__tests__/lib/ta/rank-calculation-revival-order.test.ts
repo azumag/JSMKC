@@ -1,8 +1,4 @@
-import {
-  rerankStageAfterDelete,
-  sortByStage,
-  type EntryWithTotal,
-} from '@/lib/ta/rank-calculation';
+import { rerankStageAfterDelete, sortByStage, type EntryWithTotal } from '@/lib/ta/rank-calculation';
 import type { PrismaClient } from '@prisma/client';
 
 function makeEntry(id: string, totalTime: number | null, stage = 'revival_1'): EntryWithTotal {
@@ -36,11 +32,7 @@ describe('TA revival deterministic rank order', () => {
       makeEntry('incomplete-entry', null, stage),
     ];
 
-    expect(sortByStage(entries, stage).map((entry) => entry.id)).toEqual([
-      'faster-entry',
-      'a-entry',
-      'z-entry',
-    ]);
+    expect(sortByStage(entries, stage).map((entry) => entry.id)).toEqual(['faster-entry', 'a-entry', 'z-entry']);
   });
 
   it('keeps delete reranking on the same totalTime/id ordering contract', async () => {
