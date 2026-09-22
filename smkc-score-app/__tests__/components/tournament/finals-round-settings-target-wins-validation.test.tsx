@@ -33,7 +33,14 @@ describe('FinalsRoundSettings persisted targetWins validation', () => {
     (invalidTargetWins) => {
       render(
         <FinalsRoundSettings
-          match={{ id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: invalidTargetWins }}
+          match={{
+            id: 'pending',
+            stage: 'finals',
+            round: 'winners_r1',
+            completed: false,
+            version: 2,
+            targetWins: invalidTargetWins,
+          }}
           matches={[
             {
               id: 'pending',
@@ -58,7 +65,9 @@ describe('FinalsRoundSettings persisted targetWins validation', () => {
     render(
       <FinalsRoundSettings
         match={{ id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 99 }}
-        matches={[{ id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 99 }]}
+        matches={[
+          { id: 'pending', stage: 'finals', round: 'winners_r1', completed: false, version: 2, targetWins: 99 },
+        ]}
         endpoint="/api/test"
         effectiveTargetWins={5}
         onSaved={jest.fn()}
