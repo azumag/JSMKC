@@ -26,12 +26,30 @@ interface LogMetadata extends Record<string, unknown> {
  * because `name`/`message`/`stack` are non-enumerable and would otherwise
  * disappear, leaving operators with `{"error":{}}` in production logs (mirrors
  * the same handling in src/lib/logger.ts).
+ *
+ * Logging must also stay fail-safe when callers attach cyclic objects. Track the
+ * current ancestor chain (rather than every object ever seen) so true cycles are
+ * replaced while the same non-cyclic object can still be serialized in two
+ * different branches.
  */
 export function serializeMeta(meta: LogMetadata): string {
-  return JSON.stringify(meta, (_key, value) => {
+  const ancestors: object[] = [];
+
+  return JSON.stringify(meta, function (_key, value) {
     if (value instanceof Error) {
       return { name: value.name, message: value.message, stack: value.stack };
     }
+    if (typeof value !== 'object' || value === null) {
+      return value;
+    }
+
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+      ancestors.pop();
+    }
+    if (ancestors.includes(value)) {
+      return '[Circular]';
+    }
+    ancestors.push(value);
     return value;
   });
 }
