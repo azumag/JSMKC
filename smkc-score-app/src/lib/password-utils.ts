@@ -51,8 +51,7 @@ export const BCRYPT_ROUNDS = 10;
  * - Lowercase: l, o
  * - Digits: 0, 1
  */
-export const READABLE_PASSWORD_CHARSET =
-  'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+export const READABLE_PASSWORD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
 
 /**
  * Generates a cryptographically secure random password.
@@ -127,10 +126,7 @@ export async function hashPassword(plainPassword: string): Promise<string> {
  * @param hashedPassword - The stored bcrypt hash to verify against
  * @returns true if the password matches the hash, false otherwise
  */
-export async function verifyPassword(
-  plainPassword: string,
-  hashedPassword: string
-): Promise<boolean> {
+export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
   try {
     // bcrypt.compare extracts the salt from the stored hash and
     // re-computes the hash with the plain password to check for a match.

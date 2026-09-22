@@ -7,12 +7,7 @@
  * letters, digits, and special characters.
  */
 import { describe, it, expect } from '@jest/globals';
-import {
-  generateSecurePassword,
-  hashPassword,
-  READABLE_PASSWORD_CHARSET,
-  verifyPassword,
-} from '@/lib/password-utils';
+import { generateSecurePassword, hashPassword, READABLE_PASSWORD_CHARSET, verifyPassword } from '@/lib/password-utils';
 import bcrypt from 'bcryptjs';
 
 const EXPECTED_READABLE_PASSWORD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
