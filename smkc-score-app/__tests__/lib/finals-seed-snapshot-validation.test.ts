@@ -51,6 +51,20 @@ describe('persisted finals seed snapshot validation', () => {
     expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
   });
 
+  it('does not treat a snapshot with duplicate structural seeds as authoritative', () => {
+    const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[7] = entry(1, 8);
+
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
+  it('does not treat a snapshot with an out-of-range structural seed as authoritative', () => {
+    const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[7] = entry(9, 8);
+
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
   it('does not treat a snapshot with mismatched player identity as authoritative', () => {
     const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
     snapshot[0] = { ...snapshot[0], player: { id: 'other-player', name: 'P1' } };
