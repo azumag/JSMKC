@@ -8,7 +8,7 @@
  * - x-forwarded-for extracts only the first IP in a comma-separated list
  * - server-side identifier resolution follows the same normalization contract
  * - Falls back to 'unknown' when no usable header is present
- * - getUserAgent returns header value or 'unknown'
+ * - getUserAgent trims values and maps absent/blank headers to 'unknown'
  *
  * Note: We mock next/server to control NextRequest's headers.get behavior
  * so each test runs against a predictable header map rather than the real
@@ -120,13 +120,18 @@ describe('getServerSideIdentifier', () => {
 });
 
 describe('getUserAgent', () => {
-  it('returns user-agent header value', () => {
-    const req = makeRequest({ 'user-agent': 'Mozilla/5.0 Playwright' });
+  it('returns a trimmed user-agent header value', () => {
+    const req = makeRequest({ 'user-agent': '  Mozilla/5.0 Playwright  ' });
     expect(getUserAgent(req)).toBe('Mozilla/5.0 Playwright');
   });
 
   it('returns "unknown" when user-agent header is absent', () => {
     const req = makeRequest({});
+    expect(getUserAgent(req)).toBe('unknown');
+  });
+
+  it('returns "unknown" when user-agent header is whitespace-only', () => {
+    const req = makeRequest({ 'user-agent': ' \t ' });
     expect(getUserAgent(req)).toBe('unknown');
   });
 });
