@@ -96,13 +96,14 @@ export function getClientIdentifier(request: NextRequest): string {
  * Extracts the User-Agent string from a NextRequest object.
  *
  * Used for audit logging to track which browser/client made the request.
- * Returns 'unknown' if the header is not present.
+ * Leading/trailing whitespace is removed, and a missing or whitespace-only
+ * header is normalized to 'unknown' so audit rows never store a blank agent.
  *
  * @param request - The NextRequest object from the API route handler
- * @returns The User-Agent string
+ * @returns The normalized User-Agent string
  */
 export function getUserAgent(request: NextRequest): string {
-  return request.headers.get('user-agent') || 'unknown';
+  return normalizeIdentifierHeader(request.headers.get('user-agent')) ?? 'unknown';
 }
 
 /**
