@@ -142,7 +142,10 @@ export function sortByStage(entries: EntryWithTotal[], stage: string): EntryWith
     // Revival rounds: filter to entries with valid times, sort by fastest
     return entries
       .filter((e) => e.totalTime !== null)
-      .sort((a, b) => (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity));
+      .sort((a, b) => {
+        const timeDifference = (a.totalTime ?? Infinity) - (b.totalTime ?? Infinity);
+        return timeDifference !== 0 ? timeDifference : a.id.localeCompare(b.id);
+      });
   } else {
     // Qualification: sort by qualification points descending, then total time ascending
     // All entries are included (even those with 0 points) so they appear in standings
