@@ -14,10 +14,6 @@ function isNonNegativeSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
-function isUnsafeInteger(value: unknown): boolean {
-  return typeof value === 'number' && Number.isInteger(value) && !Number.isSafeInteger(value);
-}
-
 function sumRacePoints(races: unknown, side: 1 | 2): number | null {
   if (!Array.isArray(races)) return null;
   let total = 0;
@@ -27,8 +23,8 @@ function sumRacePoints(races: unknown, side: 1 | 2): number | null {
     const entry = race as Record<string, unknown>;
     const existing = entry[side === 1 ? 'points1' : 'points2'];
 
-    if (isUnsafeInteger(existing)) return null;
-    if (isNonNegativeSafeInteger(existing)) {
+    if (existing !== undefined) {
+      if (!isNonNegativeSafeInteger(existing)) return null;
       total += existing;
       if (!Number.isSafeInteger(total)) return null;
       continue;
