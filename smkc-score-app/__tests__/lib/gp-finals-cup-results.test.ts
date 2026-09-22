@@ -22,6 +22,30 @@ describe('normalizeGpFinalsCupResults', () => {
     });
   });
 
+  it('rejects an explicit cup outside the supported GP cup domain', () => {
+    expect(
+      normalizeGpFinalsCupResults([
+        {
+          cup: 'Unknown',
+          points1: 45,
+          points2: 36,
+        },
+      ]),
+    ).toEqual({ error: 'cupResults[0].cup must be a valid cup' });
+  });
+
+  it('rejects a whitespace-only explicit cup instead of treating it as a label', () => {
+    expect(
+      normalizeGpFinalsCupResults([
+        {
+          cup: '   ',
+          points1: 45,
+          points2: 36,
+        },
+      ]),
+    ).toEqual({ error: 'cupResults[0].cup must be a valid cup' });
+  });
+
   it('rejects unsafe explicit points instead of falling back to otherwise valid races', () => {
     expect(
       normalizeGpFinalsCupResults([
