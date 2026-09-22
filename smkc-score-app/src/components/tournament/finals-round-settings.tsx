@@ -37,9 +37,7 @@ export function FinalsRoundSettings({
   );
   const activeTargetWins =
     normalizedPendingTargetWins.find((value): value is number => value !== null) ?? effectiveTargetWins;
-  const pendingFormats = new Set(
-    normalizedPendingTargetWins.filter((value): value is number => value !== null),
-  );
+  const pendingFormats = new Set(normalizedPendingTargetWins.filter((value): value is number => value !== null));
   const [targetWins, setTargetWins] = useState(String(activeTargetWins));
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
