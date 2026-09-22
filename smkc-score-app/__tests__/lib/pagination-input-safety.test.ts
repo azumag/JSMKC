@@ -49,6 +49,27 @@ describe('pagination input safety', () => {
     });
   });
 
+  it('fails closed when the page itself is outside the safe-integer range', () => {
+    expect(getPaginationParams({ page: Number.MAX_SAFE_INTEGER + 1, limit: 1 })).toEqual({
+      page: 1,
+      limit: 1,
+      skip: 0,
+      include: undefined,
+    });
+
+    expect(
+      getPaginationParams({
+        page: String(Number.MAX_SAFE_INTEGER + 1) as unknown as number,
+        limit: 1,
+      }),
+    ).toEqual({
+      page: 1,
+      limit: 1,
+      skip: 0,
+      include: undefined,
+    });
+  });
+
   it('fails closed when a finite page would create an unsafe Prisma offset', () => {
     expect(getPaginationParams({ page: Number.MAX_VALUE, limit: 100 })).toEqual({
       page: 1,
