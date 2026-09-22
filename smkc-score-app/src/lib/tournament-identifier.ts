@@ -63,10 +63,7 @@ export function getTournamentUrlIdentifier(tournament: { id: string; slug?: stri
  * 404 or fall back to the raw identifier.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export async function resolveTournament(
-  identifier: string,
-  select: Record<string, boolean>,
-): Promise<any | null> {
+export async function resolveTournament(identifier: string, select: Record<string, boolean>): Promise<any | null> {
   // The select must include `id` so the caller can keep using the resolved
   // id for downstream queries — but we don't override the caller's intent
   // when they've already opted in.
