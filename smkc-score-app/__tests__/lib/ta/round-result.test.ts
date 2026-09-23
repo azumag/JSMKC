@@ -34,6 +34,8 @@ describe('TA round result normalization', () => {
     });
 
     expect(normalizeTaRoundResult({ playerId: 1, timeMs: 10 })).toBeNull();
+    expect(normalizeTaRoundResult({ playerId: '', timeMs: 10 })).toBeNull();
+    expect(normalizeTaRoundResult({ playerId: '   ', timeMs: 10 })).toBeNull();
     expect(normalizeTaRoundResult({ playerId: 'player-1', timeMs: -1 })).toBeNull();
     expect(normalizeTaRoundResult({ playerId: 'player-1', timeMs: Number.NaN })).toBeNull();
   });
@@ -43,6 +45,8 @@ describe('TA round result normalization', () => {
       normalizeTaRoundResults([
         { playerId: 'p1', timeMs: 1000 },
         { playerId: null, timeMs: 2000 },
+        { playerId: '', timeMs: 2500 },
+        { playerId: '   ', timeMs: 2750 },
         { playerId: 'p2', timeMs: 3000, isRetry: true },
       ]),
     ).toEqual([
