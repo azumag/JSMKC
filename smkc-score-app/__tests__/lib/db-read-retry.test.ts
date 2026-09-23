@@ -90,4 +90,28 @@ describe('retryDbRead', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onRetry).toHaveBeenCalledWith({ attempt: 1, error: expect.any(Error) });
   });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid attempts value %s before executing the operation',
+    async (attempts) => {
+      const operation = jest.fn().mockResolvedValue('should-not-run');
+
+      await expect(retryDbRead(operation, { attempts, delayMs: 0 })).rejects.toThrow(
+        'retryDbRead attempts must be a positive safe integer',
+      );
+      expect(operation).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects invalid delayMs value %s before executing the operation',
+    async (delayMs) => {
+      const operation = jest.fn().mockResolvedValue('should-not-run');
+
+      await expect(retryDbRead(operation, { attempts: 1, delayMs })).rejects.toThrow(
+        'retryDbRead delayMs must be a non-negative finite number',
+      );
+      expect(operation).not.toHaveBeenCalled();
+    },
+  );
 });
