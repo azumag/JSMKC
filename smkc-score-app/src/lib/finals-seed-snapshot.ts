@@ -36,6 +36,17 @@ type SeedMatch = {
 const modelByMode = { bm: 'bMMatch', mr: 'mRMatch', gp: 'gPMatch' } as const;
 const qualificationModelByMode = { bm: 'bMQualification', mr: 'mRQualification', gp: 'gPQualification' } as const;
 
+/**
+ * `parseFinalsSeedSnapshot()` is also used as a response sanitizer before some
+ * callers ask `isCompleteFinalsSeedSnapshot()` whether the same returned array
+ * is authoritative. Remember when parsing dropped malformed source rows so that
+ * sanitizing first cannot erase evidence that the persisted value was invalid.
+ *
+ * WeakSet keeps this provenance tied only to the in-memory array instance: it
+ * does not alter the returned entries, JSON serialization, or persisted shape.
+ */
+const snapshotsWithDroppedEntries = new WeakSet<FinalsSeedSnapshotEntry[]>();
+
 function isInProgressTournamentStatus(status: unknown): status is 'draft' | 'active' {
   return status === 'draft' || status === 'active';
 }
@@ -71,7 +82,7 @@ export function getFinalsSeedSnapshotField(mode: FinalsSeedMode): FinalsSeedSnap
 
 export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
+  const parsed = value.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return [];
     const candidate = entry as Partial<FinalsSeedSnapshotEntry>;
     if (
@@ -85,6 +96,8 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
     }
     return [candidate as FinalsSeedSnapshotEntry];
   });
+  if (parsed.length !== value.length) snapshotsWithDroppedEntries.add(parsed);
+  return parsed;
 }
 
 /** A snapshot is authoritative only when it contains every entrant exactly
@@ -92,6 +105,7 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
  * a legacy Phase-1-only artifact lacking the direct qualifiers. */
 export function isCompleteFinalsSeedSnapshot(value: unknown): value is FinalsSeedSnapshotEntry[] {
   if (!Array.isArray(value)) return false;
+  if (snapshotsWithDroppedEntries.has(value as FinalsSeedSnapshotEntry[])) return false;
   const entries = parseFinalsSeedSnapshot(value);
   if (entries.length !== value.length) return false;
   const entrantCount = entries.length;
