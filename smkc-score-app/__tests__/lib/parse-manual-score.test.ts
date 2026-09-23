@@ -56,9 +56,8 @@ describe('parseManualScore', () => {
     });
   });
 
-  test('rejects values beyond the safe-integer range', () => {
-    // 2^53 would silently lose precision once stored as a JS number.
-    const unsafe = String(Number.MAX_SAFE_INTEGER) + '0';
-    expect(parseManualScore(unsafe)).toBeNull();
+  test('accepts the safe-integer upper boundary and rejects the first value above it', () => {
+    expect(parseManualScore(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseManualScore(String(Number.MAX_SAFE_INTEGER + 1))).toBeNull();
   });
 });
