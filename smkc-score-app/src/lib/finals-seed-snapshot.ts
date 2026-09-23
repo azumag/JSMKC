@@ -136,11 +136,12 @@ async function resolveFinalsSeedSnapshotInner(
       gpFinalsSeedSnapshot: true,
     },
   });
-  const existing = parseFinalsSeedSnapshot(tournament?.[field]);
+  const persistedSnapshot = tournament?.[field];
+  const existing = parseFinalsSeedSnapshot(persistedSnapshot);
   const isInProgress = isInProgressTournamentStatus(tournament?.status);
   /* A 12-row snapshot is an old, partial Top-24 Phase-1 artifact. It is not
    * a complete seed contract and must not suppress a later full snapshot. */
-  if (isCompleteFinalsSeedSnapshot(existing)) return { status: 'complete', snapshot: existing };
+  if (isCompleteFinalsSeedSnapshot(persistedSnapshot)) return { status: 'complete', snapshot: existing };
 
   const model = prisma[modelByMode[mode]] as unknown as {
     findMany: (args: unknown) => Promise<SeedMatch[]>;
