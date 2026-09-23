@@ -26,9 +26,7 @@ describe('computeAutoPairs', () => {
   });
 
   it('handles 8 players correctly (CDM2025 typical size)', () => {
-    const players = Array.from({ length: 8 }, (_, i) =>
-      makeEntry(`e${i + 1}`, `p${i + 1}`, i + 1)
-    );
+    const players = Array.from({ length: 8 }, (_, i) => makeEntry(`e${i + 1}`, `p${i + 1}`, i + 1));
     const pairs = computeAutoPairs(players);
     expect(pairs).toHaveLength(4);
     // Verify each pair: seed k paired with seed (9-k)
@@ -38,11 +36,7 @@ describe('computeAutoPairs', () => {
   });
 
   it('leaves the middle sorted player unpaired when count is odd', () => {
-    const players = [
-      makeEntry('e1', 'p1', 1),
-      makeEntry('e2', 'p2', 2),
-      makeEntry('e3', 'p3', 3),
-    ];
+    const players = [makeEntry('e1', 'p1', 1), makeEntry('e2', 'p2', 2), makeEntry('e3', 'p3', 3)];
     const pairs = computeAutoPairs(players);
     // Math.floor(3/2) = 1 pair; snake pairing uses seed 1 + seed 3, leaving seed 2 unpaired.
     expect(pairs).toHaveLength(1);
@@ -77,10 +71,7 @@ describe('computeAutoPairs', () => {
   });
 
   it('does not mutate the input array', () => {
-    const players = [
-      makeEntry('e1', 'p1', 3),
-      makeEntry('e2', 'p2', 1),
-    ];
+    const players = [makeEntry('e1', 'p1', 3), makeEntry('e2', 'p2', 1)];
     const original = [...players];
     computeAutoPairs(players);
     expect(players).toEqual(original);
