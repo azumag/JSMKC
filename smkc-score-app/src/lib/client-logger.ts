@@ -25,7 +25,8 @@ interface LogMetadata extends Record<string, unknown> {
  * Serialize meta for log output. Error instances need a JSON.stringify replacer
  * because `name`/`message`/`stack` are non-enumerable and would otherwise
  * disappear, leaving operators with `{"error":{}}` in production logs (mirrors
- * the same handling in src/lib/logger.ts).
+ * the same handling in src/lib/logger.ts). BigInt values are emitted as decimal
+ * strings so diagnostics cannot throw or lose integer precision.
  *
  * Logging must also stay fail-safe when callers attach cyclic objects. Track the
  * current ancestor chain (rather than every object ever seen) so true cycles are
@@ -36,6 +37,9 @@ export function serializeMeta(meta: LogMetadata): string {
   const ancestors: object[] = [];
 
   return JSON.stringify(meta, function (_key, value) {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
     if (value instanceof Error) {
       return { name: value.name, message: value.message, stack: value.stack };
     }

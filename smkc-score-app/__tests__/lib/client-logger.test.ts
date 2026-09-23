@@ -16,6 +16,18 @@ describe('client-logger serializeMeta', () => {
     expect(JSON.parse(out)).toEqual({ tournamentId: 'abc', count: 3 });
   });
 
+  it('serializes BigInt metadata as decimal strings without losing precision', () => {
+    const out = serializeMeta({
+      rows: 9007199254740993n,
+      nested: { delta: -2n },
+    });
+
+    expect(JSON.parse(out)).toEqual({
+      rows: '9007199254740993',
+      nested: { delta: '-2' },
+    });
+  });
+
   it('expands Error instances to { name, message, stack } instead of {}', () => {
     const err = new Error('Failed to fetch phase1');
     const out = serializeMeta({ error: err, tournamentId: 'tid_1' });
