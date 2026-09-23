@@ -44,8 +44,8 @@ function isPositiveSafeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
+function isCanonicalIdentifier(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
 }
 
 export function getFinalsSeedSnapshotField(mode: FinalsSeedMode): FinalsSeedSnapshotField {
@@ -60,9 +60,9 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
     if (
       !isPositiveSafeInteger(candidate.seed) ||
       !isPositiveSafeInteger(candidate.originalSeed) ||
-      !isNonEmptyString(candidate.playerId) ||
+      !isCanonicalIdentifier(candidate.playerId) ||
       !candidate.player ||
-      !isNonEmptyString(candidate.player.id) ||
+      !isCanonicalIdentifier(candidate.player.id) ||
       candidate.player.id !== candidate.playerId
     ) {
       return [];
