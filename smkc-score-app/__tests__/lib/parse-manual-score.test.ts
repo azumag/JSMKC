@@ -40,20 +40,12 @@ describe('parseManualScore', () => {
   });
 
   describe('rejects non-numeric and signed input', () => {
-    test.each([
-      [''],
-      ['   '],
-      ['abc'],
-      ['-1'],
-      ['+1'],
-      ['1.0'],
-      ['1 2'],
-      ['0x10'],
-      ['NaN'],
-      ['Infinity'],
-    ])('rejects %j', (input) => {
-      expect(parseManualScore(input)).toBeNull();
-    });
+    test.each([[''], ['   '], ['abc'], ['-1'], ['+1'], ['1.0'], ['1 2'], ['0x10'], ['NaN'], ['Infinity']])(
+      'rejects %j',
+      (input) => {
+        expect(parseManualScore(input)).toBeNull();
+      },
+    );
   });
 
   test('accepts the safe-integer upper boundary and rejects the first value above it', () => {
