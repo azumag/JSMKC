@@ -1,5 +1,8 @@
 import ts from 'typescript';
 
+const SKIPPED_TEST_IDENTIFIERS = new Set(['xit', 'xtest', 'xdescribe']);
+const TEST_CONTAINER_IDENTIFIERS = new Set(['it', 'test', 'describe']);
+
 function isNamedCall(call: ts.CallExpression, name: string): boolean {
   return ts.isIdentifier(call.expression) && call.expression.text === name;
 }
@@ -9,6 +12,30 @@ function isStringArgument(call: ts.CallExpression, value: string): boolean {
   return (
     call.arguments.length === 1 && argument !== undefined && ts.isStringLiteralLike(argument) && argument.text === value
   );
+}
+
+function isSkippedTestContainer(node: ts.Node): boolean {
+  if (!ts.isCallExpression(node)) return false;
+
+  if (ts.isIdentifier(node.expression)) {
+    return SKIPPED_TEST_IDENTIFIERS.has(node.expression.text);
+  }
+
+  if (!ts.isPropertyAccessExpression(node.expression) || !ts.isIdentifier(node.expression.expression)) {
+    return false;
+  }
+
+  return (
+    TEST_CONTAINER_IDENTIFIERS.has(node.expression.expression.text) &&
+    (node.expression.name.text === 'skip' || node.expression.name.text === 'todo')
+  );
+}
+
+function isInsideSkippedTestContainer(node: ts.Node): boolean {
+  for (let current = node.parent; current; current = current.parent) {
+    if (isSkippedTestContainer(current)) return true;
+  }
+  return false;
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {
@@ -23,7 +50,8 @@ export function hasTc1987TvNullAssertion(source: string): boolean {
       node.arguments.length === 0 &&
       ts.isPropertyAccessExpression(node.expression) &&
       node.expression.name.text === 'toBeNull' &&
-      ts.isCallExpression(node.expression.expression)
+      ts.isCallExpression(node.expression.expression) &&
+      !isInsideSkippedTestContainer(node)
     ) {
       const expectCall = node.expression.expression;
       const [expectArgument] = expectCall.arguments;
