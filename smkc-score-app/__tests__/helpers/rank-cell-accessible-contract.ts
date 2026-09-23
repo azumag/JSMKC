@@ -30,35 +30,12 @@ function isRoleQuery(node: ts.CallExpression, role: string, accessibleName: stri
   );
 }
 
-function hasQualificationId(node: ts.Node, qualificationId: string): boolean {
-  let found = false;
-
-  function visit(child: ts.Node) {
-    if (found) return;
-
-    if (ts.isJsxAttribute(child) && ts.isIdentifier(child.name) && child.name.text === 'qualificationId') {
-      const initializer = child.initializer;
-      if (initializer && ts.isStringLiteral(initializer) && initializer.text === qualificationId) {
-        found = true;
-        return;
-      }
-    }
-
-    ts.forEachChild(child, visit);
-  }
-
-  visit(node);
-  return found;
-}
-
 function callbackHasAccessibleButtonQuery(
   callback: ts.ArrowFunction | ts.FunctionExpression,
-  qualificationId: string,
   accessibleName: string,
 ): boolean {
-  if (!hasQualificationId(callback.body, qualificationId)) return false;
-
   let found = false;
+
   function visit(node: ts.Node) {
     if (found) return;
 
@@ -74,7 +51,7 @@ function callbackHasAccessibleButtonQuery(
   return found;
 }
 
-function hasAccessibleButtonContract(source: string, qualificationId: string, accessibleName: string): boolean {
+function hasAccessibleButtonContract(source: string, testCaseId: string, accessibleName: string): boolean {
   const sourceFile = ts.createSourceFile(
     'rank-cell-owner.tsx',
     source,
@@ -91,11 +68,14 @@ function hasAccessibleButtonContract(source: string, qualificationId: string, ac
       (node.expression.text === 'it' || node.expression.text === 'test') &&
       node.arguments.length >= 2
     ) {
-      const callback = node.arguments[1];
+      const [title, callback] = node.arguments;
       if (
+        title &&
+        ts.isStringLiteralLike(title) &&
+        title.text.startsWith(`${testCaseId}:`) &&
         callback &&
         (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) &&
-        callbackHasAccessibleButtonQuery(callback, qualificationId, accessibleName)
+        callbackHasAccessibleButtonQuery(callback, accessibleName)
       ) {
         found = true;
         return;
@@ -109,10 +89,10 @@ function hasAccessibleButtonContract(source: string, qualificationId: string, ac
   return found;
 }
 
-export function hasRankCellClearAccessibleNameContract(source: string, qualificationId: string): boolean {
-  return hasAccessibleButtonContract(source, qualificationId, 'Clear rank override');
+export function hasRankCellClearAccessibleNameContract(source: string, testCaseId: string): boolean {
+  return hasAccessibleButtonContract(source, testCaseId, 'Clear rank override');
 }
 
-export function hasRankCellSaveAccessibleNameContract(source: string, qualificationId: string): boolean {
-  return hasAccessibleButtonContract(source, qualificationId, 'Save rank');
+export function hasRankCellSaveAccessibleNameContract(source: string, testCaseId: string): boolean {
+  return hasAccessibleButtonContract(source, testCaseId, 'Save rank');
 }
