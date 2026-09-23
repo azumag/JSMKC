@@ -36,8 +36,28 @@ describe('TA round result normalization', () => {
     expect(normalizeTaRoundResult({ playerId: 1, timeMs: 10 })).toBeNull();
     expect(normalizeTaRoundResult({ playerId: '', timeMs: 10 })).toBeNull();
     expect(normalizeTaRoundResult({ playerId: '   ', timeMs: 10 })).toBeNull();
+    expect(normalizeTaRoundResult({ playerId: ' player-1', timeMs: 10 })).toBeNull();
+    expect(normalizeTaRoundResult({ playerId: 'player-1 ', timeMs: 10 })).toBeNull();
     expect(normalizeTaRoundResult({ playerId: 'player-1', timeMs: -1 })).toBeNull();
     expect(normalizeTaRoundResult({ playerId: 'player-1', timeMs: Number.NaN })).toBeNull();
+    expect(normalizeTaRoundResult({ playerId: 'player-1', timeMs: Number.POSITIVE_INFINITY })).toBeNull();
+  });
+
+  it('falls back to the validated adjusted time when persisted rawTimeMs is malformed', () => {
+    expect(
+      normalizeTaRoundResult({
+        playerId: 'player-1',
+        rawTimeMs: Number.POSITIVE_INFINITY,
+        timeMs: 90_000,
+      }),
+    ).toEqual({
+      playerId: 'player-1',
+      rawTimeMs: 90_000,
+      handicapSeconds: 0,
+      timeMs: 90_000,
+      isRetry: false,
+      tvNumber: null,
+    });
   });
 
   it('filters malformed entries from result arrays', () => {
@@ -47,6 +67,7 @@ describe('TA round result normalization', () => {
         { playerId: null, timeMs: 2000 },
         { playerId: '', timeMs: 2500 },
         { playerId: '   ', timeMs: 2750 },
+        { playerId: ' p-invalid', timeMs: 2800 },
         { playerId: 'p2', timeMs: 3000, isRetry: true },
       ]),
     ).toEqual([
