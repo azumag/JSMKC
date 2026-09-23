@@ -51,4 +51,24 @@ describe('server logger metadata serialization', () => {
     expect(serialized).not.toContain('secret-token-should-not-leak');
     expect(serialized).not.toContain('visible');
   });
+
+  it('keeps Proxy ownKeys failures inside the serialization boundary', () => {
+    const meta = new Proxy<Record<string, unknown>>(
+      { safe: 'visible' },
+      {
+        ownKeys() {
+          throw new Error('proxy-secret-should-not-leak');
+        },
+      },
+    );
+
+    let serialized = '';
+    expect(() => {
+      serialized = serializeServerLogMeta(meta);
+    }).not.toThrow();
+
+    expect(serialized).toBe('{"serializationError":"[Unserializable metadata]"}');
+    expect(serialized).not.toContain('proxy-secret-should-not-leak');
+    expect(serialized).not.toContain('visible');
+  });
 });
