@@ -41,8 +41,30 @@ describe('persisted finals seed snapshot validation', () => {
     expect(parseFinalsSeedSnapshot([invalidEntry])).toEqual([]);
   });
 
+  it.each([
+    ['object name', { ...entry(1, 1), player: { ...entry(1, 1).player, name: { value: 'P1' } } }],
+    ['numeric nickname', { ...entry(1, 1), player: { ...entry(1, 1).player, nickname: 123 } }],
+    ['object country', { ...entry(1, 1), player: { ...entry(1, 1).player, country: { code: 'JP' } } }],
+    ['string noCamera', { ...entry(1, 1), player: { ...entry(1, 1).player, noCamera: 'false' } }],
+    ['null noCamera', { ...entry(1, 1), player: { ...entry(1, 1).player, noCamera: null } }],
+    ['numeric qualification rank label', { ...entry(1, 1), qualificationRankLabel: 1 }],
+    ['null qualification rank label', { ...entry(1, 1), qualificationRankLabel: null }],
+  ])('rejects invalid player display payload: %s', (_label, invalidEntry) => {
+    expect(parseFinalsSeedSnapshot([invalidEntry])).toEqual([]);
+  });
+
   it('keeps a valid positive safe-integer entry with matching player identity', () => {
     expect(parseFinalsSeedSnapshot([entry(3, 7)])).toEqual([entry(3, 7)]);
+  });
+
+  it('keeps nullable and omitted player display fields that match the snapshot type', () => {
+    const validEntry = {
+      ...entry(1, 1),
+      player: { id: 'p1', name: null, nickname: null, country: null, noCamera: false },
+      qualificationRankLabel: 'A1',
+    };
+
+    expect(parseFinalsSeedSnapshot([validEntry])).toEqual([validEntry]);
   });
 
   it('does not treat a snapshot with an invalid structural seed as authoritative', () => {
@@ -63,6 +85,14 @@ describe('persisted finals seed snapshot validation', () => {
   it('does not treat a complete-looking snapshot with a padded player identity as authoritative', () => {
     const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
     snapshot[0] = { ...entry(1, 1), playerId: ' p1 ', player: { id: ' p1 ', name: 'P1' } };
+
+    expect(parseFinalsSeedSnapshot(snapshot)).toHaveLength(7);
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
+  it('does not treat a complete-looking snapshot with malformed display data as authoritative', () => {
+    const snapshot: unknown[] = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[0] = { ...entry(1, 1), player: { ...entry(1, 1).player, nickname: { value: 'P1' } } };
 
     expect(parseFinalsSeedSnapshot(snapshot)).toHaveLength(7);
     expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
