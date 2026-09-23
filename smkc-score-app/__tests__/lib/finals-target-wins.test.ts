@@ -5,6 +5,7 @@ import {
   getMrFinalsMaxRounds,
   getMrFinalsTargetWins,
   parsePersistedFinalsTargetWins,
+  resolveFinalsMatchTargetWins,
 } from '@/lib/finals-target-wins';
 
 describe('finals-target-wins', () => {
@@ -124,5 +125,37 @@ describe('finals-target-wins', () => {
     [undefined, null],
   ])('parses persisted targetWins %p as %p', (value, expected) => {
     expect(parsePersistedFinalsTargetWins(value)).toBe(expected);
+  });
+
+  it('uses a valid persisted value before configured fallbacks', () => {
+    const getTargetWins = jest.fn(() => 7);
+
+    expect(
+      resolveFinalsMatchTargetWins(
+        { stage: 'finals', round: 'winners_r1', targetWins: 99 },
+        { getTargetWins, targetWins: 5 },
+      ),
+    ).toBe(99);
+    expect(getTargetWins).not.toHaveBeenCalled();
+  });
+
+  it.each([100, Number.MAX_SAFE_INTEGER + 1, '7', true, 7n, { targetWins: 7 }])(
+    'falls back from invalid persisted match targetWins %p',
+    (targetWins) => {
+      const getTargetWins = jest.fn(() => 7);
+
+      expect(
+        resolveFinalsMatchTargetWins(
+          { stage: 'finals', round: 'winners_r1', targetWins },
+          { getTargetWins, targetWins: 5 },
+        ),
+      ).toBe(7);
+      expect(getTargetWins).toHaveBeenCalledWith({ stage: 'finals', round: 'winners_r1' });
+    },
+  );
+
+  it('preserves configured targetWins and default fallback ordering', () => {
+    expect(resolveFinalsMatchTargetWins({ targetWins: 100 }, { targetWins: 5 })).toBe(5);
+    expect(resolveFinalsMatchTargetWins({ targetWins: 100 }, {})).toBe(3);
   });
 });
