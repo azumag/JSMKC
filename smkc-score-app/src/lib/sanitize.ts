@@ -71,28 +71,32 @@ export function sanitizeString(str: string): string {
 export function sanitizeObject(
   obj: Record<string, unknown>
 ): Record<string, unknown> {
-  // Create a new object to avoid mutating the original input.
-  // This follows the principle of immutability for safer data flow.
-  const sanitized: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(obj)) {
+  // Build entries first and materialize them with Object.fromEntries().
+  // Direct `sanitized[key] = value` assignment on a normal object would treat
+  // the special `__proto__` key as a prototype setter instead of an own data
+  // property, allowing JSON input to alter the prototype of the sanitized
+  // result. Object.fromEntries() uses data-property creation semantics and
+  // therefore preserves attacker-controlled keys without prototype mutation.
+  const entries = Object.entries(obj).map(([key, value]): [string, unknown] => {
     if (typeof value === 'string') {
       // String values get XSS sanitization applied
-      sanitized[key] = sanitizeString(value);
-    } else if (Array.isArray(value)) {
-      // Arrays are recursively sanitized via sanitizeArray
-      sanitized[key] = sanitizeArray(value);
-    } else if (value !== null && typeof value === 'object') {
-      // Nested objects are recursively sanitized
-      sanitized[key] = sanitizeObject(value as Record<string, unknown>);
-    } else {
-      // Non-string primitive values (numbers, booleans, null, undefined)
-      // are passed through unchanged as they cannot contain XSS payloads
-      sanitized[key] = value;
+      return [key, sanitizeString(value)];
     }
-  }
+    if (Array.isArray(value)) {
+      // Arrays are recursively sanitized via sanitizeArray
+      return [key, sanitizeArray(value)];
+    }
+    if (value !== null && typeof value === 'object') {
+      // Nested objects are recursively sanitized
+      return [key, sanitizeObject(value as Record<string, unknown>)];
+    }
 
-  return sanitized;
+    // Non-string primitive values (numbers, booleans, null, undefined)
+    // are passed through unchanged as they cannot contain XSS payloads
+    return [key, value];
+  });
+
+  return Object.fromEntries(entries);
 }
 
 /**
