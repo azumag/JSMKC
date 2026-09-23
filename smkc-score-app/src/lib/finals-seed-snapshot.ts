@@ -48,6 +48,23 @@ function isCanonicalIdentifier(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.trim() === value;
 }
 
+function isOptionalNullableString(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
+function isValidSnapshotPlayer(value: unknown, expectedId: string): value is FinalsSeedSnapshotEntry['player'] {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<FinalsSeedSnapshotEntry['player']>;
+  return (
+    isCanonicalIdentifier(candidate.id) &&
+    candidate.id === expectedId &&
+    isOptionalNullableString(candidate.name) &&
+    isOptionalNullableString(candidate.nickname) &&
+    isOptionalNullableString(candidate.country) &&
+    (candidate.noCamera === undefined || typeof candidate.noCamera === 'boolean')
+  );
+}
+
 export function getFinalsSeedSnapshotField(mode: FinalsSeedMode): FinalsSeedSnapshotField {
   return `${mode}FinalsSeedSnapshot` as FinalsSeedSnapshotField;
 }
@@ -61,9 +78,8 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
       !isPositiveSafeInteger(candidate.seed) ||
       !isPositiveSafeInteger(candidate.originalSeed) ||
       !isCanonicalIdentifier(candidate.playerId) ||
-      !candidate.player ||
-      !isCanonicalIdentifier(candidate.player.id) ||
-      candidate.player.id !== candidate.playerId
+      !isValidSnapshotPlayer(candidate.player, candidate.playerId) ||
+      (candidate.qualificationRankLabel !== undefined && typeof candidate.qualificationRankLabel !== 'string')
     ) {
       return [];
     }
