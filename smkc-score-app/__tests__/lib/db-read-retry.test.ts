@@ -21,9 +21,7 @@ describe('retryDbRead', () => {
     let call = 0;
     const operation = jest.fn().mockImplementation(() => {
       call += 1;
-      return call === 1
-        ? Promise.reject(new Error('transient'))
-        : Promise.resolve('retry-success');
+      return call === 1 ? Promise.reject(new Error('transient')) : Promise.resolve('retry-success');
     });
 
     const result = await retryDbRead(operation, { delayMs: 0 });
@@ -46,13 +44,9 @@ describe('retryDbRead', () => {
   });
 
   it('TC-2513: respects custom attempts option', async () => {
-    const operation = jest.fn().mockImplementation(() =>
-      Promise.reject(new Error('always fails')),
-    );
+    const operation = jest.fn().mockImplementation(() => Promise.reject(new Error('always fails')));
 
-    await expect(retryDbRead(operation, { attempts: 3, delayMs: 0 })).rejects.toThrow(
-      'always fails',
-    );
+    await expect(retryDbRead(operation, { attempts: 3, delayMs: 0 })).rejects.toThrow('always fails');
     expect(operation).toHaveBeenCalledTimes(3);
   });
 
