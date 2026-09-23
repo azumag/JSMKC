@@ -11,8 +11,7 @@ function objectHasStringProperty(node: ts.Node | undefined, propertyName: string
     if (!ts.isPropertyAssignment(property)) return false;
 
     const name = property.name;
-    const matchesName =
-      (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) && name.text === propertyName;
+    const matchesName = (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) && name.text === propertyName;
 
     return matchesName && isStringLiteral(property.initializer, value);
   });
@@ -36,11 +35,7 @@ function hasQualificationId(node: ts.Node, qualificationId: string): boolean {
   function visit(child: ts.Node) {
     if (found) return;
 
-    if (
-      ts.isJsxAttribute(child) &&
-      ts.isIdentifier(child.name) &&
-      child.name.text === 'qualificationId'
-    ) {
+    if (ts.isJsxAttribute(child) && ts.isIdentifier(child.name) && child.name.text === 'qualificationId') {
       const initializer = child.initializer;
       if (initializer && ts.isStringLiteral(initializer) && initializer.text === qualificationId) {
         found = true;
