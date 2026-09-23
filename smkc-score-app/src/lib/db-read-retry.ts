@@ -27,10 +27,7 @@ function validateRetryOptions(attempts: number, delayMs: number): void {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function retryDbRead(operation: () => Promise<any>, options?: RetryOptions): Promise<any>;
 export async function retryDbRead<T>(operation: () => Promise<T>, options?: RetryOptions): Promise<T>;
-export async function retryDbRead<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = {},
-): Promise<T> {
+export async function retryDbRead<T>(operation: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const attempts = options.attempts ?? 2;
   const delayMs = options.delayMs ?? 75;
   validateRetryOptions(attempts, delayMs);
