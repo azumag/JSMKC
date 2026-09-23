@@ -94,9 +94,13 @@ export function serializeServerLogMeta(meta: Record<string, unknown>): string {
 function formatMessage(service: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
   const base = `${timestamp} [${service}] ${message}`;
-  // Append metadata as JSON if provided, for structured log parsing
-  if (meta && Object.keys(meta).length > 0) {
-    return `${base} ${serializeServerLogMeta(meta)}`;
+  // Serialize before checking for an empty object so Proxy traps and accessors
+  // stay inside the serializer's fail-safe boundary instead of Object.keys().
+  if (meta) {
+    const serialized = serializeServerLogMeta(meta);
+    if (serialized !== '{}') {
+      return `${base} ${serialized}`;
+    }
   }
   return base;
 }
