@@ -19,6 +19,7 @@ function objectHasStringProperty(node: ts.Node | undefined, propertyName: string
 
 function isRoleQuery(node: ts.CallExpression, role: string, accessibleName: string): boolean {
   if (!ts.isPropertyAccessExpression(node.expression)) return false;
+  if (!ts.isIdentifier(node.expression.expression) || node.expression.expression.text !== 'screen') return false;
   if (!['getByRole', 'queryByRole', 'findByRole'].includes(node.expression.name.text)) return false;
 
   const [roleArgument, optionsArgument] = node.arguments;
