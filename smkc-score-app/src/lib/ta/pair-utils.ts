@@ -34,7 +34,7 @@ function isValidSeeding(value: unknown): value is number {
  *   2. Pair sorted[0]+sorted[N-1], sorted[1]+sorted[N-2], ...
  *
  * This minimises the average skill gap across all pairs.
- * If the entry count is odd, the last sorted entry is unpaired.
+ * If the entry count is odd, the middle sorted entry is unpaired.
  *
  * @param players - Entries to pair (typically qualification stage entries)
  * @returns Array of [stronger, weaker] entry pairs
