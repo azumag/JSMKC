@@ -14,6 +14,27 @@ function isStringArgument(call: ts.CallExpression, value: string): boolean {
   );
 }
 
+function hasTestContainerRoot(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) return TEST_CONTAINER_IDENTIFIERS.has(expression.text);
+  if (ts.isPropertyAccessExpression(expression)) return hasTestContainerRoot(expression.expression);
+  if (ts.isCallExpression(expression)) return hasTestContainerRoot(expression.expression);
+  return false;
+}
+
+function hasSkippedTestModifier(expression: ts.Expression): boolean {
+  if (ts.isPropertyAccessExpression(expression)) {
+    if (
+      (expression.name.text === 'skip' || expression.name.text === 'todo') &&
+      hasTestContainerRoot(expression.expression)
+    ) {
+      return true;
+    }
+    return hasSkippedTestModifier(expression.expression);
+  }
+  if (ts.isCallExpression(expression)) return hasSkippedTestModifier(expression.expression);
+  return false;
+}
+
 function isSkippedTestContainer(node: ts.Node): boolean {
   if (!ts.isCallExpression(node)) return false;
 
@@ -21,14 +42,7 @@ function isSkippedTestContainer(node: ts.Node): boolean {
     return SKIPPED_TEST_IDENTIFIERS.has(node.expression.text);
   }
 
-  if (!ts.isPropertyAccessExpression(node.expression) || !ts.isIdentifier(node.expression.expression)) {
-    return false;
-  }
-
-  return (
-    TEST_CONTAINER_IDENTIFIERS.has(node.expression.expression.text) &&
-    (node.expression.name.text === 'skip' || node.expression.name.text === 'todo')
-  );
+  return hasSkippedTestModifier(node.expression);
 }
 
 function isInsideSkippedTestContainer(node: ts.Node): boolean {
