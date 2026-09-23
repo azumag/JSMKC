@@ -9,6 +9,8 @@ type RetryOptions = {
   onRetry?: (context: RetryContext) => void;
 };
 
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -19,6 +21,11 @@ function validateRetryOptions(attempts: number, delayMs: number): void {
   }
   if (!Number.isFinite(delayMs) || delayMs < 0) {
     throw new RangeError('retryDbRead delayMs must be a non-negative finite number');
+  }
+
+  const maxSleepAttempt = attempts - 1;
+  if (maxSleepAttempt > 0 && delayMs > MAX_TIMER_DELAY_MS / maxSleepAttempt) {
+    throw new RangeError('retryDbRead delayMs exceeds the supported timer range for configured attempts');
   }
 }
 
