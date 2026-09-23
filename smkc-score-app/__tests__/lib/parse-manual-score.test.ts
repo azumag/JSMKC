@@ -30,10 +30,10 @@ describe('parseManualScore', () => {
     // operator's intent.
     test.each([
       ['12.5'], // parseInt → 12
-      ['5.9'],  // parseInt → 5
-      ['0.1'],  // parseInt → 0
-      ['1e2'],  // parseInt → 1
-      ['1E2'],  // parseInt → 1
+      ['5.9'], // parseInt → 5
+      ['0.1'], // parseInt → 0
+      ['1e2'], // parseInt → 1
+      ['1E2'], // parseInt → 1
     ])('rejects %j', (input) => {
       expect(parseManualScore(input)).toBeNull();
     });
