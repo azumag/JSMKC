@@ -1,4 +1,5 @@
 import { normalizeTaHandicapSeconds } from '@/lib/ta/battle-royale';
+import { isCanonicalTaPlayerId } from '@/lib/ta/player-id';
 import type { TaRoundResult } from '@/lib/ta/phase-api-types';
 
 function isFiniteNonNegative(value: unknown): value is number {
@@ -8,12 +9,7 @@ function isFiniteNonNegative(value: unknown): value is number {
 export function normalizeTaRoundResult(value: unknown): TaRoundResult | null {
   if (!value || typeof value !== 'object') return null;
   const input = value as Record<string, unknown>;
-  if (
-    typeof input.playerId !== 'string' ||
-    input.playerId.trim() === '' ||
-    input.playerId !== input.playerId.trim() ||
-    !isFiniteNonNegative(input.timeMs)
-  ) {
+  if (!isCanonicalTaPlayerId(input.playerId) || !isFiniteNonNegative(input.timeMs)) {
     return null;
   }
   const rawTimeMs = isFiniteNonNegative(input.rawTimeMs) ? input.rawTimeMs : input.timeMs;
