@@ -2,6 +2,7 @@ import ts from 'typescript';
 
 const SKIPPED_TEST_IDENTIFIERS = new Set(['xit', 'xtest', 'xdescribe']);
 const TEST_CONTAINER_IDENTIFIERS = new Set(['it', 'test', 'describe']);
+const RUNNABLE_TEST_IDENTIFIERS = new Set(['it', 'test']);
 
 function isNamedCall(call: ts.CallExpression, name: string): boolean {
   return ts.isIdentifier(call.expression) && call.expression.text === name;
@@ -41,11 +42,17 @@ function isSkippedTestContainer(node: ts.Node): boolean {
   return hasExpressionRoot(node.expression, SKIPPED_TEST_IDENTIFIERS) || hasSkippedTestModifier(node.expression);
 }
 
-function isInsideSkippedTestContainer(node: ts.Node): boolean {
+function isInsideRunnableTestContainer(node: ts.Node): boolean {
+  let foundRunnableTest = false;
+
   for (let current = node.parent; current; current = current.parent) {
-    if (isSkippedTestContainer(current)) return true;
+    if (isSkippedTestContainer(current)) return false;
+    if (ts.isCallExpression(current) && hasExpressionRoot(current.expression, RUNNABLE_TEST_IDENTIFIERS)) {
+      foundRunnableTest = true;
+    }
   }
-  return false;
+
+  return foundRunnableTest;
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {
@@ -61,7 +68,7 @@ export function hasTc1987TvNullAssertion(source: string): boolean {
       ts.isPropertyAccessExpression(node.expression) &&
       node.expression.name.text === 'toBeNull' &&
       ts.isCallExpression(node.expression.expression) &&
-      !isInsideSkippedTestContainer(node)
+      isInsideRunnableTestContainer(node)
     ) {
       const expectCall = node.expression.expression;
       const [expectArgument] = expectCall.arguments;
