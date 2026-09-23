@@ -1,5 +1,8 @@
 import ts from 'typescript';
 
+const SKIPPED_TEST_IDENTIFIERS = new Set(['xit', 'xtest', 'xdescribe']);
+const TEST_CONTAINER_IDENTIFIERS = new Set(['it', 'test', 'describe']);
+
 function isNamedCall(call: ts.CallExpression, name: string): boolean {
   return ts.isIdentifier(call.expression) && call.expression.text === name;
 }
@@ -9,6 +12,40 @@ function isStringArgument(call: ts.CallExpression, value: string): boolean {
   return (
     call.arguments.length === 1 && argument !== undefined && ts.isStringLiteralLike(argument) && argument.text === value
   );
+}
+
+function hasExpressionRoot(expression: ts.Expression, roots: Set<string>): boolean {
+  if (ts.isIdentifier(expression)) return roots.has(expression.text);
+  if (ts.isPropertyAccessExpression(expression)) return hasExpressionRoot(expression.expression, roots);
+  if (ts.isCallExpression(expression)) return hasExpressionRoot(expression.expression, roots);
+  return false;
+}
+
+function hasSkippedTestModifier(expression: ts.Expression): boolean {
+  if (ts.isPropertyAccessExpression(expression)) {
+    if (
+      (expression.name.text === 'skip' || expression.name.text === 'todo') &&
+      hasExpressionRoot(expression.expression, TEST_CONTAINER_IDENTIFIERS)
+    ) {
+      return true;
+    }
+    return hasSkippedTestModifier(expression.expression);
+  }
+  if (ts.isCallExpression(expression)) return hasSkippedTestModifier(expression.expression);
+  return false;
+}
+
+function isSkippedTestContainer(node: ts.Node): boolean {
+  if (!ts.isCallExpression(node)) return false;
+
+  return hasExpressionRoot(node.expression, SKIPPED_TEST_IDENTIFIERS) || hasSkippedTestModifier(node.expression);
+}
+
+function isInsideSkippedTestContainer(node: ts.Node): boolean {
+  for (let current = node.parent; current; current = current.parent) {
+    if (isSkippedTestContainer(current)) return true;
+  }
+  return false;
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {
@@ -23,7 +60,8 @@ export function hasTc1987TvNullAssertion(source: string): boolean {
       node.arguments.length === 0 &&
       ts.isPropertyAccessExpression(node.expression) &&
       node.expression.name.text === 'toBeNull' &&
-      ts.isCallExpression(node.expression.expression)
+      ts.isCallExpression(node.expression.expression) &&
+      !isInsideSkippedTestContainer(node)
     ) {
       const expectCall = node.expression.expression;
       const [expectArgument] = expectCall.arguments;
