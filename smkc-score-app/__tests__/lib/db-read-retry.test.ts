@@ -108,4 +108,28 @@ describe('retryDbRead', () => {
       expect(operation).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    [2, 2_147_483_648],
+    [3, 1_073_741_824],
+    [Number.MAX_SAFE_INTEGER, 1],
+  ])('rejects attempts=%s with delayMs=%s when a retry sleep exceeds the timer range', async (attempts, delayMs) => {
+    const operation = jest.fn().mockResolvedValue('should-not-run');
+
+    await expect(retryDbRead(operation, { attempts, delayMs })).rejects.toThrow(
+      'retryDbRead delayMs exceeds the supported timer range for configured attempts',
+    );
+    expect(operation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [1, Number.MAX_VALUE],
+    [2, 2_147_483_647],
+    [3, 1_073_741_823.5],
+  ])('accepts delayMs when every configured retry sleep remains within the timer range', async (attempts, delayMs) => {
+    const operation = jest.fn().mockResolvedValue('ok');
+
+    await expect(retryDbRead(operation, { attempts, delayMs })).resolves.toBe('ok');
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
 });
