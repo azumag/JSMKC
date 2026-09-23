@@ -30,16 +30,35 @@ function isRoleQuery(node: ts.CallExpression, role: string, accessibleName: stri
   );
 }
 
-function hasAccessibleButtonQuery(source: string, accessibleName: string): boolean {
-  const sourceFile = ts.createSourceFile(
-    'rank-cell-owner.tsx',
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX,
-  );
+function hasQualificationId(node: ts.Node, qualificationId: string): boolean {
   let found = false;
 
+  function visit(child: ts.Node) {
+    if (found) return;
+
+    if (ts.isJsxAttribute(child) && child.name.text === 'qualificationId') {
+      const initializer = child.initializer;
+      if (initializer && ts.isStringLiteral(initializer) && initializer.text === qualificationId) {
+        found = true;
+        return;
+      }
+    }
+
+    ts.forEachChild(child, visit);
+  }
+
+  visit(node);
+  return found;
+}
+
+function callbackHasAccessibleButtonQuery(
+  callback: ts.ArrowFunction | ts.FunctionExpression,
+  qualificationId: string,
+  accessibleName: string,
+): boolean {
+  if (!hasQualificationId(callback.body, qualificationId)) return false;
+
+  let found = false;
   function visit(node: ts.Node) {
     if (found) return;
 
@@ -51,14 +70,49 @@ function hasAccessibleButtonQuery(source: string, accessibleName: string): boole
     ts.forEachChild(node, visit);
   }
 
+  visit(callback.body);
+  return found;
+}
+
+function hasAccessibleButtonContract(source: string, qualificationId: string, accessibleName: string): boolean {
+  const sourceFile = ts.createSourceFile(
+    'rank-cell-owner.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  let found = false;
+
+  function visit(node: ts.Node) {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      (node.expression.text === 'it' || node.expression.text === 'test') &&
+      node.arguments.length >= 2
+    ) {
+      const callback = node.arguments[1];
+      if (
+        callback &&
+        (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) &&
+        callbackHasAccessibleButtonQuery(callback, qualificationId, accessibleName)
+      ) {
+        found = true;
+        return;
+      }
+    }
+
+    if (!found) ts.forEachChild(node, visit);
+  }
+
   visit(sourceFile);
   return found;
 }
 
-export function hasRankCellClearAccessibleNameContract(source: string): boolean {
-  return hasAccessibleButtonQuery(source, 'Clear rank override');
+export function hasRankCellClearAccessibleNameContract(source: string, qualificationId: string): boolean {
+  return hasAccessibleButtonContract(source, qualificationId, 'Clear rank override');
 }
 
-export function hasRankCellSaveAccessibleNameContract(source: string): boolean {
-  return hasAccessibleButtonQuery(source, 'Save rank');
+export function hasRankCellSaveAccessibleNameContract(source: string, qualificationId: string): boolean {
+  return hasAccessibleButtonContract(source, qualificationId, 'Save rank');
 }
