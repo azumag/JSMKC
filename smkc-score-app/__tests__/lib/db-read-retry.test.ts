@@ -21,9 +21,7 @@ describe('retryDbRead', () => {
     let call = 0;
     const operation = jest.fn().mockImplementation(() => {
       call += 1;
-      return call === 1
-        ? Promise.reject(new Error('transient'))
-        : Promise.resolve('retry-success');
+      return call === 1 ? Promise.reject(new Error('transient')) : Promise.resolve('retry-success');
     });
 
     const result = await retryDbRead(operation, { delayMs: 0 });
@@ -46,13 +44,9 @@ describe('retryDbRead', () => {
   });
 
   it('TC-2513: respects custom attempts option', async () => {
-    const operation = jest.fn().mockImplementation(() =>
-      Promise.reject(new Error('always fails')),
-    );
+    const operation = jest.fn().mockImplementation(() => Promise.reject(new Error('always fails')));
 
-    await expect(retryDbRead(operation, { attempts: 3, delayMs: 0 })).rejects.toThrow(
-      'always fails',
-    );
+    await expect(retryDbRead(operation, { attempts: 3, delayMs: 0 })).rejects.toThrow('always fails');
     expect(operation).toHaveBeenCalledTimes(3);
   });
 
@@ -90,4 +84,28 @@ describe('retryDbRead', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onRetry).toHaveBeenCalledWith({ attempt: 1, error: expect.any(Error) });
   });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid attempts value %s before executing the operation',
+    async (attempts) => {
+      const operation = jest.fn().mockResolvedValue('should-not-run');
+
+      await expect(retryDbRead(operation, { attempts, delayMs: 0 })).rejects.toThrow(
+        'retryDbRead attempts must be a positive safe integer',
+      );
+      expect(operation).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'rejects invalid delayMs value %s before executing the operation',
+    async (delayMs) => {
+      const operation = jest.fn().mockResolvedValue('should-not-run');
+
+      await expect(retryDbRead(operation, { attempts: 1, delayMs })).rejects.toThrow(
+        'retryDbRead delayMs must be a non-negative finite number',
+      );
+      expect(operation).not.toHaveBeenCalled();
+    },
+  );
 });
