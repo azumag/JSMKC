@@ -116,6 +116,34 @@ describe('ensureFinalsSeedSnapshot', () => {
     expect(prisma.tournament.update).not.toHaveBeenCalled();
   });
 
+  it('does not accept a sanitized subset of malformed persisted data as complete', async () => {
+    const persistedSnapshot = Array.from({ length: 8 }, (_, index) => ({
+      seed: index + 1,
+      originalSeed: index + 1,
+      playerId: `p${index + 1}`,
+      player: player(`p${index + 1}`),
+    }));
+    persistedSnapshot.push({
+      seed: Number.NaN,
+      originalSeed: 9,
+      playerId: 'p9',
+      player: player('p9'),
+    });
+    (prisma.tournament.findUnique as jest.Mock).mockResolvedValue({
+      status: 'completed',
+      bmFinalsSeedSnapshot: persistedSnapshot,
+    });
+    (prisma.bMMatch.findMany as jest.Mock).mockResolvedValue([row(1, 'finals', 'winners_qf', 'p1', 'p8')]);
+
+    await expect(resolveFinalsSeedSnapshot('t1', 'bm')).resolves.toEqual({
+      status: 'unsafe',
+      snapshot: [],
+      reason: 'incomplete_opening_round',
+    });
+    expect(prisma.bMMatch.findMany).toHaveBeenCalled();
+    expect(prisma.tournament.update).not.toHaveBeenCalled();
+  });
+
   it.each(['draft', 'active'] as const)(
     'treats an incomplete opening round as absent while tournament status is %s',
     async (status) => {
