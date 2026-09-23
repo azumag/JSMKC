@@ -68,9 +68,7 @@ export function sanitizeString(str: string): string {
  *   // Returns: { name: '<b>Player</b>', score: 100 }
  *   // Note: <b> is safe HTML and preserved; <script> would be removed
  */
-export function sanitizeObject(
-  obj: Record<string, unknown>
-): Record<string, unknown> {
+export function sanitizeObject(obj: Record<string, unknown>): Record<string, unknown> {
   // Build entries first and materialize them with Object.fromEntries().
   // Direct `sanitized[key] = value` assignment on a normal object would treat
   // the special `__proto__` key as a prototype setter instead of an own data
