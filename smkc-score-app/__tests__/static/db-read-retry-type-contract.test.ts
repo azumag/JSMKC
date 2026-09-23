@@ -5,7 +5,7 @@ describe('retryDbRead type contract', () => {
     const source = readRepoFile('smkc-score-app', 'src', 'lib', 'db-read-retry.ts');
 
     expect(source).toContain(
-      'export async function retryDbRead<T>(operation: () => Promise<T>, options?: RetryOptions): Promise<T>;'
+      'export async function retryDbRead<T>(operation: () => Promise<T>, options?: RetryOptions): Promise<T>;',
     );
     expect(source).not.toMatch(/retryDbRead\s*\(\s*operation:\s*\(\)\s*=>\s*Promise<any>/);
   });
