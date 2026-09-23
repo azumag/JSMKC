@@ -45,30 +45,62 @@ export interface Logger {
   debug: (message: string, meta?: Record<string, unknown>) => void;
 }
 
+const SERIALIZATION_FALLBACK = '{"serializationError":"[Unserializable metadata]"}';
+
+/**
+ * Serialize a value for structured logging. Error objects need special
+ * handling because JSON.stringify ignores non-enumerable properties like
+ * `message` and `stack`. BigInt values are emitted as decimal strings so
+ * diagnostics cannot throw or lose integer precision.
+ *
+ * Track only the current ancestor chain so true cycles are replaced while a
+ * shared non-cyclic object can still appear in multiple branches. Guard the
+ * full stringify operation because custom `toJSON()` methods and property
+ * accessors may throw before or during the replacer walk.
+ */
+export function serializeServerLogMeta(meta: Record<string, unknown>): string {
+  const ancestors: object[] = [];
+
+  try {
+    return JSON.stringify(meta, function (_key, value) {
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      if (value instanceof Error) {
+        return { name: value.name, message: value.message, stack: value.stack };
+      }
+      if (typeof value !== 'object' || value === null) {
+        return value;
+      }
+
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop();
+      }
+      if (ancestors.includes(value)) {
+        return '[Circular]';
+      }
+      ancestors.push(value);
+      return value;
+    });
+  } catch {
+    return SERIALIZATION_FALLBACK;
+  }
+}
+
 /**
  * Formats a log line with ISO timestamp and service prefix.
  * Example: "2026-03-12T10:30:00.000Z [api-players] Player registered { playerId: '123' }"
  */
-/**
- * Serialize a value for structured logging. Error objects need special
- * handling because JSON.stringify ignores non-enumerable properties
- * like `message` and `stack`.
- */
-function serializeMeta(meta: Record<string, unknown>): string {
-  return JSON.stringify(meta, (_key, value) => {
-    if (value instanceof Error) {
-      return { name: value.name, message: value.message, stack: value.stack };
-    }
-    return value;
-  });
-}
-
 function formatMessage(service: string, message: string, meta?: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
   const base = `${timestamp} [${service}] ${message}`;
-  // Append metadata as JSON if provided, for structured log parsing
-  if (meta && Object.keys(meta).length > 0) {
-    return `${base} ${serializeMeta(meta)}`;
+  // Serialize before checking for an empty object so Proxy traps and accessors
+  // stay inside the serializer's fail-safe boundary instead of Object.keys().
+  if (meta) {
+    const serialized = serializeServerLogMeta(meta);
+    if (serialized !== '{}') {
+      return `${base} ${serialized}`;
+    }
   }
   return base;
 }
