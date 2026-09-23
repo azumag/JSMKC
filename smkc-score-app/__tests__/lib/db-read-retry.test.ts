@@ -113,7 +113,7 @@ describe('retryDbRead', () => {
     [2, 2_147_483_648],
     [3, 1_073_741_824],
     [Number.MAX_SAFE_INTEGER, 1],
-  ])('rejects delayMs %s? no: attempts=%s when a retry sleep exceeds the timer range', async (attempts, delayMs) => {
+  ])('rejects attempts=%s with delayMs=%s when a retry sleep exceeds the timer range', async (attempts, delayMs) => {
     const operation = jest.fn().mockResolvedValue('should-not-run');
 
     await expect(retryDbRead(operation, { attempts, delayMs })).rejects.toThrow(
