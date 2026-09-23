@@ -37,17 +37,18 @@ describe('computeAutoPairs', () => {
     });
   });
 
-  it('leaves last player unpaired when count is odd', () => {
+  it('leaves the middle sorted player unpaired when count is odd', () => {
     const players = [
       makeEntry('e1', 'p1', 1),
       makeEntry('e2', 'p2', 2),
       makeEntry('e3', 'p3', 3),
     ];
     const pairs = computeAutoPairs(players);
-    // Math.floor(3/2) = 1 pair; seed 3 is unpaired
+    // Math.floor(3/2) = 1 pair; snake pairing uses seed 1 + seed 3, leaving seed 2 unpaired.
     expect(pairs).toHaveLength(1);
     expect(pairs[0][0].seeding).toBe(1);
     expect(pairs[0][1].seeding).toBe(3);
+    expect(pairs.flatMap(([a, b]) => [a.seeding, b.seeding])).not.toContain(2);
   });
 
   it('places null-seeded players last', () => {
