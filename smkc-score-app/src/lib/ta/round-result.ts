@@ -8,7 +8,13 @@ function isFiniteNonNegative(value: unknown): value is number {
 export function normalizeTaRoundResult(value: unknown): TaRoundResult | null {
   if (!value || typeof value !== 'object') return null;
   const input = value as Record<string, unknown>;
-  if (typeof input.playerId !== 'string' || !isFiniteNonNegative(input.timeMs)) return null;
+  if (
+    typeof input.playerId !== 'string' ||
+    input.playerId.trim() === '' ||
+    !isFiniteNonNegative(input.timeMs)
+  ) {
+    return null;
+  }
   const rawTimeMs = isFiniteNonNegative(input.rawTimeMs) ? input.rawTimeMs : input.timeMs;
   const tvNumber = typeof input.tvNumber === 'number' && [1, 2, 3, 4].includes(input.tvNumber) ? input.tvNumber : null;
   return {
