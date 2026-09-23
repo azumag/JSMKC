@@ -5,12 +5,33 @@ export interface FinalsTargetContext {
   targetWins?: number | null;
 }
 
+export interface PersistedFinalsTargetContext {
+  round?: string | null;
+  stage?: string | null;
+  targetWins?: unknown;
+}
+
+export interface FinalsTargetWinsFallback {
+  getTargetWins?: (context: FinalsTargetContext) => number;
+  targetWins?: number;
+}
+
 const MAX_STORED_TARGET_WINS = 99;
 
 export function parsePersistedFinalsTargetWins(value: unknown): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= MAX_STORED_TARGET_WINS
     ? value
     : null;
+}
+
+export function resolveFinalsMatchTargetWins(
+  context: PersistedFinalsTargetContext,
+  fallback: FinalsTargetWinsFallback,
+): number {
+  const persisted = parsePersistedFinalsTargetWins(context.targetWins);
+  if (persisted !== null) return persisted;
+
+  return fallback.getTargetWins?.({ round: context.round, stage: context.stage }) ?? fallback.targetWins ?? 3;
 }
 
 function storedTargetWins(context?: FinalsTargetContext): number | null {
