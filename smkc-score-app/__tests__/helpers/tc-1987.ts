@@ -38,9 +38,7 @@ function hasSkippedTestModifier(expression: ts.Expression): boolean {
 function isSkippedTestContainer(node: ts.Node): boolean {
   if (!ts.isCallExpression(node)) return false;
 
-  return (
-    hasExpressionRoot(node.expression, SKIPPED_TEST_IDENTIFIERS) || hasSkippedTestModifier(node.expression)
-  );
+  return hasExpressionRoot(node.expression, SKIPPED_TEST_IDENTIFIERS) || hasSkippedTestModifier(node.expression);
 }
 
 function isInsideSkippedTestContainer(node: ts.Node): boolean {
