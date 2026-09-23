@@ -65,6 +65,20 @@ describe('persisted finals seed snapshot validation', () => {
     expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
   });
 
+  it('does not treat a snapshot with duplicate player identities as authoritative', () => {
+    const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[7] = { ...entry(8, 8), playerId: 'p1', player: { id: 'p1', name: 'Duplicate P1' } };
+
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
+  it('does not treat a snapshot with duplicate original seeds as authoritative', () => {
+    const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[7] = { ...entry(8, 7), playerId: 'p8', player: { id: 'p8', name: 'P8' } };
+
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
   it('does not treat a snapshot with mismatched player identity as authoritative', () => {
     const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
     snapshot[0] = { ...snapshot[0], player: { id: 'other-player', name: 'P1' } };
