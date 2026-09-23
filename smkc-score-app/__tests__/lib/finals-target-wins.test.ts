@@ -117,6 +117,9 @@ describe('finals-target-wins', () => {
     [Number.POSITIVE_INFINITY, null],
     [Number.MAX_SAFE_INTEGER + 1, null],
     ['7', null],
+    [true, null],
+    [7n, null],
+    [{ targetWins: 7 }, null],
     [null, null],
     [undefined, null],
   ])('parses persisted targetWins %p as %p', (value, expected) => {
