@@ -35,6 +35,8 @@ describe('TC-1987 TV parser drift matcher', () => {
     `xtest('skipped', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
     `xdescribe('skipped suite', () => { it('nested', () => { expect(parseTvNumberInput('abc')).toBeNull(); }); });`,
     `it.todo('not executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `it.skip.each([[1]])('skipped parameterized', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `test.each([[1]]).skip('skipped parameterized', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
   ])('rejects TC-1987 assertions inside skipped test containers: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(false);
   });
