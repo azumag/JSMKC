@@ -75,7 +75,9 @@ export function parseFinalsSeedSnapshot(value: unknown): FinalsSeedSnapshotEntry
  * once. In particular, 12 rows are never a valid Top-24 contract: they are
  * a legacy Phase-1-only artifact lacking the direct qualifiers. */
 export function isCompleteFinalsSeedSnapshot(value: unknown): value is FinalsSeedSnapshotEntry[] {
+  if (!Array.isArray(value)) return false;
   const entries = parseFinalsSeedSnapshot(value);
+  if (entries.length !== value.length) return false;
   const entrantCount = entries.length;
   if (entrantCount !== 8 && entrantCount !== 16 && entrantCount !== 24) return false;
 
