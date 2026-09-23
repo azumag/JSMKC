@@ -30,35 +30,26 @@ describe('parseManualScore', () => {
     // operator's intent.
     test.each([
       ['12.5'], // parseInt → 12
-      ['5.9'],  // parseInt → 5
-      ['0.1'],  // parseInt → 0
-      ['1e2'],  // parseInt → 1
-      ['1E2'],  // parseInt → 1
+      ['5.9'], // parseInt → 5
+      ['0.1'], // parseInt → 0
+      ['1e2'], // parseInt → 1
+      ['1E2'], // parseInt → 1
     ])('rejects %j', (input) => {
       expect(parseManualScore(input)).toBeNull();
     });
   });
 
   describe('rejects non-numeric and signed input', () => {
-    test.each([
-      [''],
-      ['   '],
-      ['abc'],
-      ['-1'],
-      ['+1'],
-      ['1.0'],
-      ['1 2'],
-      ['0x10'],
-      ['NaN'],
-      ['Infinity'],
-    ])('rejects %j', (input) => {
-      expect(parseManualScore(input)).toBeNull();
-    });
+    test.each([[''], ['   '], ['abc'], ['-1'], ['+1'], ['1.0'], ['1 2'], ['0x10'], ['NaN'], ['Infinity']])(
+      'rejects %j',
+      (input) => {
+        expect(parseManualScore(input)).toBeNull();
+      },
+    );
   });
 
-  test('rejects values beyond the safe-integer range', () => {
-    // 2^53 would silently lose precision once stored as a JS number.
-    const unsafe = String(Number.MAX_SAFE_INTEGER) + '0';
-    expect(parseManualScore(unsafe)).toBeNull();
+  test('accepts the safe-integer upper boundary and rejects the first value above it', () => {
+    expect(parseManualScore(String(Number.MAX_SAFE_INTEGER))).toBe(Number.MAX_SAFE_INTEGER);
+    expect(parseManualScore(String(Number.MAX_SAFE_INTEGER + 1))).toBeNull();
   });
 });
