@@ -17,12 +17,13 @@ export interface PairPlayer {
 }
 
 /**
- * Keep auto-pairing aligned with the TA API contract: persisted seedings are
- * finite non-negative integers. Malformed imported/local values are treated as
- * unranked instead of being allowed to return NaN from the sort comparator.
+ * Keep auto-pairing deterministic: usable seedings are finite non-negative
+ * safe integers. Malformed imported/local values are treated as unranked
+ * instead of being allowed to lose integer identity or return NaN from the
+ * sort comparator.
  */
 function isValidSeeding(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**

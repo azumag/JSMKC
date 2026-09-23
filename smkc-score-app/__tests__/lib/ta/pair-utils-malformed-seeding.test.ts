@@ -18,11 +18,26 @@ describe('TA auto-pair malformed seeding handling', () => {
     ]);
   });
 
+  it('treats an unsafe positive integer as unranked for deterministic pairing', () => {
+    const pairs = computeAutoPairs([
+      { id: 'valid-a', playerId: 'valid-a', seeding: 1 },
+      { id: 'unsafe-a', playerId: 'unsafe-a', seeding: Number.MAX_SAFE_INTEGER + 1 },
+      { id: 'valid-b', playerId: 'valid-b', seeding: 2 },
+      { id: 'bad-z', playerId: 'bad-z', seeding: -1 },
+    ]);
+
+    expect(pairs.map(([stronger, weaker]) => [stronger.playerId, weaker.playerId])).toEqual([
+      ['valid-a', 'unsafe-a'],
+      ['valid-b', 'bad-z'],
+    ]);
+  });
+
   it.each([
     ['NaN', Number.NaN],
     ['Infinity', Number.POSITIVE_INFINITY],
     ['negative', -1],
     ['fractional', 1.5],
+    ['unsafe integer', Number.MAX_SAFE_INTEGER + 1],
   ])('preserves an existing manual partner for a malformed %s setup seeding', (_label, malformedSeeding) => {
     const result = applyAutoPairsToSetup([
       { playerId: 'valid-a', seeding: 1 },
