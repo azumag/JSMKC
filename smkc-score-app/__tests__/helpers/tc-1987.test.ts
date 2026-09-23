@@ -12,7 +12,9 @@ describe('TC-1987 TV parser drift matcher', () => {
     `expect(parseTvNumberInput('abc')).toBeNull();`,
     'expect(parseTvNumberInput("abc")).toBeNull();',
     `expect(\n  parseTvNumberInput(\n    'abc',\n  ),\n).toBeNull();`,
-  ])('accepts equivalent formatting: %s', (source) => {
+    `it.only('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `test.only('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+  ])('accepts equivalent executable formatting: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(true);
   });
 
@@ -22,6 +24,18 @@ describe('TC-1987 TV parser drift matcher', () => {
     `parseTvNumberInput('abc');`,
     `// expect(parseTvNumberInput('abc')).toBeNull();`,
   ])('rejects a source without the TC-1987 contract: %s', (source) => {
+    expect(hasTc1987TvNullAssertion(source)).toBe(false);
+  });
+
+  it.each([
+    `it.skip('skipped', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `test.skip('skipped', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `describe.skip('skipped suite', () => { it('nested', () => { expect(parseTvNumberInput('abc')).toBeNull(); }); });`,
+    `xit('skipped', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `xtest('skipped', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `xdescribe('skipped suite', () => { it('nested', () => { expect(parseTvNumberInput('abc')).toBeNull(); }); });`,
+    `it.todo('not executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+  ])('rejects TC-1987 assertions inside skipped test containers: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(false);
   });
 });
