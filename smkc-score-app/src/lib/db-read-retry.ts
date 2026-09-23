@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 type RetryContext = {
   attempt: number;
   error: unknown;
@@ -29,6 +31,10 @@ function validateRetryOptions(attempts: number, delayMs: number): void {
   }
 }
 
+// Direct Prisma client calls return PrismaPromise. Preserve their historical
+// compatibility path without widening ordinary typed Promise<T> operations.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function retryDbRead(operation: () => Prisma.PrismaPromise<any>, options?: RetryOptions): Promise<any>;
 export async function retryDbRead<T>(operation: () => Promise<T>, options?: RetryOptions): Promise<T>;
 export async function retryDbRead<T>(operation: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
   const attempts = options.attempts ?? 2;
