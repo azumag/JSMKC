@@ -33,6 +33,7 @@ describe('persisted finals seed snapshot validation', () => {
   it.each([
     ['empty playerId', { ...entry(1, 1), playerId: '' }],
     ['whitespace playerId', { ...entry(1, 1), playerId: '   ' }],
+    ['padded matching player ids', { ...entry(1, 1), playerId: ' p1 ', player: { id: ' p1 ', name: 'P1' } }],
     ['empty embedded player id', { ...entry(1, 1), player: { id: '', name: 'P1' } }],
     ['whitespace embedded player id', { ...entry(1, 1), player: { id: '   ', name: 'P1' } }],
     ['mismatched player ids', { ...entry(1, 1), player: { id: 'other-player', name: 'P1' } }],
@@ -56,6 +57,14 @@ describe('persisted finals seed snapshot validation', () => {
     snapshot.push(entry(Number.NaN, 9));
 
     expect(parseFinalsSeedSnapshot(snapshot)).toHaveLength(8);
+    expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
+  });
+
+  it('does not treat a complete-looking snapshot with a padded player identity as authoritative', () => {
+    const snapshot = Array.from({ length: 8 }, (_, index) => entry(index + 1, index + 1));
+    snapshot[0] = { ...entry(1, 1), playerId: ' p1 ', player: { id: ' p1 ', name: 'P1' } };
+
+    expect(parseFinalsSeedSnapshot(snapshot)).toHaveLength(7);
     expect(isCompleteFinalsSeedSnapshot(snapshot)).toBe(false);
   });
 
