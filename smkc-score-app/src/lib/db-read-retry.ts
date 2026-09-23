@@ -10,7 +10,7 @@ type RetryOptions = {
 };
 
 function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function validateRetryOptions(attempts: number, delayMs: number): void {
