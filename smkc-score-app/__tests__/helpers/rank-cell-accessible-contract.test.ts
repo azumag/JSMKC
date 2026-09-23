@@ -10,9 +10,7 @@ function asTest(body: string, qualificationId = 'qual-target'): string {
 describe('RankCell accessible-name drift helper', () => {
   it.each([
     asTest("expect(screen.getByRole('button', { name: 'Clear rank override' })).toBeInTheDocument();"),
-    asTest(
-      'expect(\n  screen.getByRole("button", {\n    name: "Clear rank override",\n  }),\n).toBeInTheDocument();',
-    ),
+    asTest('expect(\n  screen.getByRole("button", {\n    name: "Clear rank override",\n  }),\n).toBeInTheDocument();'),
     asTest("const clear = screen.queryByRole('button', { name: 'Clear rank override' });"),
   ])('accepts formatting-equivalent clear button contracts: %s', (source) => {
     expect(hasRankCellClearAccessibleNameContract(source, 'qual-target')).toBe(true);
