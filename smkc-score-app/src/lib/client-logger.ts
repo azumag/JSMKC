@@ -21,6 +21,8 @@ interface LogMetadata extends Record<string, unknown> {
   service?: string;
 }
 
+const SERIALIZATION_FALLBACK = '{"serializationError":"[Unserializable metadata]"}';
+
 /**
  * Serialize meta for log output. Error instances need a JSON.stringify replacer
  * because `name`/`message`/`stack` are non-enumerable and would otherwise
@@ -31,31 +33,37 @@ interface LogMetadata extends Record<string, unknown> {
  * Logging must also stay fail-safe when callers attach cyclic objects. Track the
  * current ancestor chain (rather than every object ever seen) so true cycles are
  * replaced while the same non-cyclic object can still be serialized in two
- * different branches.
+ * different branches. Custom `toJSON()` methods and property accessors can throw
+ * before or during the replacer walk, so the entire serialization is guarded and
+ * falls back to a fixed payload that cannot leak the serialization error itself.
  */
 export function serializeMeta(meta: LogMetadata): string {
   const ancestors: object[] = [];
 
-  return JSON.stringify(meta, function (_key, value) {
-    if (typeof value === 'bigint') {
-      return value.toString();
-    }
-    if (value instanceof Error) {
-      return { name: value.name, message: value.message, stack: value.stack };
-    }
-    if (typeof value !== 'object' || value === null) {
-      return value;
-    }
+  try {
+    return JSON.stringify(meta, function (_key, value) {
+      if (typeof value === 'bigint') {
+        return value.toString();
+      }
+      if (value instanceof Error) {
+        return { name: value.name, message: value.message, stack: value.stack };
+      }
+      if (typeof value !== 'object' || value === null) {
+        return value;
+      }
 
-    while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
-      ancestors.pop();
-    }
-    if (ancestors.includes(value)) {
-      return '[Circular]';
-    }
-    ancestors.push(value);
-    return value;
-  });
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop();
+      }
+      if (ancestors.includes(value)) {
+        return '[Circular]';
+      }
+      ancestors.push(value);
+      return value;
+    });
+  } catch {
+    return SERIALIZATION_FALLBACK;
+  }
 }
 
 // Silent test logger to avoid noise in test output
