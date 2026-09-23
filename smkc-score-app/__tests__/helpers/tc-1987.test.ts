@@ -9,21 +9,40 @@ describe('TC-1987 TV parser drift matcher', () => {
   });
 
   it.each([
-    `expect(parseTvNumberInput('abc')).toBeNull();`,
-    'expect(parseTvNumberInput("abc")).toBeNull();',
-    `expect(\n  parseTvNumberInput(\n    'abc',\n  ),\n).toBeNull();`,
+    `it('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    'test("keeps coverage executable", () => { expect(parseTvNumberInput("abc")).toBeNull(); });',
+    `it(
+      'keeps coverage executable',
+      () => {
+        expect(
+          parseTvNumberInput(
+            'abc',
+          ),
+        ).toBeNull();
+      },
+    );`,
     `it.only('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
     `test.only('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `test.each([[1]])('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
   ])('accepts equivalent executable formatting: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(true);
   });
 
   it.each([
-    `expect(parseTvNumberInput('def')).toBeNull();`,
-    `expect(parseTvNumberInput('abc')).toBe(0);`,
-    `parseTvNumberInput('abc');`,
-    `// expect(parseTvNumberInput('abc')).toBeNull();`,
+    `it('wrong input', () => { expect(parseTvNumberInput('def')).toBeNull(); });`,
+    `it('wrong expectation', () => { expect(parseTvNumberInput('abc')).toBe(0); });`,
+    `it('missing expectation', () => { parseTvNumberInput('abc'); });`,
+    `it('comment only', () => { // expect(parseTvNumberInput('abc')).toBeNull();
+    });`,
   ])('rejects a source without the TC-1987 contract: %s', (source) => {
+    expect(hasTc1987TvNullAssertion(source)).toBe(false);
+  });
+
+  it.each([
+    `expect(parseTvNumberInput('abc')).toBeNull();`,
+    `function unusedHelper() { expect(parseTvNumberInput('abc')).toBeNull(); }`,
+    `const unusedHelper = () => { expect(parseTvNumberInput('abc')).toBeNull(); };`,
+  ])('rejects an assertion without runnable test ownership: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(false);
   });
 
