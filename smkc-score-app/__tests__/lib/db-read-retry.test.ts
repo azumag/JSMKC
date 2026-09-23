@@ -132,4 +132,27 @@ describe('retryDbRead', () => {
     await expect(retryDbRead(operation, { attempts, delayMs })).resolves.toBe('ok');
     expect(operation).toHaveBeenCalledTimes(1);
   });
+
+  it('schedules each retry with the configured linear backoff', async () => {
+    jest.useFakeTimers();
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
+
+    try {
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('retry-1'))
+        .mockRejectedValueOnce(new Error('retry-2'))
+        .mockResolvedValue('ok');
+
+      const resultPromise = retryDbRead(operation, { attempts: 3, delayMs: 25 });
+      await jest.runAllTimersAsync();
+
+      await expect(resultPromise).resolves.toBe('ok');
+      expect(operation).toHaveBeenCalledTimes(3);
+      expect(setTimeoutSpy).toHaveBeenNthCalledWith(1, expect.any(Function), 25);
+      expect(setTimeoutSpy).toHaveBeenNthCalledWith(2, expect.any(Function), 50);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
