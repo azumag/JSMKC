@@ -60,6 +60,7 @@ import { buildPhase3RulesDto } from '@/lib/ta/phase-rules-dto';
 import { TA_HANDICAP_SECONDS } from '@/lib/ta/battle-royale';
 import { TA_ROUND_LIFE_LOSS_MIN, TA_ROUND_LIFE_LOSS_MAX } from '@/lib/ta/battle-royale-constants';
 import { normalizeTaRoundResults } from '@/lib/ta/round-result';
+import { isCanonicalTaPlayerId } from '@/lib/ta/player-id';
 import { attachLivesAfterToRounds, replayPhase3Lives, type Phase3RoundLike } from '@/lib/ta/phase3-life-replay';
 import type { ArchivedTaRules } from '@/lib/tournament-archive';
 import type { TaPhaseResponse } from '@/lib/ta/phase-api-types';
@@ -75,9 +76,7 @@ function normalizePhaseRound<T extends { results: unknown; eliminatedIds?: unkno
             (value): value is { playerId: string; timeMs: number; reportedAt?: string } =>
               !!value &&
               typeof value === 'object' &&
-              typeof (value as { playerId?: unknown }).playerId === 'string' &&
-              (value as { playerId: string }).playerId.trim() !== '' &&
-              (value as { playerId: string }).playerId === (value as { playerId: string }).playerId.trim() &&
+              isCanonicalTaPlayerId((value as { playerId?: unknown }).playerId) &&
               typeof (value as { timeMs?: unknown }).timeMs === 'number' &&
               Number.isFinite((value as { timeMs: number }).timeMs) &&
               (value as { timeMs: number }).timeMs >= 0,
