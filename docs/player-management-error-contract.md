@@ -4,7 +4,7 @@ The player-management admin UI treats HTTP failure details as untrusted implemen
 
 ## Create
 
-`createPlayerWithRetry` may retain a machine-readable `code` so the UI can localize recognized conditions such as a duplicate nickname. Backend-provided prose is not returned to the page as a user-facing failure message. Unknown failures use `players.failedToCreate`.
+`createPlayerWithRetry` may retain a machine-readable `code` so the UI can localize recognized conditions such as a duplicate nickname. Backend-provided prose is not returned to the page as a user-facing failure message. Unknown failures use `players.failedToCreate`. If a non-success response body cannot be read at all, the create path also fails closed to that generic failure instead of propagating the response-stream error.
 
 ## Update
 
@@ -18,4 +18,4 @@ Successful reset-password responses still parse the generated temporary password
 
 ## Regression coverage
 
-`__tests__/static/player-management-error-fallbacks.test.ts` guards the page-level contract so raw `data.error` fallbacks or response-body parsing cannot be reintroduced into update/delete/reset-password failure paths without an explicit test change.
+`__tests__/static/player-management-error-fallbacks.test.ts` guards the page-level contract so raw `data.error` fallbacks or response-body parsing cannot be reintroduced into update/delete/reset-password failure paths without an explicit test change. `__tests__/lib/create-player-retry-error-body.test.ts` covers the create-path fail-closed behavior when the non-success response body stream itself cannot be read.
