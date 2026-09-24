@@ -20,6 +20,8 @@ describe('Cloudflare build cost policy documentation', () => {
 
   it('documents the rolling production gate without claiming a hard billing cap', () => {
     expect(policy).toContain('rolling 24-hour');
+    expect(policy).toMatch(/Success,\s+failure, and cancellation all count/);
+    expect(policy).toContain('A skipped build does not count as an attempt');
     expect(policy).toContain('`queued`, `initializing`, or `running`');
     expect(policy).toContain('`605d4579-b9a7-4941-a9b6-582b22b35d4d`');
     expect(policy).toContain('single documented exception');
