@@ -89,12 +89,8 @@ describe('finals-target-wins', () => {
   it('exposes the canonical persisted targetWins bounds', () => {
     expect(MIN_PERSISTED_FINALS_TARGET_WINS).toBe(1);
     expect(MAX_PERSISTED_FINALS_TARGET_WINS).toBe(99);
-    expect(parsePersistedFinalsTargetWins(MIN_PERSISTED_FINALS_TARGET_WINS)).toBe(
-      MIN_PERSISTED_FINALS_TARGET_WINS,
-    );
-    expect(parsePersistedFinalsTargetWins(MAX_PERSISTED_FINALS_TARGET_WINS)).toBe(
-      MAX_PERSISTED_FINALS_TARGET_WINS,
-    );
+    expect(parsePersistedFinalsTargetWins(MIN_PERSISTED_FINALS_TARGET_WINS)).toBe(MIN_PERSISTED_FINALS_TARGET_WINS);
+    expect(parsePersistedFinalsTargetWins(MAX_PERSISTED_FINALS_TARGET_WINS)).toBe(MAX_PERSISTED_FINALS_TARGET_WINS);
     expect(parsePersistedFinalsTargetWins(MIN_PERSISTED_FINALS_TARGET_WINS - 1)).toBeNull();
     expect(parsePersistedFinalsTargetWins(MAX_PERSISTED_FINALS_TARGET_WINS + 1)).toBeNull();
   });
