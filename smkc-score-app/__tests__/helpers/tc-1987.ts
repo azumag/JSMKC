@@ -57,7 +57,7 @@ function isRunnableTestCallback(node: ts.Node): boolean {
   const parent = node.parent;
   return (
     ts.isCallExpression(parent) &&
-    parent.arguments.some((argument) => argument === node) &&
+    parent.arguments[1] === node &&
     hasExpressionRoot(parent.expression, RUNNABLE_TEST_IDENTIFIERS)
   );
 }
