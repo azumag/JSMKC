@@ -1,10 +1,7 @@
 import { generateBracketStructure } from '@/lib/double-elimination';
 import { serializeFinalsSlots, type SlotStatusMatch } from '@/lib/finals-slot-status';
 
-function makeMatch(
-  matchNumber: number,
-  overrides: Partial<SlotStatusMatch> = {},
-): SlotStatusMatch {
+function makeMatch(matchNumber: number, overrides: Partial<SlotStatusMatch> = {}): SlotStatusMatch {
   return {
     matchNumber,
     round: null,
