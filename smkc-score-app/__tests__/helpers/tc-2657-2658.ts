@@ -55,7 +55,9 @@ function isFunctionBoundary(node: ts.Node): boolean {
 function isActCallback(node: ts.Node): boolean {
   if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return false;
   const parent = node.parent;
-  return ts.isCallExpression(parent) && parent.arguments.some((argument) => argument === node) && isNamedCall(parent, 'act');
+  return (
+    ts.isCallExpression(parent) && parent.arguments.some((argument) => argument === node) && isNamedCall(parent, 'act')
+  );
 }
 
 function isPropertyCall(call: ts.CallExpression, owner: string, property: string): boolean {
