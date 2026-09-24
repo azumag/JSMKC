@@ -30,7 +30,7 @@ The production trigger contract is:
 | Worker                       | `smkc`                |
 | Production branch            | `main`                |
 | Non-production branch builds | **OFF**               |
-| Build cache                  | **ON**                |
+| `build_caching_enabled`      | `true`                |
 | Root directory               | `smkc-score-app`      |
 | Build command                | `npm run build:cf`    |
 | Deploy command               | `npx wrangler deploy` |
@@ -84,8 +84,11 @@ Before starting a production build:
 5. Immediately before the single allowed start, re-read the exact `main` SHA and
    Cloudflare build history so a concurrent push or build cannot be overlooked.
 
-When every gate passes, start the existing production trigger exactly once and pin
-both the branch and the already-verified commit in the request payload:
+When every gate passes, start the existing production trigger exactly once using
+`POST /accounts/{account_id}/builds/triggers/{trigger_uuid}/builds` for the fixed
+account and trigger above. Do not substitute a Deploy Hook, direct Worker upload, or
+another build endpoint. Pin both the branch and the already-verified commit in the
+request payload:
 
 ```json
 {
