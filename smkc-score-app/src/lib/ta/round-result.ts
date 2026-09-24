@@ -47,3 +47,37 @@ export function normalizeTaSuddenDeathRoundResults<T extends { results: unknown 
     results: normalizeTaRoundResults(round.results),
   }));
 }
+
+type TaSuddenDeathRoundInput = { results: unknown };
+type TaSuddenDeathRoundOf<
+  T extends { suddenDeathRounds: readonly TaSuddenDeathRoundInput[] | null | undefined },
+> = NonNullable<T['suddenDeathRounds']>[number];
+
+export type TaPhaseRoundWithNormalizedResultPayloads<
+  T extends {
+    results: unknown;
+    suddenDeathRounds: readonly TaSuddenDeathRoundInput[] | null | undefined;
+  },
+> = Omit<T, 'results' | 'suddenDeathRounds'> & {
+  results: TaRoundResult[];
+  suddenDeathRounds: Array<TaSuddenDeathRoundWithNormalizedResults<TaSuddenDeathRoundOf<T>>>;
+};
+
+/**
+ * Normalizes both persisted result payload boundaries returned by the live TA
+ * phase Prisma read. Keeping the parent round and its nested sudden-death rows
+ * on one typed path prevents either `JsonValue` field from leaking into Phase 3
+ * replay while preserving all non-result metadata unchanged.
+ */
+export function normalizeTaPhaseRoundResultPayloads<
+  T extends {
+    results: unknown;
+    suddenDeathRounds: readonly TaSuddenDeathRoundInput[] | null | undefined;
+  },
+>(round: T): TaPhaseRoundWithNormalizedResultPayloads<T> {
+  return {
+    ...round,
+    results: normalizeTaRoundResults(round.results),
+    suddenDeathRounds: normalizeTaSuddenDeathRoundResults(round.suddenDeathRounds),
+  };
+}
