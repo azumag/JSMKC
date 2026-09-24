@@ -49,9 +49,8 @@ export function normalizeTaSuddenDeathRoundResults<T extends { results: unknown 
 }
 
 type TaSuddenDeathRoundInput = { results: unknown };
-type TaSuddenDeathRoundOf<
-  T extends { suddenDeathRounds: readonly TaSuddenDeathRoundInput[] | null | undefined },
-> = NonNullable<T['suddenDeathRounds']>[number];
+type TaSuddenDeathRoundOf<T extends { suddenDeathRounds: readonly TaSuddenDeathRoundInput[] | null | undefined }> =
+  NonNullable<T['suddenDeathRounds']>[number];
 
 export type TaPhaseRoundWithNormalizedResultPayloads<
   T extends {
