@@ -28,3 +28,22 @@ export function normalizeTaRoundResults(value: unknown): TaRoundResult[] {
   if (!Array.isArray(value)) return [];
   return value.map(normalizeTaRoundResult).filter((result): result is TaRoundResult => result !== null);
 }
+
+export type TaSuddenDeathRoundWithNormalizedResults<T extends { results: unknown }> = Omit<T, 'results'> & {
+  results: TaRoundResult[];
+};
+
+/**
+ * Prisma exposes sudden-death `results` as persisted JSON. Normalize that
+ * nested boundary before feeding live phase rounds into Phase 3 replay so a
+ * malformed sub-round cannot leak an incompatible `JsonValue` shape into the
+ * typed replay contract.
+ */
+export function normalizeTaSuddenDeathRoundResults<T extends { results: unknown }>(
+  rounds: readonly T[] | null | undefined,
+): Array<TaSuddenDeathRoundWithNormalizedResults<T>> {
+  return (rounds ?? []).map((round) => ({
+    ...round,
+    results: normalizeTaRoundResults(round.results),
+  }));
+}
