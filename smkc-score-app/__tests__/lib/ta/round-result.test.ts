@@ -1,4 +1,5 @@
 import {
+  normalizeTaPhaseRoundResultPayloads,
   normalizeTaRoundResult,
   normalizeTaRoundResults,
   normalizeTaSuddenDeathRoundResults,
@@ -145,5 +146,67 @@ describe('TA round result normalization', () => {
     expect(rounds).toEqual(snapshot);
     expect(normalizeTaSuddenDeathRoundResults(null)).toEqual([]);
     expect(normalizeTaSuddenDeathRoundResults(undefined)).toEqual([]);
+  });
+
+  it('normalizes parent and nested result payloads through one live phase-round boundary', () => {
+    const round = {
+      id: 'round-1',
+      roundNumber: 1,
+      course: 'MC1',
+      results: [
+        { playerId: 'p1', timeMs: 1000 },
+        { playerId: ' p-invalid', timeMs: 2000 },
+      ] as unknown,
+      suddenDeathRounds: [
+        {
+          id: 'sd-1',
+          sequence: 1,
+          course: 'GV1',
+          resolved: true,
+          results: [
+            { playerId: 'p2', timeMs: 3000 },
+            { playerId: 'p3', timeMs: Number.NaN },
+          ] as unknown,
+        },
+      ],
+      eliminatedIds: ['p2'],
+    };
+    const snapshot = structuredClone(round);
+
+    expect(normalizeTaPhaseRoundResultPayloads(round)).toEqual({
+      id: 'round-1',
+      roundNumber: 1,
+      course: 'MC1',
+      results: [
+        {
+          playerId: 'p1',
+          rawTimeMs: 1000,
+          handicapSeconds: 0,
+          timeMs: 1000,
+          isRetry: false,
+          tvNumber: null,
+        },
+      ],
+      suddenDeathRounds: [
+        {
+          id: 'sd-1',
+          sequence: 1,
+          course: 'GV1',
+          resolved: true,
+          results: [
+            {
+              playerId: 'p2',
+              rawTimeMs: 3000,
+              handicapSeconds: 0,
+              timeMs: 3000,
+              isRetry: false,
+              tvNumber: null,
+            },
+          ],
+        },
+      ],
+      eliminatedIds: ['p2'],
+    });
+    expect(round).toEqual(snapshot);
   });
 });
