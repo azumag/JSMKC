@@ -108,6 +108,34 @@ describe('TC-2663 through TC-2668 ModePublishSwitch drift matchers', () => {
     expect(hasTc2668AccessibleStateContract(wrongBinding)).toBe(false);
   });
 
+  it('accepts runnable only and each test forms', () => {
+    const only = `it.only('contract', () => {
+      expect(screen.getByText('Unpublished')).toBeInTheDocument();
+      expect(screen.queryByText('Published')).toBeNull();
+    });`;
+    const each = `test.each([[1]])('contract %s', async () => {
+      await user.click(screen.getByRole('switch'));
+      expect(toggleMock).toHaveBeenCalledTimes(1);
+    });`;
+
+    expect(hasTc2663UnpublishedStateContract(only)).toBe(true);
+    expect(hasTc2667ToggleInvocationContract(each)).toBe(true);
+  });
+
+  it('does not count contracts owned by skipped test containers', () => {
+    const unpublishedBody = `
+      expect(screen.getByText('Unpublished')).toBeInTheDocument();
+      expect(screen.queryByText('Published')).toBeNull();
+    `;
+    const skippedTest = `it.skip('contract', () => {${unpublishedBody}});`;
+    const skippedSuite = `describe.skip('suite', () => {${asTest(unpublishedBody)}});`;
+    const xSuite = `xdescribe('suite', () => {${asTest(unpublishedBody)}});`;
+
+    expect(hasTc2663UnpublishedStateContract(skippedTest)).toBe(false);
+    expect(hasTc2663UnpublishedStateContract(skippedSuite)).toBe(false);
+    expect(hasTc2663UnpublishedStateContract(xSuite)).toBe(false);
+  });
+
   it('does not accept compatibility comments as executable coverage', () => {
     const comments = `
       // expect(screen.getByText('Unpublished')).toBeInTheDocument();
