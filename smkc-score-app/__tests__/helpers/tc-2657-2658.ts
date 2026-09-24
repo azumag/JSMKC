@@ -52,6 +52,12 @@ function isFunctionBoundary(node: ts.Node): boolean {
   );
 }
 
+function isActCallback(node: ts.Node): boolean {
+  if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return false;
+  const parent = node.parent;
+  return ts.isCallExpression(parent) && parent.arguments.some((argument) => argument === node) && isNamedCall(parent, 'act');
+}
+
 function isPropertyCall(call: ts.CallExpression, owner: string, property: string): boolean {
   return (
     ts.isPropertyAccessExpression(call.expression) &&
@@ -154,7 +160,7 @@ function testCaseHasRankCellSaveOutcome(
   let enterKeyDown = false;
 
   function visit(node: ts.Node) {
-    if (node !== callback.body && isFunctionBoundary(node)) return;
+    if (node !== callback.body && isFunctionBoundary(node) && !isActCallback(node)) return;
 
     if (ts.isCallExpression(node)) {
       saveOutcome ||= isSaveOutcomeAssertion(node, qualificationId, expected);
