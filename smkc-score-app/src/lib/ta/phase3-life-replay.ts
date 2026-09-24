@@ -31,6 +31,7 @@
 
 import type { Phase3Rules } from './battle-royale';
 import { TA_ROUND_LIFE_LOSS_MAX, TA_ROUND_LIFE_LOSS_MIN } from './battle-royale-constants';
+import { normalizeTaSuddenDeathRoundResults } from './round-result';
 import { orderResultsWithSuddenDeathChain } from './sudden-death-order';
 
 export type Phase3LifeRules = Pick<Phase3Rules, 'initialLives'>;
@@ -42,7 +43,8 @@ export interface Phase3RoundResultLike {
 
 export interface Phase3SuddenDeathRoundLike {
   sequence: number;
-  results: readonly Phase3RoundResultLike[] | null;
+  /** Persisted Prisma JSON is normalized before replay ordering. */
+  results: unknown;
   resolved?: boolean | null;
 }
 
@@ -103,10 +105,10 @@ export interface Phase3LifeReplay {
  * unconditionally.
  */
 function orderRoundResults(round: Phase3RoundLike): Phase3RoundResultLike[] {
-  const resolvedSuddenDeathResults = [...(round.suddenDeathRounds ?? [])]
-    .filter((sd) => sd.resolved === true && Array.isArray(sd.results) && sd.results.length > 0)
+  const resolvedSuddenDeathResults = normalizeTaSuddenDeathRoundResults(round.suddenDeathRounds)
+    .filter((sd) => sd.resolved === true && sd.results.length > 0)
     .sort((a, b) => a.sequence - b.sequence)
-    .map((sd) => sd.results as Phase3RoundResultLike[]);
+    .map((sd) => sd.results);
   return orderResultsWithSuddenDeathChain([...round.results], resolvedSuddenDeathResults);
 }
 
