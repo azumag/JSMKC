@@ -44,6 +44,15 @@ function isInsideSkippedTestContainer(node: ts.Node): boolean {
   return false;
 }
 
+function isFunctionBoundary(node: ts.Node): boolean {
+  return (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isMethodDeclaration(node)
+  );
+}
+
 function isPropertyCall(call: ts.CallExpression, owner: string, property: string): boolean {
   return (
     ts.isPropertyAccessExpression(call.expression) &&
@@ -75,6 +84,7 @@ function callbackHasCall(callback: TestCallback, predicate: (call: ts.CallExpres
 
   function visit(node: ts.Node) {
     if (found) return;
+    if (node !== callback.body && isFunctionBoundary(node)) return;
     if (ts.isCallExpression(node) && predicate(node)) {
       found = true;
       return;
@@ -130,6 +140,7 @@ function callbackDeclaresQueryIdentifier(
 
   function visit(node: ts.Node) {
     if (found) return;
+    if (node !== callback.body && isFunctionBoundary(node)) return;
     if (
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
