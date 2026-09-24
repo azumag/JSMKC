@@ -13,6 +13,7 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('`smkc-score-app`');
     expect(policy).toContain('`npm run build:cf`');
     expect(policy).toContain('`npx wrangler deploy`');
+    expect(policy).toMatch(/\| `build_caching_enabled`\s+\| `true`\s+\|/);
     expect(policy).toContain('`path_excludes=["*"]`');
     expect(policy).toContain('Non-production branch builds must remain disabled (`previews_enabled=false`)');
     expect(policy).toContain('not a GitHub CI failure');
@@ -55,6 +56,7 @@ describe('Cloudflare build cost policy documentation', () => {
   });
 
   it('pins manual starts to the validated main SHA and forbids blind retries', () => {
+    expect(policy).toContain('`POST /accounts/{account_id}/builds/triggers/{trigger_uuid}/builds`');
     expect(policy).toContain('"branch": "main"');
     expect(policy).toContain('"commit_hash": "<verified exact main SHA>"');
     expect(policy).toContain('Do not omit `commit_hash`');
