@@ -2,8 +2,54 @@ import ts from 'typescript';
 
 type ExpectedRankValue = number | null;
 
+const SKIPPED_TEST_IDENTIFIERS = new Set(['xit', 'xtest', 'xdescribe']);
+const TEST_CONTAINER_IDENTIFIERS = new Set(['it', 'test', 'describe']);
+const RUNNABLE_TEST_IDENTIFIERS = new Set(['it', 'test']);
+
 function isNamedCall(call: ts.CallExpression, name: string): boolean {
   return ts.isIdentifier(call.expression) && call.expression.text === name;
+}
+
+function hasExpressionRoot(expression: ts.Expression, roots: Set<string>): boolean {
+  if (ts.isIdentifier(expression)) return roots.has(expression.text);
+  if (ts.isPropertyAccessExpression(expression)) return hasExpressionRoot(expression.expression, roots);
+  if (ts.isCallExpression(expression)) return hasExpressionRoot(expression.expression, roots);
+  return false;
+}
+
+function hasSkippedTestModifier(expression: ts.Expression): boolean {
+  if (ts.isPropertyAccessExpression(expression)) {
+    if (
+      (expression.name.text === 'skip' || expression.name.text === 'todo') &&
+      hasExpressionRoot(expression.expression, TEST_CONTAINER_IDENTIFIERS)
+    ) {
+      return true;
+    }
+    return hasSkippedTestModifier(expression.expression);
+  }
+  if (ts.isCallExpression(expression)) return hasSkippedTestModifier(expression.expression);
+  return false;
+}
+
+function isSkippedTestContainer(node: ts.Node): boolean {
+  if (!ts.isCallExpression(node)) return false;
+  return hasExpressionRoot(node.expression, SKIPPED_TEST_IDENTIFIERS) || hasSkippedTestModifier(node.expression);
+}
+
+function isInsideSkippedTestContainer(node: ts.Node): boolean {
+  for (let current: ts.Node | undefined = node; current; current = current.parent) {
+    if (isSkippedTestContainer(current)) return true;
+  }
+  return false;
+}
+
+function isFunctionBoundary(node: ts.Node): boolean {
+  return (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isMethodDeclaration(node)
+  );
 }
 
 function isPropertyCall(call: ts.CallExpression, owner: string, property: string): boolean {
@@ -108,6 +154,8 @@ function testCaseHasRankCellSaveOutcome(
   let enterKeyDown = false;
 
   function visit(node: ts.Node) {
+    if (node !== callback.body && isFunctionBoundary(node)) return;
+
     if (ts.isCallExpression(node)) {
       saveOutcome ||= isSaveOutcomeAssertion(node, qualificationId, expected);
       editorClosed ||= isEditorClosedAssertion(node);
@@ -134,7 +182,8 @@ function hasRankCellSaveOutcome(source: string, qualificationId: string, expecte
   function visit(node: ts.Node) {
     if (
       ts.isCallExpression(node) &&
-      (isNamedCall(node, 'it') || isNamedCall(node, 'test')) &&
+      hasExpressionRoot(node.expression, RUNNABLE_TEST_IDENTIFIERS) &&
+      !isInsideSkippedTestContainer(node) &&
       node.arguments.length >= 2
     ) {
       const callback = node.arguments[1];
