@@ -105,7 +105,14 @@ describe('TA round result normalization', () => {
           { playerId: 'p1', timeMs: 1000 },
           { playerId: ' p-invalid', timeMs: 2000 },
           { playerId: 'p2', timeMs: Number.POSITIVE_INFINITY },
-        ],
+        ] as unknown,
+      },
+      {
+        id: 'sd-2',
+        sequence: 2,
+        course: 'MC1',
+        resolved: true,
+        results: { playerId: 'not-an-array', timeMs: 3000 } as unknown,
       },
     ];
     const snapshot = structuredClone(rounds);
@@ -126,6 +133,13 @@ describe('TA round result normalization', () => {
             tvNumber: null,
           },
         ],
+      },
+      {
+        id: 'sd-2',
+        sequence: 2,
+        course: 'MC1',
+        resolved: true,
+        results: [],
       },
     ]);
     expect(rounds).toEqual(snapshot);
