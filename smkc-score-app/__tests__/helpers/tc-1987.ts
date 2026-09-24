@@ -42,17 +42,38 @@ function isSkippedTestContainer(node: ts.Node): boolean {
   return hasExpressionRoot(node.expression, SKIPPED_TEST_IDENTIFIERS) || hasSkippedTestModifier(node.expression);
 }
 
+function isFunctionBoundary(node: ts.Node): boolean {
+  return (
+    ts.isArrowFunction(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isFunctionDeclaration(node) ||
+    ts.isMethodDeclaration(node)
+  );
+}
+
+function isRunnableTestCallback(node: ts.Node): boolean {
+  if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return false;
+
+  const parent = node.parent;
+  return (
+    ts.isCallExpression(parent) &&
+    parent.arguments.some((argument) => argument === node) &&
+    hasExpressionRoot(parent.expression, RUNNABLE_TEST_IDENTIFIERS)
+  );
+}
+
 function isInsideRunnableTestContainer(node: ts.Node): boolean {
-  let foundRunnableTest = false;
+  let foundRunnableCallback = false;
 
   for (let current = node.parent; current; current = current.parent) {
     if (isSkippedTestContainer(current)) return false;
-    if (ts.isCallExpression(current) && hasExpressionRoot(current.expression, RUNNABLE_TEST_IDENTIFIERS)) {
-      foundRunnableTest = true;
+    if (isFunctionBoundary(current) && !foundRunnableCallback) {
+      if (!isRunnableTestCallback(current)) return false;
+      foundRunnableCallback = true;
     }
   }
 
-  return foundRunnableTest;
+  return foundRunnableCallback;
 }
 
 export function hasTc1987TvNullAssertion(source: string): boolean {

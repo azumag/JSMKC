@@ -24,6 +24,7 @@ describe('TC-1987 TV parser drift matcher', () => {
     `it.only('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
     `test.only('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
     `test.each([[1]])('keeps coverage executable', () => { expect(parseTvNumberInput('abc')).toBeNull(); });`,
+    `it('keeps coverage executable', function () { expect(parseTvNumberInput('abc')).toBeNull(); });`,
   ])('accepts equivalent executable formatting: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(true);
   });
@@ -42,7 +43,10 @@ describe('TC-1987 TV parser drift matcher', () => {
     `expect(parseTvNumberInput('abc')).toBeNull();`,
     `function unusedHelper() { expect(parseTvNumberInput('abc')).toBeNull(); }`,
     `const unusedHelper = () => { expect(parseTvNumberInput('abc')).toBeNull(); };`,
-  ])('rejects an assertion without runnable test ownership: %s', (source) => {
+    `it(expect(parseTvNumberInput('abc')).toBeNull(), () => {});`,
+    `it('outer test', () => { function unusedHelper() { expect(parseTvNumberInput('abc')).toBeNull(); } });`,
+    `it('outer test', () => { const unusedHelper = () => { expect(parseTvNumberInput('abc')).toBeNull(); }; });`,
+  ])('rejects an assertion without runnable test callback ownership: %s', (source) => {
     expect(hasTc1987TvNullAssertion(source)).toBe(false);
   });
 
