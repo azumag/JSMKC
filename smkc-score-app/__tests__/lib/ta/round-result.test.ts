@@ -1,4 +1,8 @@
-import { normalizeTaRoundResult, normalizeTaRoundResults } from '@/lib/ta/round-result';
+import {
+  normalizeTaRoundResult,
+  normalizeTaRoundResults,
+  normalizeTaSuddenDeathRoundResults,
+} from '@/lib/ta/round-result';
 
 describe('TA round result normalization', () => {
   it('normalizes the current result shape without mutating the input', () => {
@@ -88,5 +92,58 @@ describe('TA round result normalization', () => {
         tvNumber: null,
       },
     ]);
+  });
+
+  it('normalizes persisted sudden-death result JSON without mutating round metadata', () => {
+    const rounds = [
+      {
+        id: 'sd-1',
+        sequence: 1,
+        course: 'GV1',
+        resolved: true,
+        results: [
+          { playerId: 'p1', timeMs: 1000 },
+          { playerId: ' p-invalid', timeMs: 2000 },
+          { playerId: 'p2', timeMs: Number.POSITIVE_INFINITY },
+        ] as unknown,
+      },
+      {
+        id: 'sd-2',
+        sequence: 2,
+        course: 'MC1',
+        resolved: true,
+        results: { playerId: 'not-an-array', timeMs: 3000 } as unknown,
+      },
+    ];
+    const snapshot = structuredClone(rounds);
+
+    expect(normalizeTaSuddenDeathRoundResults(rounds)).toEqual([
+      {
+        id: 'sd-1',
+        sequence: 1,
+        course: 'GV1',
+        resolved: true,
+        results: [
+          {
+            playerId: 'p1',
+            rawTimeMs: 1000,
+            handicapSeconds: 0,
+            timeMs: 1000,
+            isRetry: false,
+            tvNumber: null,
+          },
+        ],
+      },
+      {
+        id: 'sd-2',
+        sequence: 2,
+        course: 'MC1',
+        resolved: true,
+        results: [],
+      },
+    ]);
+    expect(rounds).toEqual(snapshot);
+    expect(normalizeTaSuddenDeathRoundResults(null)).toEqual([]);
+    expect(normalizeTaSuddenDeathRoundResults(undefined)).toEqual([]);
   });
 });
