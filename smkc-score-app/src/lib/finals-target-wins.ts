@@ -16,10 +16,14 @@ export interface FinalsTargetWinsFallback {
   targetWins?: number;
 }
 
-const MAX_STORED_TARGET_WINS = 99;
+export const MIN_PERSISTED_FINALS_TARGET_WINS = 1;
+export const MAX_PERSISTED_FINALS_TARGET_WINS = 99;
 
 export function parsePersistedFinalsTargetWins(value: unknown): number | null {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= MAX_STORED_TARGET_WINS
+  return typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= MIN_PERSISTED_FINALS_TARGET_WINS &&
+    value <= MAX_PERSISTED_FINALS_TARGET_WINS
     ? value
     : null;
 }
