@@ -136,6 +136,30 @@ describe('TC-2663 through TC-2668 ModePublishSwitch drift matchers', () => {
     expect(hasTc2663UnpublishedStateContract(xSuite)).toBe(false);
   });
 
+  it('does not count contracts hidden in nested function bodies', () => {
+    const hidden = asTest(`
+      const assertContract = async () => {
+        mockUseModePublish.mockReturnValue({ ...defaultPublishState, isPublic: true, loading: true, updating: true });
+        expect(screen.getByText('Unpublished')).toBeInTheDocument();
+        expect(screen.queryByText('Published')).toBeNull();
+        expect(screen.getByText('Published')).toBeInTheDocument();
+        expect(screen.queryByText('Unpublished')).toBeNull();
+        const switchEl = screen.getByRole('switch', { name: 'Battle Mode publication' });
+        expect(switchEl).toBeDisabled();
+        expect(switchEl).toHaveAttribute('aria-checked', 'false');
+        await user.click(screen.getByRole('switch'));
+        expect(toggleMock).toHaveBeenCalledTimes(1);
+      };
+    `);
+
+    expect(hasTc2663UnpublishedStateContract(hidden)).toBe(false);
+    expect(hasTc2664PublishedStateContract(hidden)).toBe(false);
+    expect(hasTc2665LoadingDisabledContract(hidden)).toBe(false);
+    expect(hasTc2666UpdatingDisabledContract(hidden)).toBe(false);
+    expect(hasTc2667ToggleInvocationContract(hidden)).toBe(false);
+    expect(hasTc2668AccessibleStateContract(hidden)).toBe(false);
+  });
+
   it('does not accept compatibility comments as executable coverage', () => {
     const comments = `
       // expect(screen.getByText('Unpublished')).toBeInTheDocument();
