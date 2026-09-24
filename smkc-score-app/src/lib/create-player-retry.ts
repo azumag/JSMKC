@@ -97,7 +97,7 @@ export async function createPlayerWithRetry(formData: CreatePlayerFormData): Pro
     return { ok: true, recovered, data: data as Record<string, unknown> };
   }
 
-  const text = await finalResponse.text();
+  const text = await finalResponse.text().catch(() => '');
   try {
     const parsed = JSON.parse(text);
     const code = typeof parsed?.code === 'string' ? parsed.code : null;
