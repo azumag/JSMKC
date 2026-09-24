@@ -50,6 +50,11 @@ The trigger deploy command is `npx wrangler deploy`; do not replace it with
 `npm run deploy:cf`. Production D1 migration execution is governed separately and
 must not be silently coupled to this build-cost gate.
 
+This cost-control procedure must not be used as a reason to change D1 migrations,
+runtime bindings or secrets, domains, account or repository permissions, billing
+plans, or any other Worker. Those changes require their own scoped review and
+approval.
+
 ## Production promotion gate
 
 Production builds are initiated only through the existing operations path. Do not
@@ -66,7 +71,11 @@ Before starting a production build:
    attempt history; do not generalize that exclusion to other cancelled builds.
 2. Require the exact current `main` SHA and successful repository CI, including the
    production Next.js build check. Missing, failed, or still-running validation is a
-   reason not to start production.
+   reason not to start production. If GitHub or Cloudflare data cannot be read, API
+   authorization is missing, CI state is unknown, the target identity/configuration
+   differs from the required values, or another required precondition cannot be
+   verified, fail closed and do not start. Do not infer the current `main` SHA from
+   stale Cloudflare history or work around missing checks or permissions.
 3. Require a deploy-relevant diff since the last successful production SHA.
    Docs/tests-only changes do not justify a production build.
 4. Do not periodically retry a SHA that already failed in production. Fix the cause
@@ -104,6 +113,29 @@ than retrying the failed SHA.
 
 This is a rolling rate/cost-control policy, not a Cloudflare billing cap and not a
 guarantee that only one build can occur in a calendar day.
+
+## Operational reporting
+
+For each production-promotion evaluation, record enough evidence to distinguish a
+real deployment attempt from a policy skip:
+
+- whether a production build was started and, if not, the concrete gate that stopped
+  it;
+- the verified exact `main` SHA and the build UUID when Cloudflare accepted a start;
+- build timestamps and durations actually returned by Cloudflare; and
+- the earliest timestamp at which the rolling 24-hour time gate could permit another
+  attempt, while making clear that all other promotion gates must still be rechecked.
+
+Explicitly call out a new build failure, more than one non-skipped production attempt
+inside a rolling 24-hour window, an unexpected push-triggered build, or a production
+hold caused by authentication, data-retrieval, target-identity, or CI uncertainty.
+Saving the expected trigger configuration is evidence of configuration state only;
+it does not prove that the ongoing production-promotion process has operated
+successfully.
+
+When discussing cost, distinguish actual billed or invoiced amounts from estimates
+derived from measured build runtime. Do not present a runtime-derived rate or cost
+estimate as an observed Cloudflare charge.
 
 ## Build watch-path exceptions
 
