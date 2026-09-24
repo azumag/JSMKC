@@ -28,6 +28,30 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('not a Cloudflare billing cap');
   });
 
+  it('fails closed when production preconditions cannot be verified', () => {
+    expect(policy).toMatch(
+      /If GitHub or Cloudflare data cannot be read, API\s+authorization is missing, CI state is unknown/,
+    );
+    expect(policy).toMatch(/target identity\/configuration\s+differs from the required values/);
+    expect(policy).toContain('fail closed and do not start');
+    expect(policy).toMatch(/Do not infer the current `main` SHA from\s+stale Cloudflare history/);
+    expect(policy).toContain('work around missing checks or permissions');
+  });
+
+  it('pins the operational reporting evidence and cost wording', () => {
+    expect(policy).toContain('## Operational reporting');
+    expect(policy).toMatch(/whether a production build was started and, if not, the concrete gate that stopped\s+it/);
+    expect(policy).toContain('the verified exact `main` SHA and the build UUID');
+    expect(policy).toContain('build timestamps and durations actually returned by Cloudflare');
+    expect(policy).toMatch(/earliest timestamp at which the rolling 24-hour time gate could permit another\s+attempt/);
+    expect(policy).toMatch(
+      /configuration state only;\s+it does not prove that the ongoing production-promotion process has operated\s+successfully/,
+    );
+    expect(policy).toMatch(
+      /distinguish actual billed or invoiced amounts from estimates\s+derived from measured build runtime/,
+    );
+  });
+
   it('pins manual starts to the validated main SHA and forbids blind retries', () => {
     expect(policy).toContain('"branch": "main"');
     expect(policy).toContain('"commit_hash": "<verified exact main SHA>"');
@@ -58,5 +82,9 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('D1 migration execution is governed separately');
     expect(policy).toContain('Cron Worker');
     expect(policy).toContain('Deploy Hook');
+    expect(policy).toMatch(
+      /must not be used as a reason to change D1 migrations,\s+runtime bindings or secrets, domains/,
+    );
+    expect(policy).toMatch(/billing\s+plans, or any other Worker/);
   });
 });
