@@ -3,8 +3,9 @@ import prisma from '@/lib/prisma';
 export const TOURNAMENT_SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * UUID v4 pattern: 8-4-4-4-12 hex digits (uppercase allowed).
- * Allows UUID-format tournament IDs to pass validation fallback.
+ * Generic UUID-format fallback: 8-4-4-4-12 hex digits (uppercase allowed).
+ * This intentionally accepts existing UUID-shaped tournament IDs regardless
+ * of UUID version nibble; do not narrow it to v4-only validation.
  */
 const UUID_REGEX = /^[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}$/;
 
