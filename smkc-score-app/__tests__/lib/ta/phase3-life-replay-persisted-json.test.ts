@@ -66,4 +66,40 @@ describe('Phase 3 persisted sudden-death replay normalization', () => {
     expect(lifeLostByPlayer.get(1)?.has('b')).toBe(false);
     expect(lifeLostByPlayer.get(1)?.has('c')).toBe(true);
   });
+
+  it('does not mutate persisted sudden-death row or result ordering while replaying', () => {
+    const laterResults = Object.freeze([
+      { playerId: 'b', timeMs: 15_000 },
+      { playerId: ' padded', timeMs: 12_000 },
+      { playerId: 'c', timeMs: 10_000 },
+    ]);
+    const earlierResults = Object.freeze([
+      { playerId: 'c', timeMs: 10_000 },
+      { playerId: 'b', timeMs: 15_000 },
+    ]);
+    const suddenDeathRounds = Object.freeze([
+      { sequence: 2, resolved: true, results: laterResults },
+      { sequence: 1, resolved: true, results: earlierResults },
+    ]);
+    const rounds = [
+      {
+        roundNumber: 1,
+        results: [
+          { playerId: 'a', timeMs: 50_000 },
+          { playerId: 'b', timeMs: 60_000 },
+          { playerId: 'c', timeMs: 60_000 },
+          { playerId: 'd', timeMs: 90_000 },
+        ],
+        eliminatedIds: [],
+        livesReset: false,
+        suddenDeathRounds,
+      },
+    ];
+
+    replayPhase3Lives(rounds, ['a', 'b', 'c', 'd'], standardRules);
+
+    expect(suddenDeathRounds.map((round) => round.sequence)).toEqual([2, 1]);
+    expect(laterResults.map((result) => result.playerId)).toEqual(['b', ' padded', 'c']);
+    expect(earlierResults.map((result) => result.playerId)).toEqual(['c', 'b']);
+  });
 });
