@@ -1,7 +1,4 @@
-import {
-  hasJsmkcIdentity,
-  isCdmArchiveReconciliationExcluded,
-} from '@/lib/cdm-archive-reconciliation-policy';
+import { hasJsmkcIdentity, isCdmArchiveReconciliationExcluded } from '@/lib/cdm-archive-reconciliation-policy';
 
 const EXCLUDED_IDS_ENV = 'CDM_ARCHIVE_RECONCILIATION_EXCLUDED_IDS';
 const originalExcludedIds = process.env[EXCLUDED_IDS_ENV];
