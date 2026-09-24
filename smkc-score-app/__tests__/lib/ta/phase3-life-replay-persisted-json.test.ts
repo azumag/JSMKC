@@ -31,11 +31,7 @@ describe('Phase 3 persisted sudden-death replay normalization', () => {
       },
     ];
 
-    const { roundLivesByPlayer, lifeLostByPlayer } = replayPhase3Lives(
-      rounds,
-      ['a', 'b', 'c', 'd'],
-      standardRules,
-    );
+    const { roundLivesByPlayer, lifeLostByPlayer } = replayPhase3Lives(rounds, ['a', 'b', 'c', 'd'], standardRules);
 
     expect(roundLivesByPlayer.get(1)?.get('c')).toBe(3);
     expect(roundLivesByPlayer.get(1)?.get('b')).toBe(2);
