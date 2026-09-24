@@ -40,14 +40,10 @@ describe('Cloudflare build cost policy documentation', () => {
 
   it('pins the operational reporting evidence and cost wording', () => {
     expect(policy).toContain('## Operational reporting');
-    expect(policy).toMatch(
-      /whether a production build was started and, if not, the concrete gate that stopped\s+it/,
-    );
+    expect(policy).toMatch(/whether a production build was started and, if not, the concrete gate that stopped\s+it/);
     expect(policy).toContain('the verified exact `main` SHA and the build UUID');
     expect(policy).toContain('build timestamps and durations actually returned by Cloudflare');
-    expect(policy).toMatch(
-      /earliest timestamp at which the rolling 24-hour time gate could permit another\s+attempt/,
-    );
+    expect(policy).toMatch(/earliest timestamp at which the rolling 24-hour time gate could permit another\s+attempt/);
     expect(policy).toMatch(
       /configuration state only;\s+it does not prove that the ongoing production-promotion process has operated\s+successfully/,
     );
@@ -86,7 +82,9 @@ describe('Cloudflare build cost policy documentation', () => {
     expect(policy).toContain('D1 migration execution is governed separately');
     expect(policy).toContain('Cron Worker');
     expect(policy).toContain('Deploy Hook');
-    expect(policy).toMatch(/must not be used as a reason to change D1 migrations,\s+runtime bindings or secrets, domains/);
+    expect(policy).toMatch(
+      /must not be used as a reason to change D1 migrations,\s+runtime bindings or secrets, domains/,
+    );
     expect(policy).toMatch(/billing\s+plans, or any other Worker/);
   });
 });
