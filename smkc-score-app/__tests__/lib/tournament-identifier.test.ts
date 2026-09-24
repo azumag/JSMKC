@@ -3,6 +3,7 @@ import {
   getTournamentUrlIdentifier,
   isValidTournamentSlug,
   normalizeTournamentSlug,
+  resolveTournament,
   resolveTournamentId,
 } from '@/lib/tournament-identifier';
 
@@ -43,6 +44,35 @@ describe('tournament-identifier', () => {
     expect(getTournamentUrlIdentifier({ id: 't1', slug: '   ' })).toBe('t1');
     expect(getTournamentUrlIdentifier({ id: 't1', slug: 'JSMKC2026' })).toBe('t1');
     expect(getTournamentUrlIdentifier({ id: 't1', slug: 'jsmkc 2026' })).toBe('t1');
+  });
+
+  it('resolves tournament fields in one query and injects id into the projection', async () => {
+    const tournament = { id: 't1', qualificationConfirmed: true };
+    const select = { qualificationConfirmed: true };
+    (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(tournament);
+
+    await expect(resolveTournament('jsmkc2026', select)).resolves.toEqual(tournament);
+
+    expect(prisma.tournament.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.tournament.findFirst).toHaveBeenCalledWith({
+      where: { OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }] },
+      select: { qualificationConfirmed: true, id: true },
+    });
+    expect(select).toEqual({ qualificationConfirmed: true });
+  });
+
+  it('preserves an explicit id projection when resolving tournament fields', async () => {
+    const tournament = { id: 't1', slug: 'jsmkc2026' };
+    const select = { id: true, slug: true };
+    (prisma.tournament.findFirst as jest.Mock).mockResolvedValue(tournament);
+
+    await expect(resolveTournament('jsmkc2026', select)).resolves.toEqual(tournament);
+
+    expect(prisma.tournament.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.tournament.findFirst).toHaveBeenCalledWith({
+      where: { OR: [{ id: 'jsmkc2026' }, { slug: 'jsmkc2026' }] },
+      select,
+    });
   });
 
   it('resolves tournament id from slug when found', async () => {
