@@ -30,7 +30,9 @@ describe('RankCell accessible-name drift helper', () => {
     asTest("function unused() { screen.getByRole('button', { name: 'Clear rank override' }); }"),
     asTest("const unused = () => screen.getByRole('button', { name: 'Clear rank override' });"),
     asTest("screen.getByRole('button', { name: 'Clear rank override' });", 'TC-2648', 'it.skip'),
+    asTest("screen.getByRole('button', { name: 'Clear rank override' });", 'TC-2648', 'it.todo'),
     asTest("screen.getByRole('button', { name: 'Clear rank override' });", 'TC-2648', 'xit'),
+    "test.each([1]).skip('TC-2648: contract', () => { screen.getByRole('button', { name: 'Clear rank override' }); });",
     "describe.skip('suite', () => { it('TC-2648: contract', () => { screen.getByRole('button', { name: 'Clear rank override' }); }); });",
     "xdescribe('suite', () => { test('TC-2648: contract', () => { screen.getByRole('button', { name: 'Clear rank override' }); }); });",
   ])('rejects sources without a runnable scenario-scoped clear accessible-name contract: %s', (source) => {
@@ -57,6 +59,7 @@ describe('RankCell accessible-name drift helper', () => {
     "test('unscoped contract', () => { screen.getByRole('button', { name: 'Save rank' }); });",
     asTest("function unused() { screen.getByRole('button', { name: 'Save rank' }); }", 'TC-2650'),
     asTest("screen.getByRole('button', { name: 'Save rank' });", 'TC-2650', 'test.skip'),
+    asTest("screen.getByRole('button', { name: 'Save rank' });", 'TC-2650', 'test.todo'),
     asTest("screen.getByRole('button', { name: 'Save rank' });", 'TC-2650', 'xtest'),
     "describe.skip('suite', () => { it('TC-2650: contract', () => { screen.getByRole('button', { name: 'Save rank' }); }); });",
   ])('rejects sources without a runnable scenario-scoped save accessible-name contract: %s', (source) => {
