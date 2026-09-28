@@ -1,5 +1,6 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
 import { callExpressionWithArguments, e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
+import { hasTc1987TvNullAssertion } from '../helpers/tc-1987';
 
 function readE2eScript(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', script);
@@ -2844,7 +2845,7 @@ describe('E2E case drift coverage', () => {
     expect(section).toContain('ta-time-entry-rows.test.tsx');
     expect(tcTa).toContain("log('TC-1987'");
     expect(tcTa).toContain("parseTvNumberInput('abc') === null");
-    expect(taTimeEntryLayoutTest).toContain('expect(parseTvNumberInput("abc")).toBeNull();');
+    expect(hasTc1987TvNullAssertion(taTimeEntryLayoutTest)).toBe(true);
     expect(taTimeEntryRowsTest).not.toContain('parseTvNumberInput');
   });
 
