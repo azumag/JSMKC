@@ -13,8 +13,8 @@ describe('finals UI persisted targetWins validation contract', () => {
   });
 
   it('routes BM persisted targetWins through getBmFinalsTargetWins', () => {
+    expect(bmSource).toContain('getBmFinalsTargetWins(selectedMatch)');
     expect(bmSource).toContain('getBmFinalsTargetWins({');
-    expect(bmSource).toContain('targetWins: selectedMatch?.targetWins');
     expect(bmSource).toContain('targetWins: match?.targetWins');
   });
 
