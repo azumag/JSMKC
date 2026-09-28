@@ -12,7 +12,6 @@ import { ModePublishSwitch } from '@/components/tournament/mode-publish-switch';
 import enModePublishSwitch from '../../../messages/mode-publish-switch/en.json';
 import jaModePublishSwitch from '../../../messages/mode-publish-switch/ja.json';
 
-
 const toggleMock = jest.fn();
 
 // Default state: not published, not loading/updating, no error
