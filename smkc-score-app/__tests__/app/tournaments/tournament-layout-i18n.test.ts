@@ -9,6 +9,7 @@ type TournamentLayoutMessages = {
 const appRoot = path.resolve(__dirname, '..', '..', '..');
 const layoutSource = fs.readFileSync(path.join(appRoot, 'src', 'app', 'tournaments', '[id]', 'layout.tsx'), 'utf8');
 const requestSource = fs.readFileSync(path.join(appRoot, 'src', 'i18n', 'request.ts'), 'utf8');
+const tcAllSource = fs.readFileSync(path.join(appRoot, 'e2e', 'tc-all.js'), 'utf8');
 
 const loadMessages = (locale: 'en' | 'ja') =>
   JSON.parse(
@@ -40,5 +41,11 @@ describe('tournament layout localization contract', () => {
     expect(layoutSource).toContain("data-tournament-tabs-hydrated={tabsHydrated ? 'true' : 'false'}");
     expect(layoutSource).not.toContain('aria-label="Tournament sections"');
     expect(layoutSource).not.toContain("label: '配信管理'");
+  });
+
+  it('keeps TC-939 navigation locators independent of localized accessible names', () => {
+    expect(tcAllSource).toContain('nav[data-tournament-tabs-hydrated="true"]');
+    expect(tcAllSource).toContain('nav[data-tournament-tabs-hydrated="true"] a[href*="/tournaments/"]');
+    expect(tcAllSource).not.toContain('nav[aria-label="Tournament sections"]');
   });
 });
