@@ -23,7 +23,7 @@ import { auth } from '@/lib/auth';
 import { generateBracketStructure, generatePlayoffStructure, roundNames } from '@/lib/double-elimination';
 import { selectFinalsEntrantsByGroup } from '@/lib/finals-group-selection';
 import type { ScorePointsEntry } from '@/lib/ranking-utils';
-import { getGpFinalsMaxCups, getMrFinalsMaxRounds } from '@/lib/finals-target-wins';
+import { getGpFinalsMaxCups, getMrFinalsMaxRounds, resolveFinalsMatchTargetWins } from '@/lib/finals-target-wins';
 import { paginate } from '@/lib/pagination';
 import { sanitizeInput } from '@/lib/sanitize';
 import { createLogger } from '@/lib/logger';
@@ -1650,10 +1650,7 @@ export function createFinalsHandlers(config: FinalsConfig) {
   /** A generated bracket snapshots its FT value. Legacy rows deliberately
    * retain the historical round-derived value until an admin changes it. */
   function getMatchTargetWins(match: { round?: string | null; stage?: string | null; targetWins?: unknown }): number {
-    if (typeof match.targetWins === 'number' && Number.isInteger(match.targetWins) && match.targetWins > 0) {
-      return match.targetWins;
-    }
-    return config.getTargetWins?.({ round: match.round, stage: match.stage }) ?? config.targetWins ?? 3;
+    return resolveFinalsMatchTargetWins(match, config);
   }
 
   function getCompletedMatchWinner(
