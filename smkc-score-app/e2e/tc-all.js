@@ -571,9 +571,7 @@ async function main() {
     await page.evaluate(() => {
       window.__tc939SpaMarker = 'alive';
     });
-    await page
-      .locator('nav[data-tournament-tabs-hydrated="true"]')
-      .waitFor({ timeout: 30000 });
+    await page.locator('nav[data-tournament-tabs-hydrated="true"]').waitFor({ timeout: 30000 });
     const tc939TabClasses = await page
       .locator('nav[data-tournament-tabs-hydrated="true"] a[href*="/tournaments/"]')
       .evaluateAll((links) => links.map((link) => link.getAttribute('class') || ''));
