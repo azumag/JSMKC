@@ -232,8 +232,7 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
   const [broadcasting, setBroadcasting] = useState(false);
   const [tvSaving, setTvSaving] = useState(false);
   const [champion, setChampion] = useState<Player | null>(null);
-  const selectedMatchTargetWins =
-    selectedMatch?.targetWins ?? (selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins());
+  const selectedMatchTargetWins = selectedMatch ? getMrFinalsTargetWins(selectedMatch) : getMrFinalsTargetWins();
 
   /* Manual bracket slot placement adjustment (issue #3017 Phase 2): admins
    * toggle "adjustment mode" to expose per-slot edit affordances on the
@@ -783,8 +782,11 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               roundNames={roundNames}
               seededPlayers={seededPlayers}
               getTargetWins={(match, bracketMatch) =>
-                match?.targetWins ??
-                getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+                getMrFinalsTargetWins({
+                  stage: match?.stage,
+                  round: match?.round ?? bracketMatch.round,
+                  targetWins: match?.targetWins,
+                })
               }
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -799,8 +801,11 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
               roundNames={roundNames}
               seededPlayers={playoffSeededPlayers}
               getTargetWins={(match, bracketMatch) =>
-                match?.targetWins ??
-                getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+                getMrFinalsTargetWins({
+                  stage: match?.stage ?? 'playoff',
+                  round: match?.round ?? bracketMatch.round,
+                  targetWins: match?.targetWins,
+                })
               }
               onMatchClick={isAdmin ? openMatchDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -825,8 +830,11 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
             roundNames={roundNames}
             seededPlayers={playoffSeededPlayers}
             getTargetWins={(match, bracketMatch) =>
-              match?.targetWins ??
-              getMrFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+              getMrFinalsTargetWins({
+                stage: match?.stage ?? 'playoff',
+                round: match?.round ?? bracketMatch.round,
+                targetWins: match?.targetWins,
+              })
             }
             onMatchClick={isAdmin ? openMatchDialog : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -848,8 +856,11 @@ export default function MatchRaceFinals({ params }: { params: Promise<{ id: stri
           roundNames={roundNames}
           seededPlayers={seededPlayers}
           getTargetWins={(match, bracketMatch) =>
-            match?.targetWins ??
-            getMrFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+            getMrFinalsTargetWins({
+              stage: match?.stage,
+              round: match?.round ?? bracketMatch.round,
+              targetWins: match?.targetWins,
+            })
           }
           onMatchClick={isAdmin ? openMatchDialog : undefined}
           onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
