@@ -571,11 +571,9 @@ async function main() {
     await page.evaluate(() => {
       window.__tc939SpaMarker = 'alive';
     });
-    await page
-      .locator('nav[aria-label="Tournament sections"][data-tournament-tabs-hydrated="true"]')
-      .waitFor({ timeout: 30000 });
+    await page.locator('nav[data-tournament-tabs-hydrated="true"]').waitFor({ timeout: 30000 });
     const tc939TabClasses = await page
-      .locator('nav[aria-label="Tournament sections"] a[href*="/tournaments/"]')
+      .locator('nav[data-tournament-tabs-hydrated="true"] a[href*="/tournaments/"]')
       .evaluateAll((links) => links.map((link) => link.getAttribute('class') || ''));
     await page.locator(`a[href="/tournaments/${TID}/bm"]`).first().click();
     await page.waitForURL(`**/tournaments/${TID}/bm`, { timeout: 30000 });
