@@ -2,6 +2,14 @@ import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
 import { callExpressionWithArguments, e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
 import { hasTc1987TvNullAssertion } from '../helpers/tc-1987';
 import {
+  hasTc2663UnpublishedStateContract,
+  hasTc2664PublishedStateContract,
+  hasTc2665LoadingDisabledContract,
+  hasTc2666UpdatingDisabledContract,
+  hasTc2667ToggleInvocationContract,
+  hasTc2668AccessibleStateContract,
+} from '../helpers/tc-2663-2668';
+import {
   hasRankCellClearAccessibleNameContract,
   hasRankCellSaveAccessibleNameContract,
 } from '../helpers/rank-cell-accessible-contract';
@@ -4193,23 +4201,12 @@ describe('E2E case drift coverage', () => {
         'tournament',
         'mode-publish-switch.test.tsx',
       );
-      for (const tc of ['TC-2663', 'TC-2664', 'TC-2665', 'TC-2666', 'TC-2667', 'TC-2668']) {
-        expect(mpsTest).toContain(tc);
-      }
-      // TC-2663: unpublishMode badge
-      expect(mpsTest).toContain('unpublishMode');
-      // TC-2664: publishMode badge
-      expect(mpsTest).toContain('publishMode');
-      // TC-2665/TC-2666: disabled when loading or updating
-      expect(mpsTest).toContain('loading: true');
-      expect(mpsTest).toContain('updating: true');
-      expect(mpsTest).toContain('toBeDisabled');
-      // TC-2667: toggle called on click
-      expect(mpsTest).toContain('toggleMock');
-      // TC-2668: aria-label
-      expect(mpsTest).toContain('aria-label');
-      // useModePublish is mocked
-      expect(mpsTest).toContain('useModePublish');
+      expect(hasTc2663UnpublishedStateContract(mpsTest)).toBe(true);
+      expect(hasTc2664PublishedStateContract(mpsTest)).toBe(true);
+      expect(hasTc2665LoadingDisabledContract(mpsTest)).toBe(true);
+      expect(hasTc2666UpdatingDisabledContract(mpsTest)).toBe(true);
+      expect(hasTc2667ToggleInvocationContract(mpsTest)).toBe(true);
+      expect(hasTc2668AccessibleStateContract(mpsTest)).toBe(true);
     });
 
     it('documents TC-2669 through TC-2674 as TaParticipantTimeInputRow unit tests', () => {
