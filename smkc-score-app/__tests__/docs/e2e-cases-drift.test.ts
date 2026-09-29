@@ -1,6 +1,19 @@
 import * as gpFinalsValidatorExports from '../../e2e/lib/gp-finals-validators';
 import { callExpressionWithArguments, e2eCaseSection, readRepoFile, sectionBetween } from '../helpers/e2e-cases';
 import { hasTc1987TvNullAssertion } from '../helpers/tc-1987';
+import {
+  hasTc2663UnpublishedStateContract,
+  hasTc2664PublishedStateContract,
+  hasTc2665LoadingDisabledContract,
+  hasTc2666UpdatingDisabledContract,
+  hasTc2667ToggleInvocationContract,
+  hasTc2668AccessibleStateContract,
+} from '../helpers/tc-2663-2668';
+import {
+  hasRankCellClearAccessibleNameContract,
+  hasRankCellSaveAccessibleNameContract,
+} from '../helpers/rank-cell-accessible-contract';
+import { hasTc2657EmptyRankClearContract, hasTc2658ZeroRankSaveContract } from '../helpers/tc-2657-2658';
 
 function readE2eScript(script: string) {
   return readRepoFile('smkc-score-app', 'e2e', script);
@@ -4119,26 +4132,23 @@ describe('E2E case drift coverage', () => {
       // TC-2647: empty input when no override (TC-2647 uses queryByRole for null check)
       expect(rankCellTest).toContain('rankOverride={null}');
       expect(rankCellTest).toContain('spinbutton');
-      // TC-2648/TC-2652: clear button queried consistently via getByRole
-      expect(rankCellTest).toContain("getByRole('button', { name: /✕/ })");
+      // TC-2648/TC-2652: clear control uses the stable accessible-name contract
+      expect(hasRankCellClearAccessibleNameContract(rankCellTest, 'TC-2648')).toBe(true);
+      expect(hasRankCellClearAccessibleNameContract(rankCellTest, 'TC-2652')).toBe(true);
       // TC-2648: prefilled input when override exists
       expect(rankCellTest).toContain('rankOverride={7}');
       // TC-2649: Enter key save
       expect(rankCellTest).toContain("key: 'Enter'");
-      // TC-2650: checkmark button save
-      expect(rankCellTest).toContain('✓');
+      // TC-2650: save control uses the stable accessible-name contract
+      expect(hasRankCellSaveAccessibleNameContract(rankCellTest, 'TC-2650')).toBe(true);
       // TC-2651: Escape cancel without onSave
       expect(rankCellTest).toContain("key: 'Escape'");
       expect(rankCellTest).toContain('not.toHaveBeenCalled');
       // TC-2652: clear button targets qual-99 and calls onSave with null
-      expect(rankCellTest).toContain('✕');
       expect(rankCellTest).toContain('qual-99');
-      // TC-2657: empty string → null (parseInt("") === NaN)
-      expect(rankCellTest).toContain('qual-empty');
-      expect(rankCellTest).toContain('parseInt');
-      // TC-2658: rank 0 passes isNaN check
-      expect(rankCellTest).toContain('qual-zero');
-      expect(rankCellTest).toContain('isNaN');
+      // TC-2657/TC-2658: parser outcomes are guarded semantically rather than by implementation tokens
+      expect(hasTc2657EmptyRankClearContract(rankCellTest)).toBe(true);
+      expect(hasTc2658ZeroRankSaveContract(rankCellTest)).toBe(true);
       // TC-2660: error message shown on reject
       expect(rankCellTest).toContain("getByRole('alert')");
       // TC-2661: error cleared on reopen
@@ -4191,23 +4201,12 @@ describe('E2E case drift coverage', () => {
         'tournament',
         'mode-publish-switch.test.tsx',
       );
-      for (const tc of ['TC-2663', 'TC-2664', 'TC-2665', 'TC-2666', 'TC-2667', 'TC-2668']) {
-        expect(mpsTest).toContain(tc);
-      }
-      // TC-2663: unpublishMode badge
-      expect(mpsTest).toContain('unpublishMode');
-      // TC-2664: publishMode badge
-      expect(mpsTest).toContain('publishMode');
-      // TC-2665/TC-2666: disabled when loading or updating
-      expect(mpsTest).toContain('loading: true');
-      expect(mpsTest).toContain('updating: true');
-      expect(mpsTest).toContain('toBeDisabled');
-      // TC-2667: toggle called on click
-      expect(mpsTest).toContain('toggleMock');
-      // TC-2668: aria-label
-      expect(mpsTest).toContain('aria-label');
-      // useModePublish is mocked
-      expect(mpsTest).toContain('useModePublish');
+      expect(hasTc2663UnpublishedStateContract(mpsTest)).toBe(true);
+      expect(hasTc2664PublishedStateContract(mpsTest)).toBe(true);
+      expect(hasTc2665LoadingDisabledContract(mpsTest)).toBe(true);
+      expect(hasTc2666UpdatingDisabledContract(mpsTest)).toBe(true);
+      expect(hasTc2667ToggleInvocationContract(mpsTest)).toBe(true);
+      expect(hasTc2668AccessibleStateContract(mpsTest)).toBe(true);
     });
 
     it('documents TC-2669 through TC-2674 as TaParticipantTimeInputRow unit tests', () => {

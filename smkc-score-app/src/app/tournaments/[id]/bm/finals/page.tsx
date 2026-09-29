@@ -214,8 +214,7 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
    * cards; clicking one opens BracketSlotEditDialog. */
   const { slotEditMode, setSlotEditMode, slotEditTarget, setSlotEditTarget, handleSlotClick } =
     useSlotEditWiring<BMMatch>();
-  const selectedMatchTargetWins =
-    selectedMatch?.targetWins ?? (selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins());
+  const selectedMatchTargetWins = selectedMatch ? getBmFinalsTargetWins(selectedMatch) : getBmFinalsTargetWins();
 
   /* Tournament completion state */
   const [champion, setChampion] = useState<Player | null>(null);
@@ -815,8 +814,11 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
                 roundNames={roundNames}
                 seededPlayers={seededPlayers}
                 getTargetWins={(match, bracketMatch) =>
-                  match?.targetWins ??
-                  getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+                  getBmFinalsTargetWins({
+                    stage: match?.stage,
+                    round: match?.round ?? bracketMatch.round,
+                    targetWins: match?.targetWins,
+                  })
                 }
                 onMatchClick={isAdmin ? openScoreDialog : undefined}
                 onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
@@ -833,8 +835,11 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
                 onMatchClick={isAdmin ? openScoreDialog : undefined}
                 onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
                 getTargetWins={(match, bracketMatch) =>
-                  match?.targetWins ??
-                  getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+                  getBmFinalsTargetWins({
+                    stage: match?.stage ?? 'playoff',
+                    round: match?.round ?? bracketMatch.round,
+                    targetWins: match?.targetWins,
+                  })
                 }
                 slotEditMode={isAdmin ? slotEditMode : undefined}
                 onSlotClick={isAdmin ? handleSlotClick : undefined}
@@ -860,8 +865,11 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
               onMatchClick={isAdmin ? openScoreDialog : undefined}
               onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}
               getTargetWins={(match, bracketMatch) =>
-                match?.targetWins ??
-                getBmFinalsTargetWins({ stage: match?.stage ?? 'playoff', round: match?.round ?? bracketMatch.round })
+                getBmFinalsTargetWins({
+                  stage: match?.stage ?? 'playoff',
+                  round: match?.round ?? bracketMatch.round,
+                  targetWins: match?.targetWins,
+                })
               }
               slotEditMode={isAdmin ? slotEditMode : undefined}
               onSlotClick={isAdmin ? handleSlotClick : undefined}
@@ -882,8 +890,11 @@ export default function BattleModeFinals({ params }: { params: Promise<{ id: str
             roundNames={roundNames}
             seededPlayers={seededPlayers}
             getTargetWins={(match, bracketMatch) =>
-              match?.targetWins ??
-              getBmFinalsTargetWins({ stage: match?.stage, round: match?.round ?? bracketMatch.round })
+              getBmFinalsTargetWins({
+                stage: match?.stage,
+                round: match?.round ?? bracketMatch.round,
+                targetWins: match?.targetWins,
+              })
             }
             onMatchClick={isAdmin ? openScoreDialog : undefined}
             onTvNumberChange={isAdmin ? handleBracketTvNumberChange : undefined}

@@ -464,7 +464,11 @@ export default function GrandPrixFinals({ params }: { params: Promise<{ id: stri
   };
 
   const getTargetWinsForMatch = (match?: (Pick<GPMatch, 'round' | 'targetWins'> & { stage?: string | null }) | null) =>
-    match?.targetWins ?? getGpFinalsTargetWins({ round: match?.round, stage: match?.stage ?? 'finals' });
+    getGpFinalsTargetWins({
+      round: match?.round,
+      stage: match?.stage ?? 'finals',
+      targetWins: match?.targetWins,
+    });
 
   const usesCupWinScoreOnly = () => scoreEntryMode === 'score-only';
 
