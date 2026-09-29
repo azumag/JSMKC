@@ -9,17 +9,17 @@ migration policy, not permission to replace working production commands speculat
 
 ## Current command inventory
 
-| Surface | Current command/config | Transition rule |
-| --- | --- | --- |
-| Production D1 migration list | `npm run db:migrations:list` → `wrangler d1 migrations list DB --remote` | Keep Wrangler until list parity and production DB targeting are verified. |
-| Production D1 migration apply | `npm run db:migrations:apply` → `wrangler d1 migrations apply DB --remote` | Keep Wrangler until apply ordering, failure behavior, and remote DB identity are verified. |
-| Preview D1 migration list/apply | Same commands with `--env preview` | Preserve the explicit preview environment boundary. |
-| Worker deploy | `wrangler deploy` / `wrangler deploy --env preview` | Keep OpenNext output, bindings, compatibility settings, routes, assets, and environment selection unchanged until deploy parity is verified. |
-| Worker configuration | `wrangler.toml` | Do not move to another config format until production and preview bindings/configuration can be proven equivalent. |
-| D1 export / operational SQL | Wrangler-based operational commands | Keep Wrangler fallback until an equivalent `cf` command is verified for the same database identity and output semantics. |
-| Logs / tail | `wrangler tail` where used operationally | Move only after filter, environment, and diagnostic parity are verified. |
-| Preview schema preflight | Wrangler D1 execution in repository scripts/workflows | Preserve fail-closed schema checks and the dedicated preview DB. |
-| Workers Builds production deploy | Cloudflare trigger command `npx wrangler deploy` | Managed by the separate build-cost policy; do not change it as part of CLI migration work. |
+| Surface                          | Current command/config                                                     | Transition rule                                                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Production D1 migration list     | `npm run db:migrations:list` → `wrangler d1 migrations list DB --remote`   | Keep Wrangler until list parity and production DB targeting are verified.                                                                    |
+| Production D1 migration apply    | `npm run db:migrations:apply` → `wrangler d1 migrations apply DB --remote` | Keep Wrangler until apply ordering, failure behavior, and remote DB identity are verified.                                                   |
+| Preview D1 migration list/apply  | Same commands with `--env preview`                                         | Preserve the explicit preview environment boundary.                                                                                          |
+| Worker deploy                    | `wrangler deploy` / `wrangler deploy --env preview`                        | Keep OpenNext output, bindings, compatibility settings, routes, assets, and environment selection unchanged until deploy parity is verified. |
+| Worker configuration             | `wrangler.toml`                                                            | Do not move to another config format until production and preview bindings/configuration can be proven equivalent.                           |
+| D1 export / operational SQL      | Wrangler-based operational commands                                        | Keep Wrangler fallback until an equivalent `cf` command is verified for the same database identity and output semantics.                     |
+| Logs / tail                      | `wrangler tail` where used operationally                                   | Move only after filter, environment, and diagnostic parity are verified.                                                                     |
+| Preview schema preflight         | Wrangler D1 execution in repository scripts/workflows                      | Preserve fail-closed schema checks and the dedicated preview DB.                                                                             |
+| Workers Builds production deploy | Cloudflare trigger command `npx wrangler deploy`                           | Managed by the separate build-cost policy; do not change it as part of CLI migration work.                                                   |
 
 Wrangler remaining in the repository during this transition is intentional fallback,
 not an indication that the migration issue is being ignored.
