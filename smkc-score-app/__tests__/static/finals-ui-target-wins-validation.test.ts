@@ -7,24 +7,24 @@ describe('finals UI persisted targetWins validation contract', () => {
 
   it('does not bypass shared targetWins validation with direct persisted-value fallbacks', () => {
     for (const source of [bmSource, mrSource, gpSource]) {
-      expect(source).not.toContain('selectedMatch?.targetWins ??');
-      expect(source).not.toContain('match?.targetWins ??');
+      expect(source).not.toMatch(/selectedMatch\?\.targetWins\s*\?\?/);
+      expect(source).not.toMatch(/match\?\.targetWins\s*\?\?/);
     }
   });
 
   it('routes BM persisted targetWins through getBmFinalsTargetWins', () => {
-    expect(bmSource).toContain('getBmFinalsTargetWins(selectedMatch)');
-    expect(bmSource).toContain('getBmFinalsTargetWins({');
-    expect(bmSource).toContain('targetWins: match?.targetWins');
+    expect(bmSource).toMatch(/getBmFinalsTargetWins\(\s*selectedMatch\s*\)/);
+    expect(bmSource).toMatch(/getBmFinalsTargetWins\(\s*\{/);
+    expect(bmSource).toMatch(/targetWins:\s*match\?\.targetWins/);
   });
 
   it('routes MR persisted targetWins through getMrFinalsTargetWins', () => {
-    expect(mrSource).toContain('getMrFinalsTargetWins(selectedMatch)');
-    expect(mrSource).toContain('targetWins: match?.targetWins');
+    expect(mrSource).toMatch(/getMrFinalsTargetWins\(\s*selectedMatch\s*\)/);
+    expect(mrSource).toMatch(/targetWins:\s*match\?\.targetWins/);
   });
 
   it('routes GP persisted targetWins through getGpFinalsTargetWins', () => {
-    expect(gpSource).toContain('getGpFinalsTargetWins({');
-    expect(gpSource).toContain('targetWins: match?.targetWins');
+    expect(gpSource).toMatch(/getGpFinalsTargetWins\(\s*\{/);
+    expect(gpSource).toMatch(/targetWins:\s*match\?\.targetWins/);
   });
 });
