@@ -11,6 +11,7 @@ describe('Cloudflare CLI transition safety contracts', () => {
   const wranglerConfig = fs.readFileSync(path.join(appRoot, 'wrangler.toml'), 'utf8');
   const buildCostPolicy = fs.readFileSync(path.join(appRoot, 'docs', 'cloudflare-build-cost.md'), 'utf8');
   const transitionPolicy = fs.readFileSync(path.join(appRoot, 'docs', 'cloudflare-cli-transition.md'), 'utf8');
+  const normalizedTransitionPolicy = transitionPolicy.replace(/\s+/g, ' ');
 
   it('keeps D1 migration list/apply explicit for production and preview', () => {
     expect(packageJson.scripts?.['db:migrations:list']).toBe('wrangler d1 migrations list DB --remote');
@@ -52,9 +53,13 @@ describe('Cloudflare CLI transition safety contracts', () => {
   });
 
   it('documents Wrangler as a verified-parity fallback rather than a blind replacement', () => {
-    expect(transitionPolicy).toContain('existing production, preview, D1, and OpenNext commands must stay on Wrangler');
-    expect(transitionPolicy).toContain('Do not weaken Prisma/D1 migration parity CI');
-    expect(transitionPolicy).toContain('Workers Builds cost gate is separate');
-    expect(transitionPolicy).toContain('keep a documented Wrangler fallback for unsupported or unverified behavior');
+    expect(normalizedTransitionPolicy).toContain(
+      'existing production, preview, D1, and OpenNext commands must stay on Wrangler',
+    );
+    expect(normalizedTransitionPolicy).toContain('Do not weaken Prisma/D1 migration parity CI');
+    expect(normalizedTransitionPolicy).toContain('Workers Builds cost gate is separate');
+    expect(normalizedTransitionPolicy).toContain(
+      'keep a documented Wrangler fallback for unsupported or unverified behavior',
+    );
   });
 });
