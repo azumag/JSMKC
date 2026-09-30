@@ -15,7 +15,6 @@ describe('D1 atomic finals/audit batches', () => {
       workers: [
         {
           config: {
-            type: 'worker',
             name: '',
             compatibilityDate: '2000-01-01',
             manifest: {
