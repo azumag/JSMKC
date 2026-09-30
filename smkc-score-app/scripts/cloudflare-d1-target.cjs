@@ -85,7 +85,7 @@ function resolveD1Target(source, environment) {
   const production = selectDbBinding(tables, TARGET_SECTIONS.production, 'production');
   const preview = selectDbBinding(tables, TARGET_SECTIONS.preview, 'preview');
 
-  if (production.database_id === preview.database_id) {
+  if (production.database_id.toLowerCase() === preview.database_id.toLowerCase()) {
     throw new Error('production and preview DB database_id values must be distinct');
   }
 
