@@ -72,4 +72,38 @@ migrations_dir = "migrations"
       'environment must be exactly "production" or "preview"',
     );
   });
+
+  it('rejects duplicate DB bindings for an environment', () => {
+    const source = `${configWithIds(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+    )}
+[[d1_databases]]
+binding = "DB"
+database_id = "33333333-3333-3333-3333-333333333333"
+migrations_dir = "migrations"
+`;
+
+    expect(() => resolveD1Target(source, 'production')).toThrow(
+      'production must define exactly one D1 binding named DB; found 2',
+    );
+  });
+
+  it('rejects malformed database IDs before selecting a target', () => {
+    const source = configWithIds('not-a-uuid', '22222222-2222-2222-2222-222222222222');
+
+    expect(() => resolveD1Target(source, 'production')).toThrow('production DB database_id must be a UUID');
+  });
+
+  it('rejects migration-directory drift', () => {
+    const source = configWithIds(
+      '11111111-1111-1111-1111-111111111111',
+      '22222222-2222-2222-2222-222222222222',
+    ).replace('migrations_dir = "migrations"', 'migrations_dir = "other"');
+
+    expect(() => resolveD1Target(source, 'production')).toThrow(
+      'production DB migrations_dir must be "migrations"',
+    );
+  });
+
 });
