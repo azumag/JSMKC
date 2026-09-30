@@ -62,4 +62,16 @@ describe('Cloudflare CLI transition safety contracts', () => {
       'keep a documented Wrangler fallback for unsupported or unverified behavior',
     );
   });
+
+  it('locks the current cf D1 targeting boundary before replacing Wrangler', () => {
+    expect(normalizedTransitionPolicy).toContain('cf d1 migrations list <DATABASE_ID>');
+    expect(normalizedTransitionPolicy).toContain('cf d1 migrations apply <DATABASE_ID> --dir migrations');
+    expect(normalizedTransitionPolicy).toContain('the remote database is the default');
+    expect(normalizedTransitionPolicy).toContain(
+      'repository-owned fail-closed mapping selects the exact database ID for each environment',
+    );
+    expect(normalizedTransitionPolicy).toContain(
+      'must never fall back to production when preview identity is missing or invalid',
+    );
+  });
 });
