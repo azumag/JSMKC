@@ -8,9 +8,7 @@ type CloudflareD1TargetModule = {
   resolveD1Target: (source: string, environment: 'production' | 'preview') => D1Target;
 };
 
-const { resolveD1Target } = jest.requireActual(
-  '../../scripts/cloudflare-d1-target.cjs',
-) as CloudflareD1TargetModule;
+const { resolveD1Target } = jest.requireActual('../../scripts/cloudflare-d1-target.cjs') as CloudflareD1TargetModule;
 
 function configWithIds(productionId: string, previewId: string): string {
   return `
@@ -29,10 +27,7 @@ migrations_dir = "migrations"
 
 describe('cloudflare D1 target resolver', () => {
   it('resolves production and preview only from their explicit DB bindings', () => {
-    const source = configWithIds(
-      '11111111-1111-1111-1111-111111111111',
-      '22222222-2222-2222-2222-222222222222',
-    );
+    const source = configWithIds('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
 
     expect(resolveD1Target(source, 'production')).toEqual({
       environment: 'production',
@@ -47,10 +42,7 @@ describe('cloudflare D1 target resolver', () => {
   });
 
   it('rejects the same database UUID even when letter casing differs', () => {
-    const source = configWithIds(
-      'AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA',
-      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    );
+    const source = configWithIds('AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
     expect(() => resolveD1Target(source, 'production')).toThrow(
       'production and preview DB database_id values must be distinct',
@@ -76,8 +68,8 @@ migrations_dir = "migrations"
       '22222222-2222-2222-2222-222222222222',
     );
 
-    expect(() =>
-      resolveD1Target(source, 'staging' as 'production' | 'preview'),
-    ).toThrow('environment must be exactly "production" or "preview"');
+    expect(() => resolveD1Target(source, 'staging' as 'production' | 'preview')).toThrow(
+      'environment must be exactly "production" or "preview"',
+    );
   });
 });
