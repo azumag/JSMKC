@@ -63,10 +63,7 @@ migrations_dir = "migrations"
   });
 
   it('rejects an unknown environment instead of selecting a default', () => {
-    const source = configWithIds(
-      '11111111-1111-1111-1111-111111111111',
-      '22222222-2222-2222-2222-222222222222',
-    );
+    const source = configWithIds('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
 
     expect(() => resolveD1Target(source, 'staging' as 'production' | 'preview')).toThrow(
       'environment must be exactly "production" or "preview"',
@@ -74,10 +71,7 @@ migrations_dir = "migrations"
   });
 
   it('rejects duplicate DB bindings for an environment', () => {
-    const source = `${configWithIds(
-      '11111111-1111-1111-1111-111111111111',
-      '22222222-2222-2222-2222-222222222222',
-    )}
+    const source = `${configWithIds('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222')}
 [[d1_databases]]
 binding = "DB"
 database_id = "33333333-3333-3333-3333-333333333333"
@@ -101,9 +95,6 @@ migrations_dir = "migrations"
       '22222222-2222-2222-2222-222222222222',
     ).replace('migrations_dir = "migrations"', 'migrations_dir = "other"');
 
-    expect(() => resolveD1Target(source, 'production')).toThrow(
-      'production DB migrations_dir must be "migrations"',
-    );
+    expect(() => resolveD1Target(source, 'production')).toThrow('production DB migrations_dir must be "migrations"');
   });
-
 });
