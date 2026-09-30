@@ -39,9 +39,12 @@ describe('Cloudflare CLI transition safety contracts', () => {
     const migrationDirOccurrences = wranglerConfig.match(/migrations_dir = "migrations"/g) ?? [];
     expect(migrationDirOccurrences).toHaveLength(2);
 
-    const databaseIdOccurrences = wranglerConfig.match(/database_id = "[^"]+"/g) ?? [];
-    expect(databaseIdOccurrences).toHaveLength(2);
-    expect(new Set(databaseIdOccurrences).size).toBe(2);
+    const databaseIds = Array.from(
+      wranglerConfig.matchAll(/database_id = "([^"]+)"/g),
+      (match) => match[1].toLowerCase(),
+    );
+    expect(databaseIds).toHaveLength(2);
+    expect(new Set(databaseIds).size).toBe(2);
   });
 
   it('does not couple CLI migration work to the Workers Builds cost gate', () => {
