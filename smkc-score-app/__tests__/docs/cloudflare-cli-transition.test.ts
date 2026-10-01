@@ -39,9 +39,11 @@ describe('Cloudflare CLI transition safety contracts', () => {
     const migrationDirOccurrences = wranglerConfig.match(/migrations_dir = "migrations"/g) ?? [];
     expect(migrationDirOccurrences).toHaveLength(2);
 
-    const databaseIdOccurrences = wranglerConfig.match(/database_id = "[^"]+"/g) ?? [];
-    expect(databaseIdOccurrences).toHaveLength(2);
-    expect(new Set(databaseIdOccurrences).size).toBe(2);
+    const databaseIds = Array.from(wranglerConfig.matchAll(/database_id = "([^"]+)"/g), (match) =>
+      match[1].toLowerCase(),
+    );
+    expect(databaseIds).toHaveLength(2);
+    expect(new Set(databaseIds).size).toBe(2);
   });
 
   it('does not couple CLI migration work to the Workers Builds cost gate', () => {
@@ -60,6 +62,18 @@ describe('Cloudflare CLI transition safety contracts', () => {
     expect(normalizedTransitionPolicy).toContain('Workers Builds cost gate is separate');
     expect(normalizedTransitionPolicy).toContain(
       'keep a documented Wrangler fallback for unsupported or unverified behavior',
+    );
+  });
+
+  it('locks the current cf D1 targeting boundary before replacing Wrangler', () => {
+    expect(normalizedTransitionPolicy).toContain('cf d1 migrations list <DATABASE_ID>');
+    expect(normalizedTransitionPolicy).toContain('cf d1 migrations apply <DATABASE_ID> --dir migrations');
+    expect(normalizedTransitionPolicy).toContain('the remote database is the default');
+    expect(normalizedTransitionPolicy).toContain(
+      'repository-owned fail-closed mapping selects the exact database ID for each environment',
+    );
+    expect(normalizedTransitionPolicy).toContain(
+      'must never fall back to production when preview identity is missing or invalid',
     );
   });
 });
