@@ -91,6 +91,11 @@ jobs:
           # CI never needs local Git hooks; skip Husky's prepare-time setup/noise.
           HUSKY: "0"
 
+      - name: Validate explicit top-level Wrangler environment
+        # Dry-run only: prove the current Wrangler CLI accepts --env="" as an
+        # explicit top-level target and removes the multi-environment warning.
+        run: npm run wrangler:top-level-env:check
+
       - name: Lint
         run: npm run lint
 
