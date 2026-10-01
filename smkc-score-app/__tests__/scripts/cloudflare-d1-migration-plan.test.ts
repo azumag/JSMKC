@@ -36,10 +36,7 @@ migrations_dir = "migrations"
 }
 
 describe('cloudflare D1 migration command planner', () => {
-  const source = configWithIds(
-    '11111111-1111-1111-1111-111111111111',
-    '22222222-2222-2222-2222-222222222222',
-  );
+  const source = configWithIds('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
 
   it('plans a production list command against the explicit production database ID', () => {
     expect(planD1Migration(source, 'production', 'list')).toEqual({
@@ -55,14 +52,7 @@ describe('cloudflare D1 migration command planner', () => {
   it('plans preview apply with the explicit preview database and migrations directory', () => {
     expect(planD1Migration(source, 'preview', 'apply')).toEqual({
       command: 'cf',
-      args: [
-        'd1',
-        'migrations',
-        'apply',
-        '22222222-2222-2222-2222-222222222222',
-        '--dir',
-        'migrations',
-      ],
+      args: ['d1', 'migrations', 'apply', '22222222-2222-2222-2222-222222222222', '--dir', 'migrations'],
       environment: 'preview',
       operation: 'apply',
       databaseId: '22222222-2222-2222-2222-222222222222',
@@ -76,15 +66,15 @@ describe('cloudflare D1 migration command planner', () => {
   });
 
   it('rejects unsupported operations without producing a command', () => {
-    expect(() =>
-      planD1Migration(source, 'production', 'delete' as 'list'),
-    ).toThrow('operation must be exactly "list" or "apply"');
+    expect(() => planD1Migration(source, 'production', 'delete' as 'list')).toThrow(
+      'operation must be exactly "list" or "apply"',
+    );
   });
 
   it('inherits the target resolver fail-closed boundary for unknown environments', () => {
-    expect(() =>
-      planD1Migration(source, 'staging' as 'production', 'list'),
-    ).toThrow('environment must be exactly "production" or "preview"');
+    expect(() => planD1Migration(source, 'staging' as 'production', 'list')).toThrow(
+      'environment must be exactly "production" or "preview"',
+    );
   });
 
   it('requires exactly operation and environment CLI arguments', () => {
