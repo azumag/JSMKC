@@ -31,9 +31,7 @@ function planD1Migration(source, environment, operation) {
 
 function parseCliOptions(argv = process.argv.slice(2)) {
   if (argv.length !== 2) {
-    throw new Error(
-      'usage: node scripts/cloudflare-d1-migration-plan.cjs <list|apply> <production|preview>',
-    );
+    throw new Error('usage: node scripts/cloudflare-d1-migration-plan.cjs <list|apply> <production|preview>');
   }
 
   return {
