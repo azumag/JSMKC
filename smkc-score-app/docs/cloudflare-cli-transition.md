@@ -28,6 +28,14 @@ environment and regression coverage proves that production cannot silently fall
 back from a missing/invalid preview target. The current Wrangler commands remain the
 verified operational fallback while that adapter is implemented and reviewed.
 
+A repository-owned dry-run planner now exists at
+`scripts/cloudflare-d1-migration-plan.cjs`. It reuses the fail-closed D1 target
+resolver and emits JSON describing the exact `cf d1 migrations list/apply`
+command for an explicitly selected `production` or `preview` target. The planner
+does not spawn `cf`, mutate D1, or change package deploy scripts; it is a parity
+verification surface only until its behavior and the upstream CLI are reviewed in
+CI. Example: `node scripts/cloudflare-d1-migration-plan.cjs apply preview`.
+
 Live log streaming is still a Wrangler fallback: Cloudflare's current docs continue
 to direct users to `wrangler tail` for Worker tailing.
 
