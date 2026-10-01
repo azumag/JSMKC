@@ -25,7 +25,7 @@ describe('Cloudflare CLI transition safety contracts', () => {
   });
 
   it('preserves migrate-before-deploy ordering while cf parity is evaluated', () => {
-    expect(packageJson.scripts?.['deploy:cf']).toBe('npm run db:migrations:apply && wrangler deploy');
+    expect(packageJson.scripts?.['deploy:cf']).toBe('npm run db:migrations:apply && wrangler deploy --env=""');
     expect(packageJson.scripts?.['deploy:cf:preview']).toBe(
       'npm run db:migrations:apply:preview && wrangler deploy --env preview',
     );
@@ -49,7 +49,7 @@ describe('Cloudflare CLI transition safety contracts', () => {
   it('does not couple CLI migration work to the Workers Builds cost gate', () => {
     expect(buildCostPolicy).toContain('| Root directory               | `smkc-score-app`      |');
     expect(buildCostPolicy).toContain('| Build command                | `npm run build:cf`    |');
-    expect(buildCostPolicy).toContain('| Deploy command               | `npx wrangler deploy` |');
+    expect(buildCostPolicy).toMatch(/\| Deploy command\s+\| `npx wrangler deploy --env=""`\s+\|/);
     expect(buildCostPolicy).toContain('`path_excludes=["*"]` is intentional');
     expect(buildCostPolicy).toContain('Non-production branch builds must remain disabled');
   });
