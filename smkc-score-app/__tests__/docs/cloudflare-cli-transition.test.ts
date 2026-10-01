@@ -12,6 +12,7 @@ describe('Cloudflare CLI transition safety contracts', () => {
   const buildCostPolicy = fs.readFileSync(path.join(appRoot, 'docs', 'cloudflare-build-cost.md'), 'utf8');
   const transitionPolicy = fs.readFileSync(path.join(appRoot, 'docs', 'cloudflare-cli-transition.md'), 'utf8');
   const normalizedTransitionPolicy = transitionPolicy.replace(/\s+/g, ' ');
+  const migrationPlanner = fs.readFileSync(path.join(appRoot, 'scripts', 'cloudflare-d1-migration-plan.cjs'), 'utf8');
 
   it('keeps D1 migration list/apply explicit for production and preview', () => {
     expect(packageJson.scripts?.['db:migrations:list']).toBe('wrangler d1 migrations list DB --remote');
@@ -63,6 +64,14 @@ describe('Cloudflare CLI transition safety contracts', () => {
     expect(normalizedTransitionPolicy).toContain(
       'keep a documented Wrangler fallback for unsupported or unverified behavior',
     );
+  });
+
+  it('documents the non-executing cf D1 migration planner before replacing Wrangler', () => {
+    expect(normalizedTransitionPolicy).toContain('scripts/cloudflare-d1-migration-plan.cjs');
+    expect(normalizedTransitionPolicy).toContain('does not spawn `cf`, mutate D1, or change package deploy scripts');
+    expect(migrationPlanner).toContain("const OPERATIONS = new Set(['list', 'apply'])");
+    expect(migrationPlanner).not.toContain('spawn(');
+    expect(migrationPlanner).not.toContain('exec(');
   });
 
   it('locks the current cf D1 targeting boundary before replacing Wrangler', () => {
