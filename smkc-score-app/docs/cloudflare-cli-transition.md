@@ -45,12 +45,12 @@ Upstream references:
 | Production D1 migration list     | `npm run db:migrations:list` → `wrangler d1 migrations list DB --remote`   | `cf d1 migrations list <DATABASE_ID>` exists upstream; switch only after production DB ID selection is repository-owned, explicit, and fail-closed.                              |
 | Production D1 migration apply    | `npm run db:migrations:apply` → `wrangler d1 migrations apply DB --remote` | `cf d1 migrations apply <DATABASE_ID> --dir migrations` exists upstream; preserve ordering, remote targeting, migration history, and non-zero failure behavior before switching. |
 | Preview D1 migration list/apply  | Same commands with `--env preview`                                         | A future `cf` wrapper must select the preview database ID directly and must never fall back to production when preview identity is missing or invalid.                           |
-| Worker deploy                    | `wrangler deploy` / `wrangler deploy --env preview`                        | Keep OpenNext output, bindings, compatibility settings, routes, assets, and environment selection unchanged until deploy parity is verified.                                     |
+| Worker deploy                    | `wrangler deploy --env=""` / `wrangler deploy --env preview`                        | Keep OpenNext output, bindings, compatibility settings, routes, assets, and environment selection unchanged until deploy parity is verified.                                     |
 | Worker configuration             | `wrangler.toml`                                                            | Do not move to another config format until production and preview bindings/configuration can be proven equivalent.                                                               |
 | D1 export / operational SQL      | Wrangler-based operational commands                                        | Keep Wrangler fallback until an equivalent `cf` command is verified for the same database identity and output semantics.                                                         |
 | Logs / tail                      | `wrangler tail` where used operationally                                   | Keep Wrangler until Cloudflare documents a `cf` live-tail replacement with equivalent filter/environment/diagnostic semantics.                                                   |
 | Preview schema preflight         | Wrangler D1 execution in repository scripts/workflows                      | Preserve fail-closed schema checks and the dedicated preview DB.                                                                                                                 |
-| Workers Builds production deploy | Cloudflare trigger command `npx wrangler deploy`                           | Managed by the separate build-cost policy; do not change it as part of CLI migration work.                                                                                       |
+| Workers Builds production deploy | Cloudflare trigger command `npx wrangler deploy --env=""`                           | Managed by the separate build-cost policy; do not change it as part of CLI migration work.                                                                                       |
 
 Wrangler remaining in the repository during this transition is intentional fallback,
 not an indication that the migration issue is being ignored.
@@ -65,7 +65,7 @@ select `--env preview`.
 
 Deployment must continue to apply migrations before Worker deployment:
 
-- production: `npm run db:migrations:apply && wrangler deploy`
+- production: `npm run db:migrations:apply && wrangler deploy --env=""`
 - preview: `npm run db:migrations:apply:preview && wrangler deploy --env preview`
 
 The verified upstream `cf` migration surface changes target selection from
@@ -102,8 +102,8 @@ The production Workers Builds trigger and its rate/cost gate are governed by
 - enable non-production branch builds;
 - replace the production build trigger;
 - add a Deploy Hook, Cron Worker, or second scheduled promotion path; or
-- change the trigger's `npx wrangler deploy` command before deploy parity is
-  deliberately reviewed.
+- change the trigger's `npx wrangler deploy --env=""` command without a separately
+  reviewed parity change.
 
 A skipped Cloudflare production build is not a GitHub CI failure.
 
