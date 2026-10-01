@@ -50,6 +50,16 @@ The trigger deploy command is `npx wrangler deploy`; do not replace it with
 `npm run deploy:cf`. Production D1 migration execution is governed separately and
 must not be silently coupled to this build-cost gate.
 
+Issue #4204 tracks making the top-level Wrangler target explicit. Until that
+separate change is reviewed, the production trigger contract above remains
+`npx wrangler deploy`. Repository CI runs
+`npm run wrangler:top-level-env:check`, which uses a local Wrangler
+`deploy --dry-run` fixture to verify two things without authenticating or
+deploying: an implicit target still emits Wrangler's multiple-environment warning,
+while `--env=""` succeeds without that warning. Passing this check is evidence for
+CLI targeting parity only; it does not itself authorize or apply a production
+trigger change.
+
 This cost-control procedure must not be used as a reason to change D1 migrations,
 runtime bindings or secrets, domains, account or repository permissions, billing
 plans, or any other Worker. Those changes require their own scoped review and
