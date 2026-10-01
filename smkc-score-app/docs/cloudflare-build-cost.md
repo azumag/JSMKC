@@ -33,7 +33,7 @@ The production trigger contract is:
 | `build_caching_enabled`      | `true`                |
 | Root directory               | `smkc-score-app`      |
 | Build command                | `npm run build:cf`    |
-| Deploy command               | `npx wrangler deploy` |
+| Deploy command               | `npx wrangler deploy --env=""` |
 | Path includes                | `["*"]`               |
 | Path excludes                | `["*"]`               |
 
@@ -46,19 +46,16 @@ not a GitHub CI failure.
 Non-production branch builds must remain disabled (`previews_enabled=false`). Do not
 enable preview builds as a workaround for the production push suppression policy.
 
-The trigger deploy command is `npx wrangler deploy`; do not replace it with
-`npm run deploy:cf`. Production D1 migration execution is governed separately and
-must not be silently coupled to this build-cost gate.
+The trigger deploy command is `npx wrangler deploy --env=""`; do not replace it
+with `npm run deploy:cf` or a named environment. Production D1 migration execution
+is governed separately and must not be silently coupled to this build-cost gate.
 
-Issue #4204 tracks making the top-level Wrangler target explicit. Until that
-separate change is reviewed, the production trigger contract above remains
-`npx wrangler deploy`. Repository CI runs
-`npm run wrangler:top-level-env:check`, which uses a local Wrangler
-`deploy --dry-run` fixture to verify two things without authenticating or
-deploying: an implicit target still emits Wrangler's multiple-environment warning,
-while `--env=""` succeeds without that warning. Passing this check is evidence for
-CLI targeting parity only; it does not itself authorize or apply a production
-trigger change.
+Issue #4204 verified the explicit top-level Wrangler target before this contract
+changed. Repository CI runs `npm run wrangler:top-level-env:check`, which uses a
+local Wrangler `deploy --dry-run` fixture to prove that an implicit target emits
+Wrangler's multiple-environment warning while `--env=""` succeeds without that
+warning. This check performs no authentication or deployment. Keep it green whenever
+the production trigger command or Wrangler runtime changes.
 
 This cost-control procedure must not be used as a reason to change D1 migrations,
 runtime bindings or secrets, domains, account or repository permissions, billing
