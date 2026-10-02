@@ -44,26 +44,34 @@ describe('D1 migration npm toolchain', () => {
     const installStep = steps?.find((step) => step.name === 'Install dependencies');
     const listStep = steps?.find((step) => step.name === 'List pending migrations');
     const applyStep = steps?.find((step) => step.name === 'Apply migrations');
+    const auditStep = steps?.find((step) => step.name === 'Confirm no migrations remain pending (audit log)');
 
     expect(pinStep).toBeDefined();
     expect(installStep).toBeDefined();
     expect(listStep).toBeDefined();
     expect(applyStep).toBeDefined();
+    expect(auditStep).toBeDefined();
     expect(pinStep?.run).toContain(`npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`);
 
     const expectedVersion = packageManager?.replace(/^npm@/, '');
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${expectedVersion}"`);
     expect(installStep?.run?.trim()).toBe('npm ci');
     expect(installStep?.env?.HUSKY).toBe('0');
+    expect(auditStep?.run).toContain('npm run db:migrations:list 2>&1');
+    expect(auditStep?.run).toContain('grep -Fq "No migrations to apply!"');
+    expect(auditStep?.run).not.toContain('--json');
+    expect(auditStep?.run).not.toContain('|| true');
 
     const pinIndex = steps?.indexOf(pinStep as WorkflowStep) ?? -1;
     const installIndex = steps?.indexOf(installStep as WorkflowStep) ?? -1;
     const listIndex = steps?.indexOf(listStep as WorkflowStep) ?? -1;
     const applyIndex = steps?.indexOf(applyStep as WorkflowStep) ?? -1;
+    const auditIndex = steps?.indexOf(auditStep as WorkflowStep) ?? -1;
 
     expect(pinIndex).toBeGreaterThanOrEqual(0);
     expect(pinIndex).toBeLessThan(installIndex);
     expect(installIndex).toBeLessThan(listIndex);
     expect(listIndex).toBeLessThan(applyIndex);
+    expect(applyIndex).toBeLessThan(auditIndex);
   });
 });
