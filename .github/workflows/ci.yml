@@ -7,9 +7,13 @@ on:
       - "smkc-score-app/**"
       - ".github/workflows/**"
   pull_request:
-    paths:
-      - "smkc-score-app/**"
-      - ".github/workflows/**"
+    # No path filter on purpose. `main` requires the `Lint & Test` and
+    # `Prisma / D1 migration parity` contexts on every pull request, and a
+    # workflow that is skipped by path filtering reports no check at all — the
+    # required contexts then stay "expected" and the pull request can never be
+    # merged (#3499). Documentation-only pull requests are kept cheap by the
+    # `Detect validated path changes` gate inside `lint-and-test` instead of by
+    # filtering the trigger.
 
 permissions:
   contents: read
@@ -70,6 +74,33 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Detect validated path changes
+        id: scope
+        # The pull_request trigger is intentionally unfiltered so this job
+        # always reports its required check (see the trigger comment). To keep
+        # documentation-only pull requests from running the full suite, this
+        # step decides whether the pull request touched a validated path
+        # (`smkc-score-app/**` or `.github/workflows/**`) and the heavy steps
+        # below are skipped when it did not. The step itself always runs, so
+        # the job still concludes successfully and the required context is
+        # reported. Detection fails open: if the changed-path set cannot be
+        # computed we run full validation rather than silently skipping it.
+        working-directory: .
+        env:
+          SCOPE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SCOPE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          relevant=true
+          if [ -n "${SCOPE_BASE_SHA:-}" ] && [ -n "${SCOPE_HEAD_SHA:-}" ] \
+            && git diff --name-only "${SCOPE_BASE_SHA}...${SCOPE_HEAD_SHA}" > /tmp/ci-scope-paths.txt 2>/dev/null; then
+            if [ -s /tmp/ci-scope-paths.txt ] && ! grep -Eq '^(smkc-score-app/|\.github/workflows/)' /tmp/ci-scope-paths.txt; then
+              relevant=false
+            fi
+          fi
+          echo "Validated-path change detected: ${relevant}"
+          echo "relevant=${relevant}" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -78,6 +109,7 @@ jobs:
           cache-dependency-path: smkc-score-app/package-lock.json
 
       - name: Pin npm
+        if: steps.scope.outputs.relevant == 'true'
         # security-audit.js intentionally validates npm audit's exact report
         # shape/exit semantics. Keep the CI package manager reproducible rather
         # than inheriting whichever npm happens to ship with a future Node 22.
@@ -86,26 +118,31 @@ jobs:
           test "$(npm --version)" = "10.9.4"
 
       - name: Install dependencies
+        if: steps.scope.outputs.relevant == 'true'
         run: npm ci
         env:
           # CI never needs local Git hooks; skip Husky's prepare-time setup/noise.
           HUSKY: "0"
 
       - name: Validate explicit top-level Wrangler environment
+        if: steps.scope.outputs.relevant == 'true'
         # Dry-run only: prove the current Wrangler CLI accepts --env="" as an
         # explicit top-level target and removes the multi-environment warning.
         run: npm run wrangler:top-level-env:check
 
       - name: Lint
+        if: steps.scope.outputs.relevant == 'true'
         run: npm run lint
 
       - name: Check formatting of changed files
+        if: steps.scope.outputs.relevant == 'true'
         run: npm run format:check
         env:
           FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           FORMAT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Unit tests
+        if: steps.scope.outputs.relevant == 'true'
         # Keep functional validation independent from the dependency audit so a
         # pre-existing advisory does not hide regressions in the PR under test.
         run: npm test -- --ci --forceExit
@@ -115,12 +152,14 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Production build
+        if: steps.scope.outputs.relevant == 'true'
         # Cloudflare Workers Builds invokes the same Next.js production build
         # before OpenNext packaging. Keep this gate in PR CI so TypeScript and
         # next-intl catalog drift fail before a broken commit reaches main.
         run: npm run build
 
       - name: Security audit
+        if: steps.scope.outputs.relevant == 'true'
         # Fail closed for all high/critical findings except the exact, dev-only
         # Prisma -> deepmerge-ts advisory tracked in #3114. Validate the
         # package-lock schema first, then require the tracked exception context
