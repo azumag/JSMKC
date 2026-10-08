@@ -34,7 +34,20 @@ resolver and emits JSON describing the exact `cf d1 migrations list/apply`
 command for an explicitly selected `production` or `preview` target. The planner
 does not spawn `cf`, mutate D1, or change package deploy scripts; it is a parity
 verification surface only until its behavior and the upstream CLI are reviewed in
-CI. Example: `node scripts/cloudflare-d1-migration-plan.cjs apply preview`.
+CI. Example: `node scripts/cloudflare-d1-migration-plan.cjs apply preview`. Each
+plan pins the discovery glob (`--pattern migrations/*.sql`) because cf's
+`--pattern` replaces its default glob instead of merging with it, and the plan must
+keep discovering the same file set Wrangler does today.
+
+The per-surface verification record lives in `docs/cloudflare-d1-cf-parity.md`: what
+was checked, with which command, what was observed, and which blocking reason keeps
+each surface on Wrangler. No D1 surface is switch-ready yet — cf has no `d1 export`,
+its `apply` confirms interactively, the migration audit in
+`.github/workflows/d1-migrate.yml` keys on Wrangler's text sentinel (`No migrations
+to apply!`) where cf prints `[]`, and the preview preflight parses Wrangler's
+`--json` shape and matches Wrangler-specific auth errors. The
+`npm run cloudflare:cf-parity` script re-checks the recorded `cf --help` surface and
+fails when upstream drifts.
 
 Live log streaming is still a Wrangler fallback: Cloudflare's current docs continue
 to direct users to `wrangler tail` for Worker tailing.

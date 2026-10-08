@@ -68,6 +68,7 @@
     "prebuild:cf": "if node scripts/prisma-major-check.js; then PRISMA_SCHEMA_ENGINE_BINARY=/dev/null PRISMA_QUERY_ENGINE_LIBRARY=/dev/null PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate; else prisma generate; fi",
     "build:cf": "opennextjs-cloudflare build",
     "wrangler:top-level-env:check": "node scripts/check-wrangler-top-level-env.cjs",
+    "cloudflare:cf-parity": "node scripts/cloudflare-cf-parity.cjs",
     "db:migrations:list": "wrangler d1 migrations list DB --remote",
     "db:migrations:apply": "wrangler d1 migrations apply DB --remote",
     "db:migrations:list:preview": "wrangler d1 migrations list DB --remote --env preview",
