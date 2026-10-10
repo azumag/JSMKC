@@ -85,4 +85,15 @@ describe('Cloudflare CLI transition safety contracts', () => {
       'must never fall back to production when preview identity is missing or invalid',
     );
   });
+
+  it('records per-surface cf parity verification before switching any D1 command', () => {
+    const parityDoc = fs
+      .readFileSync(path.join(appRoot, 'docs', 'cloudflare-d1-cf-parity.md'), 'utf8')
+      .replace(/\s+/g, ' ');
+
+    expect(normalizedTransitionPolicy).toContain('docs/cloudflare-d1-cf-parity.md');
+    expect(packageJson.scripts?.['cloudflare:cf-parity']).toBe('node scripts/cloudflare-cf-parity.cjs');
+    expect(parityDoc).toContain('Nothing in this document changes production behaviour');
+    expect(parityDoc).toContain('All four surfaces below still run on Wrangler');
+  });
 });
