@@ -75,11 +75,17 @@ function analyzeDiff(diffOutput) {
   // the nested file was never applied under its nested path. Treat a paired
   // nested-to-flat change as neither a history violation nor a new migration
   // for parity counting.
-  const addedPathSet = new Set(entries.filter((entry) => entry.status === 'A').map((entry) => normalizePath(entry.path1)));
+  const addedPathSet = new Set(
+    entries.filter((entry) => entry.status === 'A').map((entry) => normalizePath(entry.path1)),
+  );
   const conversionPairs = new Set();
   for (const entry of entries) {
     if (entry.status === 'A') continue;
-    if (nestedD1MigrationName(entry.path1) && entry.path2 && normalizePath(entry.path2) === flatPathForNested(entry.path1)) {
+    if (
+      nestedD1MigrationName(entry.path1) &&
+      entry.path2 &&
+      normalizePath(entry.path2) === flatPathForNested(entry.path1)
+    ) {
       conversionPairs.add(`${normalizePath(entry.path1)}\u0000${normalizePath(entry.path2)}`);
     }
   }
