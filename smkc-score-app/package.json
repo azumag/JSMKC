@@ -87,7 +87,7 @@
     "@fontsource/anton": "^5.2.7",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/manrope": "^5.2.8",
-    "@opennextjs/cloudflare": "^1.19.10",
+    "@opennextjs/cloudflare": "^1.20.12",
     "@prisma/adapter-d1": "^7.8.0",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -103,7 +103,7 @@
     "fflate": "^0.8.3",
     "geist": "^1.5.1",
     "lucide-react": "^0.562.0",
-    "next": "^16.2.6",
+    "next": "^16.4.2",
     "next-auth": "^5.0.0-beta.32",
     "next-intl": "^4.12.0",
     "qrcode": "^1.5.4",
@@ -112,7 +112,7 @@
     "react-dom": "19.2.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
-    "wrangler": "^4.92.0",
+    "wrangler": "^4.151.3",
     "xss": "^1.0.15",
     "zod": "^4.3.5"
   },
@@ -153,8 +153,11 @@
     "postcss": "^8.5.18",
     "ws": "^8.20.1",
     "js-yaml": "^4.2.0",
-    "sharp": "^0.35.0",
-    "minimatch": "^10.2.5"
+    "sharp": "^0.35.5",
+    "minimatch": "^10.2.5",
+    "@node-minify/core": {
+      "glob": "^10.5.0"
+    }
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs,json,md,css}": [
