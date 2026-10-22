@@ -88,7 +88,9 @@ import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import { generateSecurePassword, hashPassword } from '@/lib/password-utils';
 import { createAuditLog } from '@/lib/audit-log';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 const loggerMock = jest.requireMock('@/lib/logger');
 

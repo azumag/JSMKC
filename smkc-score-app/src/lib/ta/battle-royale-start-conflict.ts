@@ -1,4 +1,4 @@
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 
 /**
  * Returns true when creating Phase 3 entries lost a race with another start
@@ -6,5 +6,5 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
  * makes Prisma report that race as P2002.
  */
 export function isTaBattleRoyaleStartConflict(error: unknown): boolean {
-  return error instanceof PrismaClientKnownRequestError && error.code === 'P2002';
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }

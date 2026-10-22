@@ -36,7 +36,7 @@ jest.mock('next/server', () =>
   require('../../../../../../helpers/mock-next-server').createNextServerMock(),
 );
 
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAdminSession } from '@/lib/api-auth';
@@ -46,6 +46,8 @@ import { createAuditLogs } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
 import { TA_BATTLE_ROYALE_ENTRY_CHUNK, TA_BATTLE_ROYALE_MAX_PLAYERS } from '@/lib/ta/battle-royale-constants';
 import { POST } from '@/app/api/tournaments/[id]/ta/battle-royale/route';
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 const PLAYER_1 = 'cl00000000000000000000001';
 const PLAYER_2 = 'cl00000000000000000000002';

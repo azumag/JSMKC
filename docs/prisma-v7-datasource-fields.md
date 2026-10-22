@@ -14,7 +14,7 @@ The check is intentionally read-only. It does not move connection strings, chang
 
 ## Current JSMKC state
 
-Current `main` still keeps `url = env("DATABASE_URL")` in `prisma/schema.prisma` for the staged Prisma 6 CLI contract, so `datasourceUrlMovedOutOfSchema` remains a known migration blocker until the explicit major-version migration.
+Since the #3114 Prisma 7 migration, `prisma/schema.prisma` no longer declares `url`; the connection URL comes from `datasource.url` in `prisma.config.ts`, so `datasourceUrlMovedOutOfSchema` is satisfied.
 
 `directUrl` and `shadowDatabaseUrl` are not currently present in the schema, so the two new checks are already satisfied. Regression coverage ensures that either field cannot be introduced later without becoming visible in the Prisma 7 readiness output.
 

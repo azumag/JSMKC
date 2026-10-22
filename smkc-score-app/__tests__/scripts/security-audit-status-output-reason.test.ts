@@ -4,9 +4,14 @@ import path from 'node:path';
 
 import { getSecurityAuditExceptionStatus, writeGitHubOutputs } from '../../scripts/security-audit-status.js';
 
+import { withPrisma6ExceptionContext } from '../helpers/prisma6-exception-context';
+
 const appRoot = path.resolve(__dirname, '../..');
-const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
-const lockfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'package-lock.json'), 'utf8'));
+const repositoryManifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
+const repositoryLockfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'package-lock.json'), 'utf8'));
+// The classifier cases below describe the pre-#3114-fix Prisma 6 chain, which the
+// repository itself no longer contains after the Prisma 7 migration.
+const { manifest, lockfile } = withPrisma6ExceptionContext(repositoryManifest, repositoryLockfile);
 const activeNow = new Date('2026-09-08T00:00:00.000Z');
 
 function renderOutputs(status: ReturnType<typeof getSecurityAuditExceptionStatus>): string {
