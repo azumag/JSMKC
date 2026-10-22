@@ -24,11 +24,6 @@ interface NodePin {
 const PATCHED_NODE_22 = '22.23.4';
 const PATCHED_NODE_24 = '24.22.1';
 
-// d1-migrate.yml is updated in its own PR (#4227) because any change to it on main
-// runs the production D1 migration job. Its current pin is asserted exactly so that
-// the entry has to be deleted when #4227 lands instead of silently staying excluded.
-const PENDING_PINS: Record<string, string> = { 'd1-migrate.yml': '22' };
-
 const workflowsDir = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows');
 const nodeVersionFile = path.resolve(__dirname, '..', '..', '.node-version');
 
@@ -42,7 +37,7 @@ const isAtLeast = (version: string, floor: string): boolean => {
 };
 
 // readdirSync の順序は保証されないため sort して失敗表示を安定させる
-const collectSetupNodePins = (): Array<NodePin & { workflow: string }> =>
+const collectSetupNodePins = (): NodePin[] =>
   fs
     .readdirSync(workflowsDir)
     .filter((file) => /\.ya?ml$/.test(file))
@@ -53,13 +48,12 @@ const collectSetupNodePins = (): Array<NodePin & { workflow: string }> =>
         (job.steps ?? [])
           .filter((step) => step.uses?.startsWith('actions/setup-node'))
           // String() で YAML 数値/文字列表記差異を吸収 (#2467)
-          .map((step) => ({ workflow: file, step: `${file}#${jobId}`, version: String(step.with?.['node-version']) })),
+          .map((step) => ({ step: `${file}#${jobId}`, version: String(step.with?.['node-version']) })),
       );
     });
 
 describe('Node.js runtime pins', () => {
-  const allPins = collectSetupNodePins();
-  const pins = allPins.filter((pin) => !Object.hasOwn(PENDING_PINS, pin.workflow));
+  const pins = collectSetupNodePins();
 
   it('pins a patched exact Node.js 22 release in every setup-node step', () => {
     expect(pins.length).toBeGreaterThan(0);
@@ -72,15 +66,6 @@ describe('Node.js runtime pins', () => {
     const byVersion: Record<string, string[]> = {};
     for (const pin of pins) (byVersion[pin.version] ??= []).push(pin.step);
     expect(byVersion).toEqual({ [pins[0].version]: pins.map((pin) => pin.step) });
-  });
-
-  it('keeps pending workflows at their known pin until their own PR lands', () => {
-    for (const [workflow, expected] of Object.entries(PENDING_PINS)) {
-      expect({
-        workflow,
-        versions: allPins.filter((pin) => pin.workflow === workflow).map((pin) => pin.version),
-      }).toEqual({ workflow, versions: [expected] });
-    }
   });
 
   it('pins a patched Node.js 24 release for Cloudflare Workers Builds', () => {
