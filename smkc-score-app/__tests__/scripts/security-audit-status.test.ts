@@ -15,9 +15,14 @@ import {
   writeGitHubOutputs,
 } from '../../scripts/security-audit-status.js';
 
+import { withPrisma6ExceptionContext } from '../helpers/prisma6-exception-context';
+
 const appRoot = path.resolve(__dirname, '../..');
-const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
-const lockfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'package-lock.json'), 'utf8'));
+const repositoryManifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
+const repositoryLockfile = JSON.parse(fs.readFileSync(path.join(appRoot, 'package-lock.json'), 'utf8'));
+// The classifier cases below describe the pre-#3114-fix Prisma 6 chain, which the
+// repository itself no longer contains after the Prisma 7 migration.
+const { manifest, lockfile } = withPrisma6ExceptionContext(repositoryManifest, repositoryLockfile);
 
 describe('security audit exception status', () => {
   it('reports the current #3114 exception context and tracked dependency versions as active before its review deadline', () => {
@@ -45,6 +50,21 @@ describe('security audit exception status', () => {
       },
       message: 'the exact #3114 temporary exception context is still active',
     });
+  });
+
+  it('reports the migrated Prisma 7 repository lockfile as a #3114 forward-remediation candidate', () => {
+    // Prisma 7.10.1 -> @prisma/config 7.10.1 requests deepmerge-ts 8.0.2 itself (no
+    // consumer override), which is exactly the forward-remediation evidence the
+    // classifier waits for before the temporary exception may be removed.
+    const status = getSecurityAuditExceptionStatus({
+      manifest: repositoryManifest,
+      lockfile: repositoryLockfile,
+      now: new Date('2026-10-22T00:00:00.000Z'),
+    });
+
+    expect(status.state).toBe('forward-remediation-candidate');
+    expect(status.versions.deepmergeTs).toBe('8.0.2');
+    expect(status.requirements.prismaConfigDeepmergeTs).toBe('8.0.2');
   });
 
   it('accepts only the documented JSON output flag', () => {

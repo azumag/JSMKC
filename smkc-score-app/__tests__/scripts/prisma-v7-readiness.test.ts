@@ -260,13 +260,13 @@ describe('Prisma 7 migration readiness probe', () => {
     });
   });
 
-  it('keeps repository package-lock Prisma majors visible as migration evidence', () => {
+  it('keeps the repository package-lock on one Prisma 7 release across CLI, client, and D1 adapter', () => {
     const repositoryLockfile = JSON.parse(readFileSync('package-lock.json', 'utf8'));
     const installedVersions = getInstalledPrismaPackageVersions(repositoryLockfile);
 
-    expect(extractSemverMajor(installedVersions.prisma)).toBe(6);
-    expect(extractSemverMajor(installedVersions.prismaClient)).toBe(6);
-    expect(extractSemverMajor(installedVersions.prismaAdapterD1)).toBe(7);
+    expect(extractSemverMajor(installedVersions.prisma)).toBe(7);
+    expect(installedVersions.prismaClient).toBe(installedVersions.prisma);
+    expect(installedVersions.prismaAdapterD1).toBe(installedVersions.prisma);
   });
 
   it('tracks Prisma 7 Node.js runtime support explicitly', () => {
@@ -341,11 +341,23 @@ describe('Prisma 7 migration readiness probe', () => {
     expect(prismaConfigHasEngineSetting(null)).toBe(false);
   });
 
-  it('keeps the repository Prisma config on the staged v6 datasource path until the major migration', () => {
+  it('keeps the repository Prisma config on the Prisma 7 datasource path without the removed engine option', () => {
     const repositoryPrismaConfig = readFileSync('prisma.config.ts', 'utf8');
 
     expect(prismaConfigHasDatasourceUrl(repositoryPrismaConfig)).toBe(true);
-    expect(prismaConfigHasEngineSetting(repositoryPrismaConfig)).toBe(true);
+    expect(prismaConfigHasEngineSetting(repositoryPrismaConfig)).toBe(false);
+  });
+
+  it('keeps the repository generator on prisma-client-js at the default output for the Workers bundle', () => {
+    // next.config.ts externalizes '@prisma/client' / '.prisma/client', and OpenNext's
+    // esbuild pass resolves node_modules/.prisma/client through its `workerd` export
+    // (edge.js). A custom `output` or the new `prisma-client` generator bypasses that
+    // path; the measured #3114 build with it was 21.3 MB gzip, over the 10 MB limit.
+    const schema = readFileSync('prisma/schema.prisma', 'utf8');
+    const generator = /generator client \{([\s\S]*?)\}/.exec(schema)?.[1] ?? '';
+
+    expect(generator).toMatch(/^\s*provider\s*=\s*"prisma-client-js"/m);
+    expect(generator).not.toMatch(/^\s*output\s*=/m);
   });
 
   it('checks the TypeScript module settings required by the Prisma 7 migration guide', () => {
