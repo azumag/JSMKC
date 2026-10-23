@@ -59,7 +59,7 @@ describe('security audit status diagnostic reasons', () => {
       getSecurityAuditExceptionStatus({
         manifest,
         lockfile,
-        now: new Date('2026-10-06T00:00:00.000Z'),
+        now: new Date('2026-11-06T00:00:00.000Z'),
       }),
     ).toMatchObject({
       state: 'expired',

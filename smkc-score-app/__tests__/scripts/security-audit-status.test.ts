@@ -32,9 +32,9 @@ describe('security audit exception status', () => {
       advisory: 'GHSA-ggr8-5vv4-36mx',
       advisoryRange: '<8.0.0',
       state: 'active',
-      deadline: '2026-10-06T00:00:00.000Z',
+      deadline: '2026-11-06T00:00:00.000Z',
       checkedAt: '2026-09-08T00:00:00.000Z',
-      daysUntilDeadline: 28,
+      daysUntilDeadline: 59,
       versions: {
         prisma: '6.19.3',
         prismaConfig: '6.19.3',
@@ -85,7 +85,7 @@ describe('security audit exception status', () => {
     expect(formatSecurityAuditExceptionStatus(status)).toContain('security audit exception status: active\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracking issue: #3114\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('tracked advisory: GHSA-ggr8-5vv4-36mx (<8.0.0)\n');
-    expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 28\n');
+    expect(formatSecurityAuditExceptionStatus(status)).toContain('days until review deadline: 59\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('@prisma/config -> deepmerge-ts requirement: 7.1.5\n');
     expect(formatSecurityAuditExceptionStatus(status)).toContain('deepmerge-ts: 7.1.5\n');
   });
@@ -106,7 +106,7 @@ describe('security audit exception status', () => {
       getSecurityAuditExceptionStatus({
         manifest,
         lockfile,
-        now: new Date('2026-10-06T00:00:00.000Z'),
+        now: new Date('2026-11-06T00:00:00.000Z'),
       }).state,
     ).toBe('expired');
   });
@@ -236,8 +236,8 @@ describe('security audit exception status', () => {
           'advisory=GHSA-ggr8-5vv4-36mx\n' +
           'advisory_range=<8.0.0\n' +
           'checked_at=2026-09-08T00:00:00.000Z\n' +
-          'deadline=2026-10-06T00:00:00.000Z\n' +
-          'days_until_deadline=28\n' +
+          'deadline=2026-11-06T00:00:00.000Z\n' +
+          'days_until_deadline=59\n' +
           'prisma_version=6.19.3\n' +
           'prisma_config_version=6.19.3\n' +
           'prisma_config_deepmerge_requirement=7.1.5\n' +

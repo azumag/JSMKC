@@ -6,7 +6,7 @@ JSMKC の CI は、`smkc-score-app/` を作業ディレクトリとして `node 
 
 `scripts/security-audit.js` は `npm audit --json` を読み取り、high / critical finding が無い場合だけ通常成功する。期限付きの既知例外を helper 内に持つ場合も、例外条件は依存バージョン・lockfile 上の属性・dev-only 条件・package source / integrity・advisory ID と canonical URL・affected range・severity・direct advisory の package metadata・dependency graph・remediation availability まで狭く固定する。
 
-現在の #3114 一時例外には **2026-10-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。期限文字列の解析結果が `NaN` / 非有限値になる場合も「期限なし」と解釈せず fail-closed にする。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
+現在の #3114 一時例外には **2026-11-06T00:00:00.000Z** の再レビュー期限を設定する。期限に達した時点で advisory・依存グラフ・artifact・remediation metadata が完全一致したままでも CI は fail-closed にし、upstream の修正状況と `npm audit` の最新結果を人手で再確認するまで例外を自動延長しない。期限文字列の解析結果が `NaN` / 非有限値になる場合も「期限なし」と解釈せず fail-closed にする。継続が必要な場合は #3114 に再評価根拠を記録したうえで期限を明示的に更新し、解消済みなら例外自体を削除する。
 
 ローカルで #3114 の例外文脈だけを素早く確認したい場合は、`smkc-score-app/` で `npm run security:audit:status` を実行する。補助ツールから同じ判定結果を利用する場合は `node scripts/security-audit-status.js --json` で単一JSONオブジェクトとして取得できる。このコマンドはネットワークへ問い合わせず、実 `package.json` / `package-lock.json` が現在の例外条件に完全一致するか、期限切れか、または forward update 等で文脈が変化したかを表示する。`context-changed` は脆弱性解消を意味するものではないため、その場合も例外を削除する前に通常の `node scripts/security-audit.js` と CI を通す。`active` 以外（`expired` / `context-changed` / `invalid-input`）では注意が必要な状態として非0終了する。また、再レビュー期限までの日数も符号付き整数で表示し、期限前は正数、期限当日は `0`、期限超過後は負数として監査証跡に残す。
 
@@ -44,7 +44,7 @@ dependency graph の固定は、許可チェーンに含まれるパッケージ
 
 次のいずれかが起きた場合は、既知例外に似ていても CI を失敗させる。
 
-- #3114 一時例外の再レビュー期限 `2026-10-06T00:00:00.000Z` に到達する、または期限文字列を有限な時刻へ解析できない
+- #3114 一時例外の再レビュー期限 `2026-11-06T00:00:00.000Z` に到達する、または期限文字列を有限な時刻へ解析できない
 - 新しい high / critical advisory が現れる
 - 許可対象の advisory ID / canonical URL / affected range、severity、direct advisory の package metadata、`title` / `source` / CWE / CVSS risk metadata、依存バージョン、dependency graph、または許可チェーンの `name` / `isDirect` / `range` / `nodes` が変化する
 - 許可対象 blocking chain のいずれかで `fixAvailable` が欠落・boolean 化する、non-breaking remediation が現れる、semver-major remediation の target identity / version が現在確認済みの値から変化する、または `fixAvailable` metadata に未知 field・型・必須 field の drift が現れる

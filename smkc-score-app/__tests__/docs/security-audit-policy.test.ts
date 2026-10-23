@@ -42,10 +42,10 @@ describe('security audit policy documentation', () => {
   });
 
   it('enforces a review deadline for the temporary exception', () => {
-    expect(policy).toContain('2026-10-06T00:00:00.000Z');
+    expect(policy).toContain('2026-11-06T00:00:00.000Z');
     expect(policy).toContain('再レビュー期限');
     expect(policy).toContain('例外を自動延長しない');
-    expect(helper).toContain("const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z'");
+    expect(helper).toContain("const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-11-06T00:00:00.000Z'");
     expect(helper).toContain('function isTemporaryExceptionExpired(now = new Date(), deadlineMs =');
     expect(helper).toContain('result.allowed.length > 0 && isTemporaryExceptionExpired()');
     expect(expiryTest).toContain('fails closed at the review deadline');
