@@ -4,7 +4,7 @@ const { spawnSync } = require('child_process');
 
 function normalizePath(value) {
   return String(value ?? '')
-    .replace(/^\.\//, '')
+    .replace(/^\.\/?/, '')
     .replace(/^smkc-score-app\//, '');
 }
 
@@ -18,6 +18,16 @@ function isD1Migration(filePath) {
 
 function isManagedMigration(filePath) {
   return isPrismaMigration(filePath) || isD1Migration(filePath);
+}
+
+function nestedD1MigrationName(filePath) {
+  const match = normalizePath(filePath).match(/^migrations\/([^/]+)\/migration\.sql$/);
+  return match ? match[1] : null;
+}
+
+function flatPathForNested(filePath) {
+  const name = nestedD1MigrationName(filePath);
+  return name ? `migrations/${name}.sql` : null;
 }
 
 function readDiff() {
@@ -50,17 +60,80 @@ function analyzeDiff(diffOutput) {
   let d1Added = 0;
   const violations = [];
 
-  for (const line of String(diffOutput).split(/\r?\n/)) {
-    if (!line) continue;
+  const entries = String(diffOutput)
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      const [status, path1 = '', path2 = ''] = line.split('\t');
+      return { status, path1, path2 };
+    });
 
-    const [status, path1 = '', path2 = ''] = line.split('\t');
+  // A Drizzle-style nested migration (migrations/<name>/migration.sql) is not
+  // discovered by either Wrangler's or cf's default glob (issue #4220). Moving
+  // such a file to the discoverable flat form (migrations/<name>.sql) is a
+  // one-time structural correction, not a rewrite of applied migration history:
+  // the nested file was never applied under its nested path. Treat a paired
+  // nested-to-flat change as neither a history violation nor a new migration
+  // for parity counting.
+  const addedPathSet = new Set(
+    entries.filter((entry) => entry.status === 'A').map((entry) => normalizePath(entry.path1)),
+  );
+  const conversionPairs = new Set();
+  for (const entry of entries) {
+    if (entry.status === 'A') continue;
+    if (
+      nestedD1MigrationName(entry.path1) &&
+      entry.path2 &&
+      normalizePath(entry.path2) === flatPathForNested(entry.path1)
+    ) {
+      conversionPairs.add(`${normalizePath(entry.path1)}\u0000${normalizePath(entry.path2)}`);
+    }
+  }
+  for (const entry of entries) {
+    if (entry.status !== 'D') continue;
+    const flatPath = flatPathForNested(entry.path1);
+    if (flatPath && addedPathSet.has(flatPath)) {
+      conversionPairs.add(`${normalizePath(entry.path1)}\u0000${flatPath}`);
+    }
+  }
+
+  function isConversionRename(entry) {
+    return (
+      entry.status.startsWith('R') &&
+      !!nestedD1MigrationName(entry.path1) &&
+      !!entry.path2 &&
+      normalizePath(entry.path2) === flatPathForNested(entry.path1)
+    );
+  }
+
+  function isConversionDeletion(entry) {
+    return (
+      entry.status === 'D' &&
+      !!nestedD1MigrationName(entry.path1) &&
+      conversionPairs.has(`${normalizePath(entry.path1)}\u0000${flatPathForNested(entry.path1)}`)
+    );
+  }
+
+  function isConversionAddition(path) {
+    const normalized = normalizePath(path);
+    for (const pair of conversionPairs) {
+      const [, flatPath] = pair.split('\u0000');
+      if (flatPath === normalized) return true;
+    }
+    return false;
+  }
+
+  for (const entry of entries) {
+    const { status, path1, path2 } = entry;
     if (!status) continue;
 
     if (status === 'A') {
       if (isPrismaMigration(path1)) prismaAdded += 1;
-      else if (isD1Migration(path1)) d1Added += 1;
+      else if (isD1Migration(path1) && !isConversionAddition(path1)) d1Added += 1;
       continue;
     }
+
+    if (isConversionRename(entry) || isConversionDeletion(entry)) continue;
 
     // Rename statuses include a similarity suffix (for example R100). Any
     // non-additive operation touching either side of managed migration history
