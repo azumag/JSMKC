@@ -12,7 +12,6 @@ describe('security audit report shape', () => {
   it('accepts the canonical empty vulnerability map', () => {
     expect(evaluateAuditReport({ vulnerabilities: {} }, emptyLockfile)).toEqual({
       ok: true,
-      allowed: [],
       unexpected: [],
     });
   });
@@ -24,14 +23,12 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
   it('accepts the current npm audit report version', () => {
     expect(evaluateAuditReport({ auditReportVersion: 2, vulnerabilities: {} }, emptyLockfile)).toEqual({
       ok: true,
-      allowed: [],
       unexpected: [],
     });
   });
@@ -47,7 +44,6 @@ describe('security audit report shape', () => {
     const result = evaluateAuditReport({ auditReportVersion, vulnerabilities: {} }, emptyLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -107,7 +103,6 @@ describe('security audit report shape', () => {
     const result = evaluateAuditReport({ vulnerabilities: {}, metadata: { futureMetadata: true } }, emptyLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -121,7 +116,6 @@ describe('security audit report shape', () => {
     const result = evaluateAuditReport({ vulnerabilities: {}, metadata: { dependencies } }, emptyLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -135,7 +129,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual([]);
   });
 
@@ -143,7 +136,6 @@ describe('security audit report shape', () => {
     const result = evaluateAuditReport({ vulnerabilities: {}, metadata }, emptyLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -151,7 +143,6 @@ describe('security audit report shape', () => {
     const result = evaluateAuditReport({ vulnerabilities: [] }, emptyLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -159,7 +150,6 @@ describe('security audit report shape', () => {
     const result = evaluateAuditReport({ vulnerabilities: { package: vulnerability } }, emptyLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -170,7 +160,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -185,7 +174,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -221,7 +209,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual([]);
   });
 
@@ -232,7 +219,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -243,7 +229,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -268,7 +253,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -298,7 +282,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -321,7 +304,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -335,7 +317,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -349,7 +330,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -360,7 +340,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual([]);
   });
 
@@ -373,7 +352,6 @@ describe('security audit report shape', () => {
       );
 
       expect(result.ok).toBe(false);
-      expect(result.allowed).toEqual([]);
       expect(result.unexpected).toEqual(['invalid-audit-report']);
     },
   );
@@ -385,7 +363,6 @@ describe('security audit report shape', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual([]);
   });
 });

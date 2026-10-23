@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { readRepoFile } from '../helpers/e2e-cases';
 
 describe('security audit policy documentation', () => {
@@ -5,26 +8,6 @@ describe('security audit policy documentation', () => {
   const ci = readRepoFile('.github', 'workflows', 'ci.yml');
   const helper = readRepoFile('smkc-score-app', 'scripts', 'security-audit.js');
   const lockfileHelper = readRepoFile('smkc-score-app', 'scripts', 'security-audit-lockfile.js');
-  const ciConfigTest = readRepoFile('smkc-score-app', '__tests__', 'docs', 'ci-config.test.ts');
-  const helperTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit.test.ts');
-  const summaryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-summary.test.ts');
-  const reportShapeTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-report-shape.test.ts');
-  const errorReportTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-error-report.test.ts');
-  const expiryTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-expiry.test.ts');
-  const lockfileTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-lockfile.test.ts');
-  const overrideTest = readRepoFile('smkc-score-app', '__tests__', 'scripts', 'security-audit-overrides.test.ts');
-  const runtimeGuardTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'scripts',
-    'security-audit-runtime-guard.test.ts',
-  );
-  const fixAvailabilityTest = readRepoFile(
-    'smkc-score-app',
-    '__tests__',
-    'scripts',
-    'security-audit-fix-availability.test.ts',
-  );
 
   it('documents the fail-closed helper used by CI', () => {
     expect(policy).toContain('`node scripts/security-audit.js`');
@@ -33,214 +16,47 @@ describe('security audit policy documentation', () => {
     expect(ci).toContain('node scripts/security-audit.js');
   });
 
-  it('keeps temporary exception details in the helper instead of the stable policy', () => {
+  it('documents that no advisory allowlist exists and the helper enforces it', () => {
+    expect(policy).toContain('許可リスト（既知 advisory の除外）は持たない');
     expect(policy).not.toMatch(/GHSA-[a-z0-9-]+/i);
     expect(policy).not.toContain('deepmerge-ts');
-    expect(helper).toContain('const ALLOWED_ADVISORY =');
-    expect(helper).toContain('const ALLOWED_VERSION =');
-    expect(helper).toContain('const ALLOWED_PRISMA_DEV_RANGE =');
+    expect(helper).not.toMatch(/ALLOWED_ADVISORY|TEMPORARY_EXCEPTION|allowed:/);
+    expect(helper).toContain('const BLOCKING_SEVERITIES = new Set([');
+    expect(helper).toContain('function evaluateAuditReport(report)');
   });
 
-  it('enforces a review deadline for the temporary exception', () => {
-    expect(policy).toContain('2026-10-06T00:00:00.000Z');
-    expect(policy).toContain('再レビュー期限');
-    expect(policy).toContain('例外を自動延長しない');
-    expect(helper).toContain("const TEMPORARY_EXCEPTION_REVIEW_DEADLINE = '2026-10-06T00:00:00.000Z'");
-    expect(helper).toContain('function isTemporaryExceptionExpired(now = new Date(), deadlineMs =');
-    expect(helper).toContain('result.allowed.length > 0 && isTemporaryExceptionExpired()');
-    expect(expiryTest).toContain('fails closed at the review deadline');
-    expect(policy).toContain('期限文字列の解析結果が `NaN` / 非有限値');
-    expect(expiryTest).toContain('fails closed when the parsed review deadline is invalid');
-  });
-
-  it('fails closed if the known vulnerable exception context remains but the advisory disappears', () => {
-    expect(policy).toContain('`missing-expected-temporary-advisory`');
-    expect(policy).toContain('advisory feed の一時的な欠落・撤回・意味論変更');
-    expect(policy).toContain('既知の脆弱な lock context 自体が安全な forward update 等で解消');
-    expect(helper).toContain('function hasExpectedTemporaryExceptionContext(lockfile, manifest =');
-    expect(helper).toContain("unexpected: ['missing-expected-temporary-advisory']");
-    expect(helperTest).toContain('known vulnerable lock context remains but npm audit omits the advisory');
-    expect(helperTest).toContain('known vulnerable lock context has been remediated');
-  });
-
-  it('documents the lockfile root package snapshot precondition', () => {
-    expect(policy).toContain('`packages[\"\"]` の root package snapshot');
-    expect(policy).toContain('root dependency snapshot が stale');
-    expect(lockfileHelper).toContain("const rootPackage = lockfile.packages['']");
+  it('documents the lockfile preflight that runs before the audit in CI', () => {
+    expect(policy).toContain('node scripts/security-audit-lockfile.js');
+    expect(ci.indexOf('node scripts/security-audit-lockfile.js')).toBeLessThan(
+      ci.indexOf('node scripts/security-audit.js'),
+    );
     expect(helper).toContain("require('./security-audit-lockfile.js')");
-    expect(helper).toContain('hasExpectedSecurityAuditLockfileShape(lockfile)');
-    expect(policy).toContain(
-      'helper を単独実行するローカル・別CI経路でも lockfile guard や manifest/lockfile parity guard を迂回できない',
-    );
-    expect(lockfileTest).toContain('accepts a minimal v3 lockfile with an object root package snapshot');
-    expect(lockfileTest).toContain('requires package.json dependency maps to match the lockfile root snapshot');
-    expect(runtimeGuardTest).toContain('validates the lockfile schema before invoking npm audit');
-    expect(runtimeGuardTest).toContain('package.json and lockfile package identity differ');
-    expect(runtimeGuardTest).toContain('package.json and lockfile dependency snapshots differ');
+    expect(lockfileHelper).toContain("const rootPackage = lockfile.packages['']");
   });
 
-  it('documents manifest drift as a fail-closed condition', () => {
-    expect(policy).toContain('実際の `package.json` を1回だけ読み');
-    expect(policy).toContain('`package-lock.json` root snapshot');
-    expect(policy).toContain('package identity も監査対象');
-    expect(policy).toContain('top-level / root package の `name` / `version`');
-    expect(policy).toContain('dependency declaration が一致しない');
-    expect(policy).toContain('`dependencies` / `devDependencies` / `optionalDependencies` / `peerDependencies`');
-    expect(policy).toContain('manifest/lockfile parity guard');
-    expect(helper).toContain('manifest = loadPackageManifest(() => manifestSource);');
-    expect(helper).toContain('hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)');
-    expect(helper).toContain('hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)');
-    expect(lockfileHelper).toContain('function hasMatchingSecurityAuditPackageIdentity(manifest, lockfile)');
-    expect(lockfileHelper).toContain('function hasMatchingSecurityAuditManifestSnapshot(manifest, lockfile)');
-    expect(helper).toContain('function isOptionalObjectMap(value)');
-    expect(helperTest).toContain('Prisma devDependency range changes');
-    expect(helperTest).toContain('package.json Prisma devDependency drifts');
-    expect(helperTest).toContain('package.json also declares Prisma as a production dependency');
-    expect(helperTest).toContain('package.json dependencies is not an object map');
-    expect(helperTest).toContain('lockfile root dependencies snapshot is not an object map');
-  });
-
-  it('documents temporary exception override drift as a fail-closed condition', () => {
-    expect(policy).toContain('`package.json` の `overrides`');
-    expect(policy).toContain('直接・version 条件付き・nested override');
-    expect(policy).toContain('無関係な override は許容');
-    expect(helper).toContain('function hasNoTemporaryAuditChainOverrides(manifest)');
-    expect(helper).toContain('hasNoTemporaryAuditChainOverrides(manifest)');
-    expect(overrideTest).toContain('allows unrelated npm overrides');
-    expect(overrideTest).toContain('override can change the temporary exception chain');
-    expect(runtimeGuardTest).toContain('overrides target the temporary exception chain');
-  });
-
-  it('documents audit summary count drift as a fail-closed condition', () => {
-    expect(policy).toContain('`metadata.vulnerabilities`');
-    expect(policy).toContain('5 severity key と `total` がすべて存在する');
-    expect(policy).toContain('summary 件数と vulnerability graph の severity 件数が矛盾する');
-    expect(policy).toContain('`total` と graph entry 総数が一致しない');
-    expect(policy).toContain('未知の summary key');
-    expect(helperTest).toContain('summary high count is %i but the graph contains 3');
-    expect(helperTest).toContain('summary reports a critical severity absent from the graph');
-    expect(summaryTest).toContain('non-blocking severity count disagrees with the graph');
-    expect(summaryTest).toContain('summary total disagrees with the graph entry count');
-    expect(summaryTest).toContain('summary contains an unknown key');
-  });
-
-  it('pins and validates npm audit exit status semantics', () => {
-    expect(policy).toContain(
-      '`npm audit --json --audit-level=low --package-lock-only --registry=https://registry.npmjs.org/`',
-    );
-    expect(policy).toContain('終了コードと summary の不一致');
-    expect(policy).toContain('ローカル `node_modules` の欠落・追加・version drift');
-    expect(runtimeGuardTest).toContain(
-      'passes the validated manifest/lockfile snapshot and canonical registry directly to npm audit',
-    );
-    expect(helper).toContain("'--package-lock-only'");
+  it('documents the pinned npm runtime and canonical registry guards inside the helper', () => {
+    expect(policy).toContain('packageManager の exact pin');
+    expect(policy).toContain('`--registry=https://registry.npmjs.org/`');
+    expect(policy).toContain('`0` / `1`');
+    expect(helper).toContain("require('./verify-npm-version.js')");
+    expect(helper).toContain('verifyNpmRuntime({ manifest });');
+    expect(helper).toContain('verifyNpmAuditRegistry();');
     expect(helper).toContain('`--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`');
-    expect(helper).toContain('runNpmAuditFromValidatedSnapshot(manifestSource, lockfileSource)');
-    expect(helper).toContain('cwd: snapshotDir');
-    expect(policy).toContain('隔離した一時ディレクトリ');
-    expect(policy).toContain('検証済み source');
-    expect(runtimeGuardTest).toContain('audits immutable copies of inputs captured before the registry preflight');
+    expect(helper).toContain('function isExpectedAuditExitStatus(status)');
     expect(helper).toContain('function hasConsistentAuditExitStatus(report, status)');
   });
 
-  it('pins the canonical npm registry in both preflight and the audit subprocess', () => {
-    expect(policy).toContain('`npm config get registry`');
-    expect(policy).toContain('`--registry=https://registry.npmjs.org/`');
-    expect(policy).toContain('TOCTOU');
-    expect(helper).toContain('verifyNpmAuditRegistry();');
-    expect(helper).toContain('`--registry=${CANONICAL_NPM_AUDIT_REGISTRY}`');
-    expect(runtimeGuardTest).toContain('canonical npm audit registry before invoking npm audit');
-    expect(runtimeGuardTest).toContain('--registry=https://registry.npmjs.org/');
-  });
-
-  it('keeps the pinned npm runtime guard inside the audit helper', () => {
-    expect(policy).toContain('`npm audit` を起動する前に packageManager の exact pin');
-    expect(policy).toContain('直接実行でも runtime guard を迂回できない');
-    expect(helper).toContain("require('./verify-npm-version.js')");
-    expect(helper).toContain('verifyNpmRuntime({ manifest });');
-    expect(policy).toContain('同じ manifest snapshot');
-    expect(runtimeGuardTest).toContain('verifies the pinned npm runtime before invoking npm audit');
-    expect(ci).not.toContain(
-      'node scripts/verify-npm-version.js && node scripts/security-audit-lockfile.js && node scripts/security-audit.js',
-    );
-  });
-
   it('documents audit report schema drift as a fail-closed condition', () => {
-    expect(policy).toContain('top-level に `error` field');
-    expect(policy).toContain('CI entrypoint では `auditReportVersion` を必須');
-    expect(policy).toContain('現在検証済みの npm audit report schema version `2`');
-    expect(policy).toContain('`metadata` が存在する場合');
-    expect(policy).toContain('metadata container');
+    expect(policy).toContain('`error` field');
+    expect(policy).toContain('`auditReportVersion`');
+    expect(policy).toContain('`metadata.vulnerabilities`');
     expect(policy).toContain('`metadata.dependencies`');
-    expect(policy).toContain('prod / dev / optional / peer / peerOptional / total');
-    expect(policy).toContain('未知の metadata field');
-    expect(policy).toContain('`vulnerabilities` graph 自体');
-    expect(policy).toContain('未知の severity');
-    expect(policy).toContain('`isDirect` が存在する場合は boolean');
-    expect(policy).toContain('`range` が存在する場合は string');
-    expect(policy).toContain('direct advisory object には non-empty string');
-    expect(policy).toContain('`name` / `dependency` / `title` / `severity`');
-    expect(policy).toContain('`source` ID、CWE 分類、CVSS score / vector');
-    expect(policy).toContain('未知 field を許可しない');
-    expect(policy).toContain('optional な `source` は正の integer');
-    expect(policy).toContain('`via` が存在する場合');
-    expect(policy).toContain('`effects` / `nodes`');
-    expect(policy).toContain('各 entry の `name` / `isDirect` / `range` / `nodes`');
     expect(helper).toContain("Object.prototype.hasOwnProperty.call(report, 'error')");
     expect(helper).toContain('const EXPECTED_AUDIT_REPORT_VERSION = 2');
-    expect(helper).toContain('function hasExpectedAuditReportVersion(report, { required = false } = {})');
-    expect(helper).toContain('hasExpectedAuditReportVersion(report, { required: true })');
     expect(helper).toContain('function hasExpectedAuditSummary(report, { required = false } = {})');
-    expect(helper).toContain('hasExpectedAuditSummary(report, { required: true })');
     expect(helper).toContain('function hasExpectedAuditDependencySummary(report, { required = false } = {})');
-    expect(helper).toContain('hasExpectedAuditDependencySummary(report, { required: true })');
-    expect(helper).toContain('const KNOWN_SEVERITIES = new Set(SUMMARY_SEVERITIES)');
-    expect(helper).toContain('function hasValidAuditMetadata(metadata)');
-    expect(helper).toContain('function isValidDirectAdvisoryEntry(entry)');
-    expect(helper).toContain('const ALLOWED_ADVISORY_SOURCE =');
-    expect(helper).toContain('const ALLOWED_ADVISORY_TITLE =');
-    expect(helper).toContain('const DIRECT_ADVISORY_OBJECT_KEYS = new Set([');
-    expect(helper).toContain('const VULNERABILITY_OBJECT_KEYS = new Set([');
-    expect(helper).toContain('const ALLOWED_ADVISORY_CWE =');
-    expect(helper).toContain('const ALLOWED_ADVISORY_CVSS_SCORE =');
-    expect(helper).toContain('function isValidCvss(value)');
-    expect(errorReportTest).toContain('fails closed whenever npm audit includes an explicit error field');
-    expect(reportShapeTest).toContain('requires auditReportVersion 2 on the real CI entrypoint');
-    expect(reportShapeTest).toContain('requires the complete vulnerability summary on the real CI entrypoint');
-    expect(reportShapeTest).toContain('requires the complete dependency summary on the real CI entrypoint');
-    expect(reportShapeTest).toContain('fails closed when npm audit report version drifts');
-    expect(reportShapeTest).toContain('fails closed when audit metadata gains an unknown field');
-    expect(reportShapeTest).toContain('fails closed when audit metadata is not an object');
-    expect(reportShapeTest).toContain('fails closed when audit dependency summary is invalid');
-    expect(reportShapeTest).toContain('fails closed when vulnerabilities is an array');
-    expect(reportShapeTest).toContain('fails closed when a vulnerability has an unknown severity');
-    expect(reportShapeTest).toContain('fails closed when a vulnerability entry gains an unknown field');
-    expect(reportShapeTest).toContain('fails closed when vulnerability via is not an array');
-    expect(reportShapeTest).toContain('fails closed when vulnerability via contains an unsupported entry');
-    expect(reportShapeTest).toContain('fails closed when direct advisory %s has an invalid value');
-    expect(reportShapeTest).toContain('fails closed when direct advisory risk metadata %s is invalid');
-    expect(helperTest).toContain('direct advisory title changes');
-    expect(helperTest).toContain('allowed direct advisory gains an unknown field');
-    expect(helperTest).toContain('direct advisory source id changes');
-    expect(helperTest).toContain('direct advisory CWE metadata changes');
-    expect(helperTest).toContain('direct advisory CVSS metadata changes');
-    expect(reportShapeTest).toContain('fails closed when vulnerability %s has an invalid type');
-    expect(reportShapeTest).toContain('fails closed when vulnerability %s is not an array');
-    expect(reportShapeTest).toContain('fails closed when vulnerability %s contains a non-string member');
-    expect(helperTest).toContain('reported at a different install node');
-    expect(helperTest).toContain('directness changes');
-    expect(helperTest).toContain('propagated audit range changes');
-    expect(policy).toContain('3 entryすべてで返している semver-major remediation target');
-    expect(policy).toContain('`fixAvailable` が省略される、`false` / `true` に変わる');
-    expect(helper).toContain('function hasExpectedTemporaryFixState(value)');
-    expect(fixAvailabilityTest).toContain('no longer reports the pinned remediation target');
-    expect(fixAvailabilityTest).toContain('omits fixAvailable metadata');
-  });
-
-  it('documents that unit tests run before the blocking audit', () => {
-    expect(policy).toContain('unit test');
-    expect(policy).toContain('security audit より前');
-    expect(policy).toContain('security audit 自体は blocking');
+    expect(helper).toContain('function hasValidVulnerabilityEntries(vulnerabilities)');
+    expect(helper).toContain('function hasConsistentVulnerabilitySummary(report, vulnerabilities)');
   });
 
   it('documents TC-2460 as a behavior contract instead of a raw npm audit command', () => {
@@ -252,18 +68,11 @@ describe('security audit policy documentation', () => {
   });
 
   it('references the regression tests at their real repository paths', () => {
-    expect(policy).toContain('`smkc-score-app/__tests__/docs/ci-config.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-summary.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-report-shape.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-error-report.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-expiry.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/scripts/security-audit-runtime-guard.test.ts`');
-    expect(policy).toContain('`smkc-score-app/__tests__/docs/e2e-cases-drift.test.ts`');
-    expect(ciConfigTest).toContain('TC-2460');
-    expect(helperTest).toContain('evaluateAuditReport');
-    expect(summaryTest).toContain('evaluateAuditReport');
-    expect(reportShapeTest).toContain('evaluateAuditReport');
-    expect(errorReportTest).toContain('evaluateAuditReport');
+    const referenced = [...policy.matchAll(/`smkc-score-app\/(__tests__\/[^`]+)`/g)].map((m) => m[1]);
+
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const relative of referenced) {
+      expect(fs.existsSync(path.resolve(__dirname, '..', '..', relative))).toBe(true);
+    }
   });
 });

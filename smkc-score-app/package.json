@@ -13,8 +13,6 @@
     "test": "SKIP_OPENNEXT_CLOUDFLARE_DEV=1 NODE_ENV=test NODE_OPTIONS='--max-old-space-size=4096' jest",
     "test:watch": "npm test -- --watch",
     "test:coverage": "npm test -- --coverage",
-    "security:audit:status": "node scripts/security-audit-status.js",
-    "security:audit:status:json": "node scripts/security-audit-status.js --json",
     "security:audit:upstream": "node scripts/security-audit-upstream.js",
     "security:audit:upstream:json": "node scripts/security-audit-upstream.js --json",
     "security:audit:upstream-issue": "node scripts/security-audit-upstream-issue.js",
