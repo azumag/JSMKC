@@ -311,6 +311,13 @@ production and fixed-preview branches.
 | `smkc`         | `main`            | **OFF**                      | `smkc-score-app` | `npm run build:cf` | `npm run deploy:cf`         |
 | `smkc-preview` | `preview`         | **OFF**                      | `smkc-score-app` | `npm run build:cf` | `npm run deploy:cf:preview` |
 
+Workers Builds reads the Node.js version from `smkc-score-app/.node-version`
+(the build root directory). It pins the patched Node.js 24 release because the
+build image default (24.18.0) predates the eMudhra/emSign intermediate-CA block
+(nodejs/node#66871) and the NSS 3.131.1 CA store update (#66877). GitHub Actions
+keeps Node.js 22 and pins its exact patched release in each `setup-node` step.
+Confirm the runtime from the build log rather than from these files alone.
+
 Enable Cloudflare's build cache for both connections. Do not re-enable
 non-production branch builds for feature PRs; that duplicates GitHub CI and consumes
 Workers Build Minutes without improving the fixed-preview workflow.

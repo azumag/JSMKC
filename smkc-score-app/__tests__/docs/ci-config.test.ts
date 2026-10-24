@@ -103,16 +103,6 @@ describe('CI workflow configuration', () => {
     expect(auditIdx).toBeGreaterThan(lintIdx);
   });
 
-  it('uses Node.js 22 in setup-node step', () => {
-    // Node.js バージョンのドリフトを検出する。
-    // package.json engines や Cloudflare Workers ランタイムとの互換性を維持するため
-    // バージョンを 22 に固定している。
-    const setupNodeStep = lintAndTestJob.steps.find((s) => s.uses?.startsWith('actions/setup-node'));
-    expect(setupNodeStep).toBeDefined();
-    // String() で YAML 数値/文字列表記差異を吸収 (#2467)
-    expect(String(setupNodeStep?.with?.['node-version'])).toBe('22');
-  });
-
   it('pins the package.json npm version before npm ci without bootstrap side effects', () => {
     const packageManager = packageManifest.packageManager;
     expect(packageManager).toMatch(/^npm@\d+\.\d+\.\d+$/);

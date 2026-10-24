@@ -73,7 +73,8 @@ describe('manual security audit review workflow', () => {
     const pinStep = steps.find((step) => step.name === 'Pin npm');
     const installStep = steps.find((step) => step.run?.trim() === 'npm ci');
 
-    expect(setupNodeStep?.with).toEqual({ 'node-version': '22' });
+    // npm の依存キャッシュを復元しない (#3252)。Node の版は node-runtime-pins.test.ts で検証する
+    expect(Object.keys(setupNodeStep?.with ?? {})).toEqual(['node-version']);
     expect(pinStep).toBeDefined();
     expect(installStep).toBeUndefined();
     expect(pinStep?.run).toContain(`npm install --global --ignore-scripts --no-audit --no-fund ${packageManager}`);
