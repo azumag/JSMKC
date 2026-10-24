@@ -5,6 +5,7 @@ type MigrationPlan = {
   operation: 'list' | 'apply';
   databaseId: string;
   migrationsDir: string;
+  pattern: string;
 };
 
 type MigrationPlanModule = {
@@ -41,28 +42,55 @@ describe('cloudflare D1 migration command planner', () => {
   it('plans a production list command against the explicit production database ID', () => {
     expect(planD1Migration(source, 'production', 'list')).toEqual({
       command: 'cf',
-      args: ['d1', 'migrations', 'list', '11111111-1111-1111-1111-111111111111'],
+      args: ['d1', 'migrations', 'list', '11111111-1111-1111-1111-111111111111', '--pattern', 'migrations/*.sql'],
       environment: 'production',
       operation: 'list',
       databaseId: '11111111-1111-1111-1111-111111111111',
       migrationsDir: 'migrations',
+      pattern: 'migrations/*.sql',
     });
   });
 
   it('plans preview apply with the explicit preview database and migrations directory', () => {
     expect(planD1Migration(source, 'preview', 'apply')).toEqual({
       command: 'cf',
-      args: ['d1', 'migrations', 'apply', '22222222-2222-2222-2222-222222222222', '--dir', 'migrations'],
+      args: [
+        'd1',
+        'migrations',
+        'apply',
+        '22222222-2222-2222-2222-222222222222',
+        '--dir',
+        'migrations',
+        '--pattern',
+        'migrations/*.sql',
+      ],
       environment: 'preview',
       operation: 'apply',
       databaseId: '22222222-2222-2222-2222-222222222222',
       migrationsDir: 'migrations',
+      pattern: 'migrations/*.sql',
     });
+  });
+
+  it('pins the migration discovery glob instead of relying on the cf default', () => {
+    for (const operation of ['list', 'apply'] as const) {
+      const plan = planD1Migration(source, 'production', operation);
+      expect(plan.pattern).toBe('migrations/*.sql');
+      expect(plan.args.slice(-2)).toEqual(['--pattern', 'migrations/*.sql']);
+    }
   });
 
   it('never adds --local to a remote migration plan', () => {
     expect(planD1Migration(source, 'production', 'list').args).not.toContain('--local');
     expect(planD1Migration(source, 'preview', 'apply').args).not.toContain('--local');
+  });
+
+  it('fails closed for operations the cf CLI cannot cover yet', () => {
+    for (const operation of ['export', 'import']) {
+      expect(() => planD1Migration(source, 'production', operation as 'list')).toThrow(
+        `operation "${operation}" has no cf equivalent in v1.0.0-beta.12; keep the Wrangler fallback described in docs/cloudflare-d1-cf-parity.md`,
+      );
+    }
   });
 
   it('rejects unsupported operations without producing a command', () => {
