@@ -69,39 +69,28 @@ const mockPrismaClient = {
   $transaction: jest.fn((ops) => Promise.all(ops)),
 };
 
-// finals-phase-manager.ts imports PrismaClientKnownRequestError from runtime/library (Prisma v6).
-// To make instanceof checks work across the module boundary, both the source and the test must
-// use the SAME class object. We define it in the runtime/library mock, then re-export it from
-// @prisma/client so `new Prisma.PrismaClientKnownRequestError(...)` in tests creates an instance
-// that the source's `instanceof PrismaClientKnownRequestError` recognises.
-jest.mock('@prisma/client/runtime/library', () => ({
+// finals-phase-manager.ts checks `instanceof Prisma.PrismaClientKnownRequestError` on the
+// Prisma 7 generated client, so tests construct errors from the same mocked namespace.
+jest.mock('@prisma/client', () => ({
   __esModule: true,
-  PrismaClientKnownRequestError: class extends Error {
-    code: string;
-    constructor(message: string, { code }: { code: string; clientVersion: string }) {
-      super(message);
-      this.name = 'PrismaClientKnownRequestError';
-      this.code = code;
-    }
+  Prisma: {
+    PrismaClientKnownRequestError: class extends Error {
+      code: string;
+      constructor(message: string, { code }: { code: string; clientVersion: string }) {
+        super(message);
+        this.name = 'PrismaClientKnownRequestError';
+        this.code = code;
+      }
+    },
+    // DbNull sentinel for nullable Json? fields in update operations
+    DbNull: null,
+    // Minimal sql tag for $executeRaw(Prisma.sql`...`) calls: return the
+    // joined string so tests can assert on the generated SQL.
+    sql: jest.fn((strings: TemplateStringsArray, ...values: unknown[]) =>
+      strings.reduce((acc, str, index) => `${acc}${str}${index < values.length ? String(values[index]) : ''}`, ''),
+    ),
   },
 }));
-
-jest.mock('@prisma/client', () => {
-  const lib = jest.requireMock('@prisma/client/runtime/library');
-  return {
-    __esModule: true,
-    Prisma: {
-      PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
-      // DbNull sentinel for nullable Json? fields in update operations
-      DbNull: null,
-      // Minimal sql tag for $executeRaw(Prisma.sql`...`) calls: return the
-      // joined string so tests can assert on the generated SQL.
-      sql: jest.fn((strings: TemplateStringsArray, ...values: unknown[]) =>
-        strings.reduce((acc, str, index) => `${acc}${str}${index < values.length ? String(values[index]) : ''}`, ''),
-      ),
-    },
-  };
-});
 
 // Mock audit log
 jest.mock('@/lib/audit-log', () => ({

@@ -27,10 +27,6 @@
  */
 
 import { Prisma, PrismaClient, type TTEntry } from '@prisma/client';
-// InputJsonValue and PrismaClientKnownRequestError were moved out of
-// the Prisma namespace in v6; import directly from runtime library.
-import type { InputJsonValue } from '@prisma/client/runtime/library';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { createAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
@@ -304,7 +300,7 @@ export async function promoteToPhase1(prisma: PrismaClient, context: PhaseContex
         stage: 'phase1',
         lives: 0, // Phase1 uses direct elimination, not the life system
         eliminated: false,
-        times: qual.times as InputJsonValue,
+        times: qual.times as Prisma.InputJsonValue,
         totalTime: qual.totalTime,
         rank: qual.rank,
       })),
@@ -426,7 +422,7 @@ export async function promoteToPhase2(prisma: PrismaClient, context: PhaseContex
         stage: 'phase2',
         lives: 0,
         eliminated: false,
-        times: source.times as InputJsonValue,
+        times: source.times as Prisma.InputJsonValue,
         totalTime: source.totalTime,
         rank: source.rank,
       })),
@@ -546,7 +542,7 @@ export async function promoteToPhase3(prisma: PrismaClient, context: PhaseContex
         stage: 'phase3',
         lives: rules.initialLives,
         eliminated: false,
-        times: source.times as InputJsonValue,
+        times: source.times as Prisma.InputJsonValue,
         totalTime: source.totalTime,
         rank: source.rank,
         taHandicapSeconds: normalizeTaHandicapSeconds(
@@ -1226,13 +1222,13 @@ async function createSuddenDeathRound(
           sequence: count + 1,
           course,
           kind,
-          targetPlayerIds: targetPlayerIds as InputJsonValue,
+          targetPlayerIds: targetPlayerIds as Prisma.InputJsonValue,
           results: Prisma.DbNull,
           resolved: false,
         },
       });
     } catch (error) {
-      const isUniqueViolation = error instanceof PrismaClientKnownRequestError && error.code === 'P2002';
+      const isUniqueViolation = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
       if (isUniqueViolation) {
         const existing = await prisma.tTPhaseSuddenDeathRound.findFirst({
           where: {
@@ -1405,7 +1401,7 @@ export async function startPhaseRound(
     } catch (error) {
       // P2002 = unique constraint violation = another request created this round first.
       // Log and retry with the next roundNumber.
-      const isUniqueViolation = error instanceof PrismaClientKnownRequestError && error.code === 'P2002';
+      const isUniqueViolation = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
       if (isUniqueViolation && attempt < MAX_ROUND_CREATE_ATTEMPTS) {
         logger.warn('Round creation race condition detected, retrying', {
           tournamentId,
@@ -1774,7 +1770,7 @@ export async function submitSuddenDeathResults(
   await prisma.tTPhaseSuddenDeathRound.update({
     where: { id: suddenDeathRound.id },
     data: {
-      results: storedResults as InputJsonValue,
+      results: storedResults as Prisma.InputJsonValue,
       resolved: true,
     },
   });

@@ -1,7 +1,19 @@
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+// jest.setup.cjs replaces @prisma/client with lightweight fakes for every suite. This
+// regression test must exercise the real generated Prisma 7 error class instead, so
+// `instanceof` is checked against the class the runtime actually throws.
+jest.unmock('@prisma/client');
+
+import { Prisma } from '@prisma/client';
 import { isPrismaErrorCode } from '@/lib/prisma-error';
 
+const { PrismaClientKnownRequestError } = Prisma;
+
 describe('isPrismaErrorCode (issue #2993 regression coverage, #3080)', () => {
+  it('exercises the real Prisma runtime error class (guards jest.unmock above)', () => {
+    const runtime = jest.requireActual<{ PrismaClientKnownRequestError: unknown }>('@prisma/client/runtime/client');
+    expect(PrismaClientKnownRequestError).toBe(runtime.PrismaClientKnownRequestError);
+  });
+
   it('returns true for a real Prisma P2002 error', () => {
     const error = new PrismaClientKnownRequestError('Unique constraint failed', {
       code: 'P2002',

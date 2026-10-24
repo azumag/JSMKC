@@ -64,53 +64,36 @@ jest.mock('@/lib/sanitize-error', () => ({
   }),
 }));
 
-// error-handling.ts imports PrismaClientKnownRequestError and PrismaClientValidationError
-// from '@prisma/client/runtime/library' (Prisma v6 moved them out of the Prisma namespace).
-// To make `instanceof` checks work in tests, the mock classes must be the SAME objects
-// that both the source (via runtime/library import) and the test (via Prisma namespace)
-// reference. We define the canonical classes in the runtime/library mock and re-export
-// them from @prisma/client so both sides share the same class identity.
-jest.mock('@prisma/client/runtime/library', () => ({
+// error-handling.ts checks `instanceof Prisma.PrismaClientKnownRequestError` /
+// `Prisma.PrismaClientValidationError` on the Prisma 7 generated client. The mock
+// defines lightweight classes on that namespace so the test and the source share
+// the same class identity.
+jest.mock('@prisma/client', () => ({
   __esModule: true,
-  PrismaClientKnownRequestError: class extends Error {
-    code: string;
-    constructor(message: string, { code }: { code: string; clientVersion: string }) {
-      super(message);
-      this.name = 'PrismaClientKnownRequestError';
-      this.code = code;
-    }
-  },
-  PrismaClientValidationError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = 'PrismaClientValidationError';
-    }
-  },
-  sqltag: jest.fn(),
-}));
-
-// @prisma/client Prisma namespace re-exports the same class instances from runtime/library
-// so that `new Prisma.PrismaClientKnownRequestError(...)` in tests and
-// `instanceof PrismaClientKnownRequestError` in the source resolve to the same class.
-jest.mock('@prisma/client', () => {
-  const lib = jest.requireMock('@prisma/client/runtime/library');
-  return {
-    __esModule: true,
-    Prisma: {
-      // PrismaClientInitializationError: not imported from runtime/library; keep a local stub.
-      // The source does NOT specifically handle this type — it falls through to 500 INTERNAL_ERROR.
-      PrismaClientInitializationError: class extends Error {
-        constructor(message: Error) {
-          super(message.message);
-          this.name = 'PrismaClientInitializationError';
-        }
-      },
-      // Re-use the same class objects from runtime/library so instanceof works.
-      PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
-      PrismaClientValidationError: lib.PrismaClientValidationError,
+  Prisma: {
+    // The source does NOT specifically handle this type — it falls through to 500 INTERNAL_ERROR.
+    PrismaClientInitializationError: class extends Error {
+      constructor(message: Error) {
+        super(message.message);
+        this.name = 'PrismaClientInitializationError';
+      }
     },
-  };
-});
+    PrismaClientKnownRequestError: class extends Error {
+      code: string;
+      constructor(message: string, { code }: { code: string; clientVersion: string }) {
+        super(message);
+        this.name = 'PrismaClientKnownRequestError';
+        this.code = code;
+      }
+    },
+    PrismaClientValidationError: class extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'PrismaClientValidationError';
+      }
+    },
+  },
+}));
 
 // Mock next/server to provide NextResponse.json as a jest.fn()
 // that returns objects with headers (needed by handleRateLimitError).
@@ -156,17 +139,14 @@ describe('Error Handling Module', () => {
           success: false,
           error: 'Test error',
         },
-        { status: 400 }
+        { status: 400 },
       );
     });
 
     it('should create an error response with custom status code', () => {
       createErrorResponse('Not found', 404);
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        { status: 404 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), { status: 404 });
     });
 
     it('should include error code when provided', () => {
@@ -176,7 +156,7 @@ describe('Error Handling Module', () => {
         expect.objectContaining({
           code: 'RESOURCE_CONFLICT',
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -195,7 +175,7 @@ describe('Error Handling Module', () => {
         expect.objectContaining({
           details,
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -209,10 +189,7 @@ describe('Error Handling Module', () => {
     it('should set correct status code', () => {
       createErrorResponse('Server error', 500);
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        { status: 500 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), { status: 500 });
     });
   });
 
@@ -238,7 +215,7 @@ describe('Error Handling Module', () => {
       expect(NextResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'Successfully created',
-        })
+        }),
       );
     });
 
@@ -252,7 +229,7 @@ describe('Error Handling Module', () => {
           data,
           message: 'Created',
         },
-        { status: 201 }
+        { status: 201 },
       );
     });
 
@@ -298,9 +275,7 @@ describe('Error Handling Module', () => {
       // The source does NOT specifically handle PrismaClientInitializationError.
       // It falls through to the generic handler at the bottom which returns
       // 500 INTERNAL_ERROR with the sanitized message.
-      const error = new Prisma.PrismaClientInitializationError(
-        new Error('Connection failed')
-      );
+      const error = new Prisma.PrismaClientInitializationError(new Error('Connection failed'));
 
       handleDatabaseError(error, 'test context');
 
@@ -310,7 +285,7 @@ describe('Error Handling Module', () => {
           error: 'Connection failed',
           code: 'INTERNAL_ERROR',
         },
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -318,13 +293,10 @@ describe('Error Handling Module', () => {
       // Source maps P2002 to 409 with code 'CONFLICT'.
       // The message comes from sanitizeDatabaseError() which returns
       // 'A record with this value already exists' for P2002.
-      const error = new Prisma.PrismaClientKnownRequestError(
-        'Unique constraint failed',
-        {
-          code: 'P2002',
-          clientVersion: '5.0.0',
-        }
-      );
+      const error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '5.0.0',
+      });
 
       handleDatabaseError(error, 'test context');
 
@@ -334,7 +306,7 @@ describe('Error Handling Module', () => {
           error: 'A record with this value already exists',
           code: 'CONFLICT',
         },
-        { status: 409 }
+        { status: 409 },
       );
     });
 
@@ -342,13 +314,10 @@ describe('Error Handling Module', () => {
       // Source maps P2025 to 404 with code 'NOT_FOUND'.
       // The message comes from sanitizeDatabaseError() which returns
       // 'Record not found' for P2025.
-      const error = new Prisma.PrismaClientKnownRequestError(
-        'Record not found',
-        {
-          code: 'P2025',
-          clientVersion: '5.0.0',
-        }
-      );
+      const error = new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '5.0.0',
+      });
 
       handleDatabaseError(error, 'test context');
 
@@ -358,7 +327,7 @@ describe('Error Handling Module', () => {
           error: 'Record not found',
           code: 'NOT_FOUND',
         },
-        { status: 404 }
+        { status: 404 },
       );
     });
 
@@ -366,13 +335,10 @@ describe('Error Handling Module', () => {
       // Source maps P2003 to 400 with code 'FOREIGN_KEY_ERROR'.
       // The message comes from sanitizeDatabaseError() which returns
       // 'Related record not found' for P2003.
-      const error = new Prisma.PrismaClientKnownRequestError(
-        'Some other error',
-        {
-          code: 'P2003',
-          clientVersion: '5.0.0',
-        }
-      );
+      const error = new Prisma.PrismaClientKnownRequestError('Some other error', {
+        code: 'P2003',
+        clientVersion: '5.0.0',
+      });
 
       handleDatabaseError(error, 'test context');
 
@@ -382,8 +348,31 @@ describe('Error Handling Module', () => {
           error: 'Related record not found',
           code: 'FOREIGN_KEY_ERROR',
         },
-        { status: 400 }
+        { status: 400 },
       );
+    });
+
+    it('should map Prisma validation errors to 400 VALIDATION_ERROR', () => {
+      // Prisma 7 exposes the class only via the Prisma namespace; this guards the
+      // `instanceof Prisma.PrismaClientValidationError` branch after the move away from
+      // the removed @prisma/client/runtime/library export.
+      const error = new Prisma.PrismaClientValidationError('Argument `name` is missing.');
+
+      handleDatabaseError(error, 'test context');
+
+      expect(NextResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: false, code: 'VALIDATION_ERROR' }),
+        { status: 400 },
+      );
+    });
+
+    it('should not treat a duck-typed { code: "P2002" } object as a Prisma conflict', () => {
+      // Only real PrismaClientKnownRequestError instances may be mapped by code (#2993).
+      handleDatabaseError(Object.assign(new Error('fake'), { code: 'P2002' }), 'test context');
+
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'INTERNAL_ERROR' }), {
+        status: 500,
+      });
     });
 
     it('should handle unknown errors as generic errors', () => {
@@ -400,7 +389,7 @@ describe('Error Handling Module', () => {
           error: 'Unknown error',
           code: 'INTERNAL_ERROR',
         },
-        { status: 500 }
+        { status: 500 },
       );
     });
 
@@ -417,7 +406,7 @@ describe('Error Handling Module', () => {
           error: 'Test error',
           code: 'INTERNAL_ERROR',
         },
-        { status: 500 }
+        { status: 500 },
       );
     });
   });
@@ -440,7 +429,7 @@ describe('Error Handling Module', () => {
           error: 'Invalid email format',
           code: 'VALIDATION_ERROR',
         },
-        { status: 400 }
+        { status: 400 },
       );
     });
 
@@ -451,7 +440,7 @@ describe('Error Handling Module', () => {
         expect.objectContaining({
           details: { field: 'username' },
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -465,10 +454,7 @@ describe('Error Handling Module', () => {
     it('should always set status code to 400', () => {
       handleValidationError('Error');
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        { status: 400 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), { status: 400 });
     });
   });
 
@@ -491,7 +477,7 @@ describe('Error Handling Module', () => {
           error: 'Authentication required',
           code: 'UNAUTHORIZED',
         },
-        { status: 401 }
+        { status: 401 },
       );
     });
 
@@ -502,17 +488,14 @@ describe('Error Handling Module', () => {
         expect.objectContaining({
           error: 'Invalid token',
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it('should always set status code to 401', () => {
       handleAuthError('Test');
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        { status: 401 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), { status: 401 });
     });
   });
 
@@ -535,7 +518,7 @@ describe('Error Handling Module', () => {
           error: 'Forbidden',
           code: 'FORBIDDEN',
         },
-        { status: 403 }
+        { status: 403 },
       );
     });
 
@@ -546,17 +529,14 @@ describe('Error Handling Module', () => {
         expect.objectContaining({
           error: 'Insufficient permissions',
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
     it('should always set status code to 403', () => {
       handleAuthzError('Test');
 
-      expect(NextResponse.json).toHaveBeenCalledWith(
-        expect.any(Object),
-        { status: 403 }
-      );
+      expect(NextResponse.json).toHaveBeenCalledWith(expect.any(Object), { status: 403 });
     });
   });
 
@@ -579,7 +559,7 @@ describe('Error Handling Module', () => {
         },
         expect.objectContaining({
           status: 429,
-        })
+        }),
       );
     });
 
@@ -591,7 +571,7 @@ describe('Error Handling Module', () => {
         expect.any(Object),
         expect.objectContaining({
           status: 429,
-        })
+        }),
       );
     });
 
@@ -602,7 +582,7 @@ describe('Error Handling Module', () => {
         expect.any(Object),
         expect.objectContaining({
           status: 429,
-        })
+        }),
       );
     });
 
@@ -613,7 +593,7 @@ describe('Error Handling Module', () => {
         expect.any(Object),
         expect.objectContaining({
           status: 429,
-        })
+        }),
       );
     });
 
@@ -625,7 +605,7 @@ describe('Error Handling Module', () => {
         expect.any(Object),
         expect.objectContaining({
           status: 429,
-        })
+        }),
       );
     });
   });

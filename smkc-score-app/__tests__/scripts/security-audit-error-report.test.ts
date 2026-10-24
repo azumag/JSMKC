@@ -6,7 +6,6 @@ describe('security audit error report handling', () => {
   it('accepts a canonical empty report when no error marker is present', () => {
     expect(evaluateAuditReport({ vulnerabilities: {} }, emptyLockfile)).toEqual({
       ok: true,
-      allowed: [],
       unexpected: [],
     });
   });
@@ -16,7 +15,6 @@ describe('security audit error report handling', () => {
     (error) => {
       expect(evaluateAuditReport({ vulnerabilities: {}, error }, emptyLockfile)).toEqual({
         ok: false,
-        allowed: [],
         unexpected: ['invalid-audit-report'],
       });
     },
