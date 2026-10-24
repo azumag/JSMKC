@@ -34,9 +34,10 @@
  * and xl/calcChain.xml is removed entirely. Every other (non-worksheet) part is
  * byte-identical — that fidelity is what the old SheetJS exporter could not keep.
  */
-import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
+import { unzipSync, zipSync, strToU8 } from 'fflate';
 import type { CdmCellWrite } from '@/lib/cdm-export/types';
 import { SheetXmlPatcher } from '@/lib/cdm-export/sheet-xml-patcher';
+import { decodeWorkbookXml } from '@/lib/cdm-export/xml-utf8';
 
 /** OOXML part path of the worksheet relationship Content-Type filter. */
 const WORKSHEET_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet';
@@ -396,8 +397,8 @@ export function patchCdmWorkbook(template: Uint8Array, writes: CdmCellWrite[]): 
   if (!workbookBytes || !workbookRelsBytes) {
     throw new Error('patchCdmWorkbook: template is missing workbook.xml or its rels');
   }
-  const workbookXml = strFromU8(workbookBytes);
-  const workbookRelsXml = strFromU8(workbookRelsBytes);
+  const workbookXml = decodeWorkbookXml(workbookBytes);
+  const workbookRelsXml = decodeWorkbookXml(workbookRelsBytes);
 
   const sheetPathByName = buildSheetPathResolver(workbookXml, workbookRelsXml);
 
@@ -434,7 +435,7 @@ export function patchCdmWorkbook(template: Uint8Array, writes: CdmCellWrite[]): 
     if (!sheetBytes) {
       throw new Error(`patchCdmWorkbook: worksheet part "${path}" not found in package`);
     }
-    let sheetXml = strFromU8(sheetBytes);
+    let sheetXml = decodeWorkbookXml(sheetBytes);
     let reusableSpillRanges: SpillRange[] | undefined;
 
     const sheetWrites = writesByPath.get(path);
@@ -448,15 +449,15 @@ export function patchCdmWorkbook(template: Uint8Array, writes: CdmCellWrite[]): 
       // pre-patch XML because value ops never alter anchors (they would throw).
       const spillRanges = collectSpillRanges(sheetXml);
       reusableSpillRanges = spillRanges;
+      const disabledSpillAnchors = new Set(
+        sheetWrites
+          .filter(
+            (candidate) =>
+              candidate.op === 'overwriteNumber' || candidate.op === 'overwriteString' || candidate.op === 'strip',
+          )
+          .map((candidate) => candidate.ref),
+      );
       for (const write of sheetWrites) {
-        const disabledSpillAnchors = new Set(
-          sheetWrites
-            .filter(
-              (candidate) =>
-                candidate.op === 'overwriteNumber' || candidate.op === 'overwriteString' || candidate.op === 'strip',
-            )
-            .map((candidate) => candidate.ref),
-        );
         const writesIntoActiveSpillChild = spillRanges.some(
           (range) => isWithinAnySpillChild(write.ref, [range]) && !disabledSpillAnchors.has(spillAnchorRef(range)),
         );
@@ -504,7 +505,7 @@ export function patchCdmWorkbook(template: Uint8Array, writes: CdmCellWrite[]): 
   // changed in between. If a future op kind ever mutates workbook.xml, re-read
   // parts[WORKBOOK_PART] here instead of reusing this string.
   parts[WORKBOOK_PART] = strToU8(ensureFullRecalculation(workbookXml));
-  parts[CONTENT_TYPES_PART] = strToU8(removeCalcChainOverride(strFromU8(parts[CONTENT_TYPES_PART])));
+  parts[CONTENT_TYPES_PART] = strToU8(removeCalcChainOverride(decodeWorkbookXml(parts[CONTENT_TYPES_PART])));
   parts[WORKBOOK_RELS_PART] = strToU8(removeCalcChainRelationship(workbookRelsXml));
 
   // Rebuild the zip preserving the original entry order minus the dropped
