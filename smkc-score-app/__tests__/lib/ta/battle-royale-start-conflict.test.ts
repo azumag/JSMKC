@@ -1,5 +1,12 @@
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+// jest.setup.cjs replaces @prisma/client with lightweight fakes for every suite. This
+// regression test must exercise the real generated Prisma 7 error class instead, so
+// `instanceof` is checked against the class the runtime actually throws.
+jest.unmock('@prisma/client');
+
+import { Prisma } from '@prisma/client';
 import { isTaBattleRoyaleStartConflict } from '@/lib/ta/battle-royale-start-conflict';
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 function createPrismaError(code: string) {
   return new PrismaClientKnownRequestError('Prisma error', {
@@ -9,6 +16,11 @@ function createPrismaError(code: string) {
 }
 
 describe('isTaBattleRoyaleStartConflict', () => {
+  it('exercises the real Prisma runtime error class (guards jest.unmock above)', () => {
+    const runtime = jest.requireActual<{ PrismaClientKnownRequestError: unknown }>('@prisma/client/runtime/client');
+    expect(PrismaClientKnownRequestError).toBe(runtime.PrismaClientKnownRequestError);
+  });
+
   it('Prismaのユニーク制約違反を開始競合として扱う', () => {
     expect(isTaBattleRoyaleStartConflict(createPrismaError('P2002'))).toBe(true);
   });

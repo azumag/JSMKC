@@ -112,31 +112,35 @@ describe('preview E2E runner', () => {
   it('exposes missing Playwright executable detection for preview bootstrap recovery', () => {
     // Path suffix is platform-specific (linux-x64, mac-arm64, etc.);
     // detection uses substring match on chrome-headless-shell OR chromium_headless_shell (directory name alone)
-    expect(runner.isMissingPlaywrightExecutableError(
-      new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell"),
-    )).toBe(true);
+    expect(
+      runner.isMissingPlaywrightExecutableError(
+        new Error(
+          "browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell",
+        ),
+      ),
+    ).toBe(true);
     // TC-2488: chromium_headless_shell directory name alone (no chrome-headless-shell binary) must also be detected
-    expect(runner.isMissingPlaywrightExecutableError(
-      new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/some-other-binary"),
-    )).toBe(true);
+    expect(
+      runner.isMissingPlaywrightExecutableError(
+        new Error(
+          "browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/some-other-binary",
+        ),
+      ),
+    ).toBe(true);
     // Playwright may also emit a "playwright install" hint instead of the full path (issue #2431)
-    expect(runner.isMissingPlaywrightExecutableError(
-      new Error("browserType.launchPersistentContext: Executable doesn't exist\nRun: playwright install chromium"),
-    )).toBe(true);
+    expect(
+      runner.isMissingPlaywrightExecutableError(
+        new Error("browserType.launchPersistentContext: Executable doesn't exist\nRun: playwright install chromium"),
+      ),
+    ).toBe(true);
     expect(runner.isMissingPlaywrightExecutableError(new Error('No active session'))).toBe(false);
   });
 
   it('regenerates Prisma Client before Cloudflare builds used by preview deploys', () => {
-    // prebuild:cf MUST always use the WASM-engine overrides (PRISMA_*=/dev/null)
-    // because the generated client is bundled into the Cloudflare Workers build.
-    // The native engine path would emit code that imports node: protocol modules
-    // (e.g. node:tty) which Cloudflare Workers does not support, breaking the
-    // production deployment with "No such module 'node:tty'".
-    // postinstall, on the other hand, runs at npm install time on developer
-    // machines, where the native engine is faster — so postinstall delegates to
-    // scripts/prisma-generate.js (CI-aware) instead.
-    expect(packageJson.scripts['prebuild:cf']).toContain('PRISMA_SCHEMA_ENGINE_BINARY=/dev/null');
-    expect(packageJson.scripts['prebuild:cf']).toContain('prisma generate');
+    // The generated client is bundled into the Cloudflare Workers build. Prisma 7
+    // removed the native-engine env overrides (PRISMA_*=/dev/null) that Prisma 6
+    // needed to avoid `node:tty` imports, so prebuild:cf is a plain generate.
+    expect(packageJson.scripts['prebuild:cf']).toBe('prisma generate');
     expect(packageJson.scripts['postinstall']).toBe('node scripts/prisma-generate.js');
     expect(packageJson.scripts['deploy:preview']).toContain('npm run build:cf');
   });
@@ -230,9 +234,7 @@ describe('preview E2E runner', () => {
   it('checks host resolution before launching the child script', async () => {
     lookupMock.mockResolvedValue({ address: '127.0.0.1', family: 4 });
 
-    await expect(
-      runner.assertBaseUrlResolvable('https://preview-alt.example.com'),
-    ).resolves.toBeNull();
+    await expect(runner.assertBaseUrlResolvable('https://preview-alt.example.com')).resolves.toBeNull();
 
     expect(lookupMock).toHaveBeenCalledWith('preview-alt.example.com');
   });
@@ -251,20 +253,23 @@ describe('preview E2E runner', () => {
     });
 
     await expect(
-      runner.assertPreviewAdminSession({
-        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-      }, launchBrowser as never),
+      runner.assertPreviewAdminSession(
+        {
+          E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+          E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+        },
+        launchBrowser as never,
+      ),
     ).resolves.toMatchObject({ authenticated: true });
 
     expect(launchBrowser).toHaveBeenCalledWith({
       E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
       E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
     });
-    expect(goto).toHaveBeenCalledWith(
-      'https://preview.smkc.bluemoon.works/tournaments',
-      { waitUntil: 'domcontentloaded', timeout: 30000 },
-    );
+    expect(goto).toHaveBeenCalledWith('https://preview.smkc.bluemoon.works/tournaments', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
     expect(close).toHaveBeenCalled();
   });
 
@@ -282,10 +287,15 @@ describe('preview E2E runner', () => {
     });
 
     // Consolidate into a single call: catch the error once and assert all message parts (#2365).
-    const err = await runner.assertPreviewAdminSession({
-      E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-      E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-    }, launchBrowser as never).catch((e: unknown) => e);
+    const err = await runner
+      .assertPreviewAdminSession(
+        {
+          E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+          E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+        },
+        launchBrowser as never,
+      )
+      .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toMatch(/Preview E2E admin session preflight failed/);
     expect((err as Error).message).toMatch(/No active session/);
@@ -301,8 +311,13 @@ describe('preview E2E runner', () => {
       authenticated: true,
       body: { data: { authenticated: true, user: { role: 'admin' } } },
     });
-    const launchBrowser = jest.fn<() => Promise<unknown>>()
-      .mockRejectedValueOnce(new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-arm64/chrome-headless-shell"))
+    const launchBrowser = jest
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(
+        new Error(
+          "browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+        ),
+      )
       .mockResolvedValueOnce({
         pages: () => [{ goto, evaluate }],
         close,
@@ -310,11 +325,14 @@ describe('preview E2E runner', () => {
     spawnSyncMock.mockReturnValue({ status: 0, stdout: '', stderr: '' });
 
     await expect(
-      runner.assertPreviewAdminSession({
-        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-        PLAYWRIGHT_BROWSERS_PATH: '/tmp/playwright-e2e-home/ms-playwright',
-      }, launchBrowser as never),
+      runner.assertPreviewAdminSession(
+        {
+          E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+          E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+          PLAYWRIGHT_BROWSERS_PATH: '/tmp/playwright-e2e-home/ms-playwright',
+        },
+        launchBrowser as never,
+      ),
     ).resolves.toMatchObject({ authenticated: true });
 
     expect(spawnSyncMock).toHaveBeenCalledWith(
@@ -394,8 +412,12 @@ describe('preview E2E runner', () => {
     // process.env. The sentinel key appears before THROW_ON_WRITE in the env object, so its
     // modified value ('modified-value') has already been written when the throw occurs.
     Object.defineProperty(process.env, 'THROW_ON_WRITE', {
-      set() { throw new Error('env assignment failed'); },
-      get() { return undefined; },
+      set() {
+        throw new Error('env assignment failed');
+      },
+      get() {
+        return undefined;
+      },
       configurable: true,
       enumerable: false,
     });
@@ -419,15 +441,23 @@ describe('preview E2E runner', () => {
   });
 
   it('surfaces install-browser failure when managed cache bootstrap cannot recover', async () => {
-    const launchBrowser = jest.fn<() => Promise<unknown>>()
-      .mockRejectedValue(new Error("browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell"));
+    const launchBrowser = jest
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValue(
+        new Error(
+          "browserType.launchPersistentContext: Executable doesn't exist at /tmp/ms-playwright/chromium_headless_shell-1217/chrome-headless-shell",
+        ),
+      );
     spawnSyncMock.mockReturnValue({ status: 1, stdout: '', stderr: 'download failed' });
 
     await expect(
-      runner.assertPreviewAdminSession({
-        E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
-        E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
-      }, launchBrowser as never),
+      runner.assertPreviewAdminSession(
+        {
+          E2E_BASE_URL: 'https://preview.smkc.bluemoon.works',
+          E2E_PROFILE_DIR: '/tmp/playwright-smkc-preview-profile',
+        },
+        launchBrowser as never,
+      ),
     ).rejects.toThrow(/failed to bootstrap Playwright browser cache/);
 
     expect(launchBrowser).toHaveBeenCalledTimes(1);
@@ -437,9 +467,7 @@ describe('preview E2E runner', () => {
     lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND preview.smkc.bluemoon.works'));
     spawnSyncMock.mockReturnValue({ status: 0, stdout: '104.21.41.48\n172.67.159.248\n', stderr: '' });
 
-    await expect(
-      runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works'),
-    ).resolves.toBe('104.21.41.48');
+    await expect(runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works')).resolves.toBe('104.21.41.48');
   });
 
   it('falls back to public IPv6 DNS when local resolution and IPv4 public DNS fail', async () => {
@@ -448,16 +476,13 @@ describe('preview E2E runner', () => {
       .mockReturnValueOnce({ status: 0, stdout: '', stderr: '' })
       .mockReturnValueOnce({ status: 0, stdout: '2606:4700:3037::6815:2930\n', stderr: '' });
 
-    await expect(
-      runner.assertBaseUrlResolvable('https://ipv6-preview.example.com'),
-    ).resolves.toBe('2606:4700:3037::6815:2930');
-
-    expect(spawnSyncMock).toHaveBeenNthCalledWith(
-      1,
-      'dig',
-      ['+short', 'A', 'ipv6-preview.example.com', '@1.1.1.1'],
-      { encoding: 'utf8' },
+    await expect(runner.assertBaseUrlResolvable('https://ipv6-preview.example.com')).resolves.toBe(
+      '2606:4700:3037::6815:2930',
     );
+
+    expect(spawnSyncMock).toHaveBeenNthCalledWith(1, 'dig', ['+short', 'A', 'ipv6-preview.example.com', '@1.1.1.1'], {
+      encoding: 'utf8',
+    });
     expect(spawnSyncMock).toHaveBeenNthCalledWith(
       2,
       'dig',
@@ -474,34 +499,30 @@ describe('preview E2E runner', () => {
       stderr: '',
     });
 
-    await expect(
-      runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works'),
-    ).resolves.toBe('104.21.41.48');
+    await expect(runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works')).resolves.toBe('104.21.41.48');
   });
 
   it('ignores invalid public IPv6 DNS lines before using a valid AAAA record', async () => {
     lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND ipv6-preview.example.com'));
-    spawnSyncMock
-      .mockReturnValueOnce({ status: 0, stdout: '', stderr: '' })
-      .mockReturnValueOnce({
-        status: 0,
-        stdout: 'feed\n2606:4700:3037::6815:2930\n',
-        stderr: '',
-      });
+    spawnSyncMock.mockReturnValueOnce({ status: 0, stdout: '', stderr: '' }).mockReturnValueOnce({
+      status: 0,
+      stdout: 'feed\n2606:4700:3037::6815:2930\n',
+      stderr: '',
+    });
 
-    await expect(
-      runner.assertBaseUrlResolvable('https://ipv6-preview.example.com'),
-    ).resolves.toBe('2606:4700:3037::6815:2930');
+    await expect(runner.assertBaseUrlResolvable('https://ipv6-preview.example.com')).resolves.toBe(
+      '2606:4700:3037::6815:2930',
+    );
   });
 
   it('throws a helpful error when the preview host does not resolve', async () => {
     lookupMock.mockRejectedValue(new Error('getaddrinfo ENOTFOUND preview.smkc.bluemoon.works'));
 
-    await expect(
-      runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works'),
-    ).rejects.toThrow(/could not be resolved/);
-    await expect(
-      runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works'),
-    ).rejects.toThrow(/E2E_BASE_URL=https:\/\/<reachable-host>/);
+    await expect(runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works')).rejects.toThrow(
+      /could not be resolved/,
+    );
+    await expect(runner.assertBaseUrlResolvable('https://preview.smkc.bluemoon.works')).rejects.toThrow(
+      /E2E_BASE_URL=https:\/\/<reachable-host>/,
+    );
   });
 });

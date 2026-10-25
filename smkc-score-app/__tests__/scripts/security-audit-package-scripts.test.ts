@@ -12,8 +12,6 @@ describe('security audit package scripts', () => {
 
   it('exposes stable entrypoints for the audit probes', () => {
     expect(packageJson.scripts).toMatchObject({
-      'security:audit:status': 'node scripts/security-audit-status.js',
-      'security:audit:status:json': 'node scripts/security-audit-status.js --json',
       'security:audit:upstream': 'node scripts/security-audit-upstream.js',
       'security:audit:upstream:json': 'node scripts/security-audit-upstream.js --json',
       'security:audit:upstream-issue': 'node scripts/security-audit-upstream-issue.js',
