@@ -1,5 +1,7 @@
 # Prisma 7 migration readiness for #3114
 
+> **Status (2026-10-22):** the Prisma package set was migrated to 7.10.1 (`prisma`, `@prisma/client`, `@prisma/adapter-d1`), `datasource.url` moved to `prisma.config.ts`, the removed `engine` option and `@prisma/client/runtime/library` imports are gone, and `@prisma/config` now resolves `deepmerge-ts` 8.0.2. The readiness probe intentionally still reports four items — `packageTypeModule`, `generatorUsesPrismaClient`, `generatorHasExplicitOutput`, `applicationImportsUseGeneratedClient` — because JSMKC keeps the deprecated `prisma-client-js` generator: `next.config.ts` externalizes `@prisma/client` / `.prisma/client`, so OpenNext's esbuild pass resolves the default `node_modules/.prisma/client` through its `workerd` export (`edge.js`), whereas a measured build with the new `prisma-client` generator (output `src/generated/prisma`, `runtime = "cloudflare"`) let Turbopack bundle every reachable Prisma WASM, producing a Worker upload of 21.3 MB gzip versus 5.0 MB with `prisma-client-js` (Workers limit: 10 MB). Moving to the new generator is follow-up work once OpenNext supports it.
+
 Prisma ORM 7 contains the upstream `deepmerge-ts >=8` remediation needed to remove the temporary GHSA-ggr8-5vv4-36mx audit exception tracked in #3114, but moving JSMKC from Prisma 6 to Prisma 7 is a major-version migration and must not be performed only to silence the audit finding.
 
 The repository therefore has a read-only readiness probe:

@@ -23,9 +23,10 @@
  */
 
 import { NextResponse } from 'next/server';
-// PrismaClientKnownRequestError and PrismaClientValidationError were moved
-// out of the Prisma namespace in v6 and are now direct named exports.
-import { PrismaClientKnownRequestError, PrismaClientValidationError } from '@prisma/client/runtime/library';
+// Prisma 7 removed @prisma/client/runtime/library. The error classes are read from
+// the generated client's Prisma namespace so `instanceof` matches the runtime that
+// actually throws them.
+import { Prisma } from '@prisma/client';
 import { createLogger } from '@/lib/logger';
 import { sanitizeDatabaseError } from '@/lib/sanitize-error';
 
@@ -92,12 +93,7 @@ export interface SuccessResponseOptions {
  * @example
  *   return createErrorResponse('Player not found', 404, 'NOT_FOUND');
  */
-export function createErrorResponse(
-  message: string,
-  status: number,
-  code?: string,
-  details?: unknown
-): NextResponse {
+export function createErrorResponse(message: string, status: number, code?: string, details?: unknown): NextResponse {
   // Construct the error response body following project standard format
   const body: ErrorResponse = {
     success: false,
@@ -129,7 +125,7 @@ export function createErrorResponse(
 export function createSuccessResponse<T>(
   data: T,
   message?: string,
-  options: SuccessResponseOptions = {}
+  options: SuccessResponseOptions = {},
 ): NextResponse {
   // Construct success response body following project standard format
   const body: SuccessResponse<T> = {
@@ -139,9 +135,7 @@ export function createSuccessResponse<T>(
     ...(message && { message }),
   };
 
-  return options.status !== undefined
-    ? NextResponse.json(body, { status: options.status })
-    : NextResponse.json(body);
+  return options.status !== undefined ? NextResponse.json(body, { status: options.status }) : NextResponse.json(body);
 }
 
 // ============================================================
@@ -174,10 +168,7 @@ export function createSuccessResponse<T>(
  *     return handleDatabaseError(error, 'player-create');
  *   }
  */
-export function handleDatabaseError(
-  error: unknown,
-  context: string
-): NextResponse {
+export function handleDatabaseError(error: unknown, context: string): NextResponse {
   // Log the full error internally for debugging purposes.
   // The context parameter helps identify which operation failed
   // when reviewing server logs.
@@ -188,40 +179,28 @@ export function handleDatabaseError(
 
   // Handle Prisma-specific known request errors with code-based mapping.
   // These errors have well-defined codes that map to specific HTTP statuses.
-  if (error instanceof PrismaClientKnownRequestError) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
       case 'P2002': {
         // Unique constraint violation: the record already exists.
         // Common when creating players with duplicate nicknames
         // or tournaments with conflicting unique fields.
         const sanitizedMessage = sanitizeDatabaseError(error, context);
-        return createErrorResponse(
-          sanitizedMessage,
-          409,
-          'CONFLICT'
-        );
+        return createErrorResponse(sanitizedMessage, 409, 'CONFLICT');
       }
 
       case 'P2025': {
         // Record not found for update/delete operations.
         // The requested resource does not exist in the database.
         const sanitizedMessage = sanitizeDatabaseError(error, context);
-        return createErrorResponse(
-          sanitizedMessage,
-          404,
-          'NOT_FOUND'
-        );
+        return createErrorResponse(sanitizedMessage, 404, 'NOT_FOUND');
       }
 
       case 'P2003': {
         // Foreign key constraint failure: referenced record does not exist.
         // Common when creating matches with invalid player IDs.
         const sanitizedMessage = sanitizeDatabaseError(error, context);
-        return createErrorResponse(
-          sanitizedMessage,
-          400,
-          'FOREIGN_KEY_ERROR'
-        );
+        return createErrorResponse(sanitizedMessage, 400, 'FOREIGN_KEY_ERROR');
       }
 
       case 'P2024': {
@@ -230,7 +209,7 @@ export function handleDatabaseError(
         return createErrorResponse(
           'Database temporarily unavailable. Please try again later.',
           503,
-          'SERVICE_UNAVAILABLE'
+          'SERVICE_UNAVAILABLE',
         );
       }
 
@@ -238,32 +217,20 @@ export function handleDatabaseError(
         // Other Prisma known errors are treated as bad requests.
         // The error message is sanitized to remove any database details.
         const sanitizedMessage = sanitizeDatabaseError(error, context);
-        return createErrorResponse(
-          sanitizedMessage,
-          400,
-          error.code
-        );
+        return createErrorResponse(sanitizedMessage, 400, error.code);
       }
     }
   }
 
   // Handle Prisma validation errors (invalid query structure)
-  if (error instanceof PrismaClientValidationError) {
-    return createErrorResponse(
-      'Invalid database query parameters',
-      400,
-      'VALIDATION_ERROR'
-    );
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    return createErrorResponse('Invalid database query parameters', 400, 'VALIDATION_ERROR');
   }
 
   // Handle non-Prisma errors as generic internal server errors.
   // The error message is sanitized to prevent any information leakage.
   const sanitizedMessage = sanitizeDatabaseError(error, context);
-  return createErrorResponse(
-    sanitizedMessage || 'An unexpected error occurred',
-    500,
-    'INTERNAL_ERROR'
-  );
+  return createErrorResponse(sanitizedMessage || 'An unexpected error occurred', 500, 'INTERNAL_ERROR');
 }
 
 /**
@@ -281,17 +248,14 @@ export function handleDatabaseError(
  *     return handleValidationError('Name is required', 'name');
  *   }
  */
-export function handleValidationError(
-  message: string,
-  field?: string
-): NextResponse {
+export function handleValidationError(message: string, field?: string): NextResponse {
   return createErrorResponse(
     message,
     400,
     'VALIDATION_ERROR',
     // Include the field name as detail so clients can highlight
     // the specific input that needs correction
-    field ? { field } : undefined
+    field ? { field } : undefined,
   );
 }
 
@@ -311,14 +275,8 @@ export function handleValidationError(
  *     return handleAuthError();
  *   }
  */
-export function handleAuthError(
-  message: string = 'Authentication required'
-): NextResponse {
-  return createErrorResponse(
-    message,
-    401,
-    'UNAUTHORIZED'
-  );
+export function handleAuthError(message: string = 'Authentication required'): NextResponse {
+  return createErrorResponse(message, 401, 'UNAUTHORIZED');
 }
 
 /**
@@ -336,14 +294,8 @@ export function handleAuthError(
  *     return handleAuthzError('Admin access required');
  *   }
  */
-export function handleAuthzError(
-  message: string = 'Forbidden'
-): NextResponse {
-  return createErrorResponse(
-    message,
-    403,
-    'FORBIDDEN'
-  );
+export function handleAuthzError(message: string = 'Forbidden'): NextResponse {
+  return createErrorResponse(message, 403, 'FORBIDDEN');
 }
 
 /**
@@ -362,15 +314,9 @@ export function handleAuthzError(
  *     return handleRateLimitError(60); // retry after 60 seconds
  *   }
  */
-export function handleRateLimitError(
-  retryAfter?: number
-): NextResponse {
+export function handleRateLimitError(retryAfter?: number): NextResponse {
   // Create the base error response with 429 status
-  const response = createErrorResponse(
-    'Too many requests. Please try again later.',
-    429,
-    'RATE_LIMIT_EXCEEDED'
-  );
+  const response = createErrorResponse('Too many requests. Please try again later.', 429, 'RATE_LIMIT_EXCEEDED');
 
   // Set the Retry-After header if a retry interval is specified.
   // This is a standard HTTP header (RFC 6585) that tells clients

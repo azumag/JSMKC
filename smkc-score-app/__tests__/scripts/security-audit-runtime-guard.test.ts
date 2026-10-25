@@ -316,68 +316,6 @@ process.stdout.write('{}\n');
     }
   });
 
-  it('fails before npm audit when package.json overrides target the temporary exception chain', () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-overrides-'));
-    const binDir = path.join(tempDir, 'bin');
-    const npmPath = path.join(binDir, 'npm');
-    const auditMarker = path.join(tempDir, 'audit-invoked');
-
-    fs.mkdirSync(binDir);
-    fs.writeFileSync(
-      path.join(tempDir, 'package.json'),
-      JSON.stringify({
-        name: 'example-app',
-        version: '1.0.0',
-        packageManager: 'npm@10.9.4',
-        overrides: { 'deepmerge-ts': '8.0.0' },
-      }),
-    );
-    fs.writeFileSync(
-      path.join(tempDir, 'package-lock.json'),
-      JSON.stringify({
-        name: 'example-app',
-        version: '1.0.0',
-        lockfileVersion: 3,
-        packages: { '': { name: 'example-app', version: '1.0.0' } },
-      }),
-    );
-    fs.writeFileSync(
-      npmPath,
-      String.raw`#!/usr/bin/env node
-const fs = require('node:fs');
-if (process.argv[2] === '--version') {
-  process.stdout.write('10.9.4\n');
-  process.exit(0);
-}
-if (process.argv[2] === 'config' && process.argv[3] === 'get' && process.argv[4] === 'registry') {
-  process.stdout.write('https://registry.npmjs.org/\n');
-  process.exit(0);
-}
-fs.writeFileSync(process.env.AUDIT_MARKER, 'invoked');
-process.stdout.write('{}\n');
-`,
-      { mode: 0o755 },
-    );
-
-    try {
-      const result = spawnSync(process.execPath, [helperPath], {
-        cwd: tempDir,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          AUDIT_MARKER: auditMarker,
-          PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
-        },
-      });
-
-      expect(result.status).toBe(1);
-      expect(result.stderr).toContain('package.json overrides targeting its dependency chain');
-      expect(fs.existsSync(auditMarker)).toBe(false);
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
   it('fails before npm audit when the configured registry is not the canonical npm registry', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jsmkc-security-audit-registry-'));
     const binDir = path.join(tempDir, 'bin');

@@ -47,8 +47,8 @@ describe('CI workflow configuration', () => {
   });
 
   // TC-2460: CI には high/critical を blocking にする dependency audit が必要。
-  // #3114 の既知 Prisma transitive advisory だけは scripts/security-audit.js が
-  // fail-closed 条件付きで扱い、それ以外の high/critical は引き続き失敗させる。
+  // scripts/security-audit.js は high/critical の advisory が 1 件でもあれば fail-closed する
+  // (#3114 の例外は撤去済み)。
   it('has the fail-closed security audit helper in lint-and-test job (TC-2460)', () => {
     const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('node scripts/security-audit.js'));
     expect(auditStep).toBeDefined();
@@ -60,19 +60,6 @@ describe('CI workflow configuration', () => {
     expect(auditStep?.run).not.toContain('node scripts/verify-npm-version.js');
     expect(auditStep?.run?.indexOf('node scripts/security-audit-lockfile.js')).toBeLessThan(
       auditStep?.run?.indexOf('node scripts/security-audit.js') ?? -1,
-    );
-  });
-
-  it('checks the tracked #3114 exception status before the network-backed audit', () => {
-    const auditStep = lintAndTestJob.steps.find((s) => s.run?.includes('node scripts/security-audit.js'));
-    const run = auditStep?.run ?? '';
-
-    expect(run).toContain('node scripts/security-audit-status.js');
-    expect(run.indexOf('node scripts/security-audit-lockfile.js')).toBeLessThan(
-      run.indexOf('node scripts/security-audit-status.js'),
-    );
-    expect(run.indexOf('node scripts/security-audit-status.js')).toBeLessThan(
-      run.indexOf('node scripts/security-audit.js'),
     );
   });
 

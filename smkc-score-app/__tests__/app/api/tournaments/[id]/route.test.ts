@@ -103,7 +103,9 @@ jest.mock('next/server', () => {
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import * as tournamentRoute from '@/app/api/tournaments/[id]/route';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 const auditLogMock = jest.requireMock('@/lib/audit-log') as {
   createAuditLog: jest.Mock;
