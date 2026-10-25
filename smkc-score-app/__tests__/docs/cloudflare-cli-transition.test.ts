@@ -96,4 +96,18 @@ describe('Cloudflare CLI transition safety contracts', () => {
     expect(parityDoc).toContain('Nothing in this document changes production behaviour');
     expect(parityDoc).toContain('All four surfaces below still run on Wrangler');
   });
+
+  it('records the cf Worker-configuration parity surface before replacing Wrangler config', () => {
+    const configParity = fs.readFileSync(path.join(appRoot, 'scripts', 'cloudflare-config-parity.cjs'), 'utf8');
+
+    expect(normalizedTransitionPolicy).toContain('docs/cloudflare-config-cf-parity.md');
+    expect(normalizedTransitionPolicy).toContain('drops `migrations_dir` for both D1');
+    expect(normalizedTransitionPolicy).toContain('resolves to the `default:` (production) branch');
+    expect(packageJson.scripts?.['cloudflare:config-parity']).toBe('node scripts/cloudflare-config-parity.cjs');
+
+    // The parity checker itself stays read-only: `--help` and `--version` only.
+    expect(configParity).toContain('function readOnlyArgs(surface) {\n  return [...surface.helpArgs];');
+    expect(configParity).not.toContain("spawnSync('cf', ['migrate'");
+    expect(configParity).not.toContain("spawnSync('cf', ['deploy'");
+  });
 });
