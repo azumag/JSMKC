@@ -2,7 +2,6 @@
 
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
-const { isPatchedDeepmergeRequirement, parseComparableSemver } = require('./security-audit-status.js');
 const { formatUpstreamProbeFailure, getUpstreamDiagnosticMessage } = require('./security-audit-upstream-diagnostic.js');
 
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
@@ -10,6 +9,71 @@ const NPM_VIEW_TIMEOUT_MS = 60_000;
 const NPM_VIEW_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 const NPM_VIEW_DIAGNOSTIC_MAX_LENGTH = 500;
 const SAFE_OUTPUT_PATTERN = /^[ -~]{1,200}$/;
+
+// Prisma 版判定に使う semver 比較ヘルパー。旧 security-audit-status.js から移設（#3114 例外の状態判定そのものは削除済み）。
+const SAFE_REQUIREMENT_PATTERN = /^[ -~]{1,200}$/;
+const SEMVER_CORE_IDENTIFIER = String.raw`(?:0|[1-9]\d*)`;
+const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const SEMVER_BUILD_IDENTIFIER = String.raw`[0-9A-Za-z-]+`;
+const COMPLETE_SEMVER_SOURCE = String.raw`${SEMVER_CORE_IDENTIFIER}\.${SEMVER_CORE_IDENTIFIER}\.${SEMVER_CORE_IDENTIFIER}(?:-${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*)?(?:\+${SEMVER_BUILD_IDENTIFIER}(?:\.${SEMVER_BUILD_IDENTIFIER})*)?`;
+const COMPARABLE_SEMVER_PATTERN = new RegExp(
+  String.raw`^(${SEMVER_CORE_IDENTIFIER})\.(${SEMVER_CORE_IDENTIFIER})\.(${SEMVER_CORE_IDENTIFIER})(?:-(${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*))?(?:\+${SEMVER_BUILD_IDENTIFIER}(?:\.${SEMVER_BUILD_IDENTIFIER})*)?$`,
+);
+const SIMPLE_REQUIREMENT_PATTERN = new RegExp(String.raw`^(?:\^|~|>=)?\s*(${COMPLETE_SEMVER_SOURCE})$`);
+const PATCHED_DEEPMERGE_VERSION = Object.freeze({ major: 8, minor: 0, patch: 0 });
+
+function parseComparableSemver(version) {
+  if (typeof version !== 'string') {
+    return null;
+  }
+
+  const match = COMPARABLE_SEMVER_PATTERN.exec(version);
+  if (!match) {
+    return null;
+  }
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (![major, minor, patch].every(Number.isSafeInteger)) {
+    return null;
+  }
+
+  return {
+    major,
+    minor,
+    patch,
+    prerelease: match[4] ?? null,
+  };
+}
+
+function isPatchedDeepmergeVersion(version) {
+  const parsed = parseComparableSemver(version);
+  if (!parsed) {
+    return false;
+  }
+
+  if (parsed.major !== PATCHED_DEEPMERGE_VERSION.major) {
+    return parsed.major > PATCHED_DEEPMERGE_VERSION.major;
+  }
+  if (parsed.minor !== PATCHED_DEEPMERGE_VERSION.minor) {
+    return parsed.minor > PATCHED_DEEPMERGE_VERSION.minor;
+  }
+  if (parsed.patch !== PATCHED_DEEPMERGE_VERSION.patch) {
+    return parsed.patch > PATCHED_DEEPMERGE_VERSION.patch;
+  }
+
+  return parsed.prerelease === null;
+}
+
+function isPatchedDeepmergeRequirement(requirement) {
+  if (typeof requirement !== 'string') {
+    return false;
+  }
+
+  const match = SIMPLE_REQUIREMENT_PATTERN.exec(requirement);
+  return Boolean(match && isPatchedDeepmergeVersion(match[1]));
+}
 const SEMVER_NUMERIC_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*)`;
 const SEMVER_PRERELEASE_IDENTIFIER_PATTERN = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const SEMVER_VERSION_PATTERN = String.raw`${SEMVER_NUMERIC_IDENTIFIER_PATTERN}\.${SEMVER_NUMERIC_IDENTIFIER_PATTERN}\.${SEMVER_NUMERIC_IDENTIFIER_PATTERN}(?:-${SEMVER_PRERELEASE_IDENTIFIER_PATTERN}(?:\.${SEMVER_PRERELEASE_IDENTIFIER_PATTERN})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?`;

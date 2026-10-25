@@ -23,10 +23,9 @@ import { COURSES } from '@/lib/constants';
 import { PLAYER_PUBLIC_SELECT } from '@/lib/prisma-selects';
 import { timeToMs } from '@/lib/ta/time-utils';
 import { calculateAllCourseScores } from '@/lib/ta/qualification-scoring';
-import { PrismaClient } from '@prisma/client';
-// Prisma.sql was removed from the Prisma namespace stub in v6; sqltag is the underlying
-// tagged template implementation exported from the runtime library.
-import { sqltag as sql } from '@prisma/client/runtime/library';
+import { Prisma, PrismaClient } from '@prisma/client';
+
+const { sql } = Prisma;
 
 /**
  * Represents a tournament entry with its calculated total time and scoring data.

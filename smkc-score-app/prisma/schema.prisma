@@ -2,16 +2,19 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
+  // Prisma 7 deprecates (but still ships) prisma-client-js. JSMKC keeps it on purpose:
+  // next.config.ts lists '@prisma/client' / '.prisma/client' in serverExternalPackages,
+  // so Turbopack leaves the client alone and OpenNext's esbuild pass resolves
+  // node_modules/.prisma/client through its `workerd` export (edge.js). The new
+  // `prisma-client` generator writes TypeScript into the app, so Turbopack bundles it
+  // with every Prisma WASM it can reach: the #3114 measurement was a 21.3 MB gzip
+  // Worker (limit 10 MB) versus 5.0 MB with this generator. Revisit when OpenNext
+  // documents support for the new generator.
   provider = "prisma-client-js"
-  // Driver adapters (see src/lib/prisma.ts) are GA in Prisma 6 — no
-  // previewFeatures flag needed. Removing the deprecated "driverAdapters"
-  // flag ensures copyEngine=true in the generated client, which is
-  // required for the adapter option to work on Cloudflare Workers.
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 // User model (for NextAuth.js)

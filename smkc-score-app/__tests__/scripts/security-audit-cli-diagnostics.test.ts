@@ -4,12 +4,7 @@ import path from 'node:path';
 const appRoot = path.resolve(__dirname, '../..');
 const scriptsDir = path.join(appRoot, 'scripts');
 
-const guardedEntrypoints = [
-  'security-audit.js',
-  'security-audit-status.js',
-  'security-audit-upstream.js',
-  'security-audit-next-major.js',
-];
+const guardedEntrypoints = ['security-audit.js', 'security-audit-upstream.js', 'security-audit-next-major.js'];
 
 const guardedAuxiliaryEntrypoints = [
   'security-audit-lockfile.js',

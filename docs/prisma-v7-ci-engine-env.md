@@ -1,5 +1,7 @@
 # Prisma 7 CI engine-environment transition for #3114
 
+> **Status (2026-10-22, #3114 Prisma 7 migration):** the repository is on Prisma 7.10.1. `prebuild:cf` is now a plain `prisma generate` and `scripts/prisma-major-check.js` was removed, as step 5 below asks. `scripts/prisma-generate.js` still passes the environment through unchanged for Prisma 7. The rest of this note records the transition design.
+
 JSMKC currently runs Prisma 6 generation in CI through `smkc-score-app/scripts/prisma-generate.js`. GitHub-hosted CI cannot reliably download the Prisma 6 native engine binaries from `binaries.prisma.sh`, so the wrapper injects the existing `/dev/null` engine overrides and lets Prisma 6 use its bundled fallback path.
 
 That workaround must not be carried forward mechanically to Prisma 7. Prisma's v7 upgrade guide removes several Rust-engine environment variables, including `PRISMA_QUERY_ENGINE_LIBRARY`, because Prisma 7 uses the TypeScript query compiler rather than the Prisma 6 Rust query engine by default.
