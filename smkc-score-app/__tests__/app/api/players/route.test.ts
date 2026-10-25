@@ -118,11 +118,13 @@ jest.mock('next/server', () => {
   };
 });
 
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 import * as playerRoute from '@/app/api/players/route';
+
+const { PrismaClientKnownRequestError } = Prisma;
 
 const auditLogMock = jest.requireMock('@/lib/audit-log');
 const passwordUtilsMock = jest.requireMock('@/lib/password-utils');
