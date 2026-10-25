@@ -1,5 +1,7 @@
 # #3114 forward-remediation readiness
 
+> **Status (2026-10-22):** after the Prisma 7.10.1 migration the repository lockfile resolves `@prisma/config` 7.10.1 → `deepmerge-ts` 8.0.2 without overrides, and `security-audit-status.js` reports `forward-remediation-candidate`; GHSA-ggr8-5vv4-36mx is absent from the canonical audit. Per step 4 below, the temporary allowlist is removed in this same reviewed change, and only after the real preview D1 read/write check required by `prisma-v7-ci-engine-env.md` has passed; until both are done the migration PR stays a draft and must not be merged.
+
 This note documents how to recognize a safe forward-remediation candidate for the temporary `deepmerge-ts` audit exception tracked in #3114.
 
 ## Upstream state checked on 2026-09-14

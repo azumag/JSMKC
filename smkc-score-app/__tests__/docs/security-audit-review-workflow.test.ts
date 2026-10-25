@@ -81,25 +81,14 @@ describe('manual security audit review workflow', () => {
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${packageManager?.replace(/^npm@/, '')}"`);
   });
 
-  it('keeps the fail-closed preflight/status/audit order', () => {
+  it('keeps the fail-closed preflight/audit order', () => {
     const steps = auditJob.steps ?? [];
     const preflightStep = steps.find((step) => step.id === 'lockfile_preflight');
-    const statusStep = steps.find((step) => step.id === 'exception_status');
     const auditStep = steps.find((step) => step.id === 'canonical_audit');
 
     expect(preflightStep?.run?.trim()).toBe('node scripts/security-audit-lockfile.js');
-    expect(statusStep?.run?.trim()).toBe('node scripts/security-audit-status.js');
     expect(auditStep?.run?.trim()).toBe('node scripts/security-audit.js');
-    expect(steps.indexOf(preflightStep as WorkflowStep)).toBeLessThan(steps.indexOf(statusStep as WorkflowStep));
-    expect(steps.indexOf(statusStep as WorkflowStep)).toBeLessThan(steps.indexOf(auditStep as WorkflowStep));
-  });
-
-  it('still runs the canonical audit when only the temporary exception status changes', () => {
-    const auditStep = auditJob.steps?.find((step) => step.id === 'canonical_audit');
-
-    expect(auditStep?.if).toContain('always()');
-    expect(auditStep?.if).toContain("steps.lockfile_preflight.outcome == 'success'");
-    expect(auditStep?.if).not.toContain('steps.exception_status.outcome');
+    expect(steps.indexOf(preflightStep as WorkflowStep)).toBeLessThan(steps.indexOf(auditStep as WorkflowStep));
   });
 
   it('checks the latest compatible Prisma release without changing the canonical audit gate', () => {

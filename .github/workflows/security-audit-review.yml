@@ -39,10 +39,6 @@ jobs:
         name: Validate security audit lockfile
         run: node scripts/security-audit-lockfile.js
 
-      - id: exception_status
-        name: "Review #3114 exception status"
-        run: node scripts/security-audit-status.js
-
       - id: canonical_audit
         name: Run canonical security audit
         if: ${{ always() && steps.lockfile_preflight.outcome == 'success' }}

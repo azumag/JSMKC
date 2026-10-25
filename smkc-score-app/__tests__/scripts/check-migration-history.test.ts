@@ -27,6 +27,8 @@ const managedMigrationCases = [
   ['D1 modification', 'M\tmigrations/0034_existing.sql'],
   ['D1 deletion', 'D\tmigrations/0034_existing.sql'],
   ['D1 rename', 'R100\tmigrations/0034_old.sql\tmigrations/0034_new.sql'],
+  ['D1 nested deletion without a matching flat addition', 'D\tmigrations/0004_x/migration.sql'],
+  ['D1 nested rename to a different name', 'R100\tmigrations/0004_x/migration.sql\tmigrations/0004_y.sql'],
 ] as const;
 
 describe('migration history guard', () => {
@@ -40,6 +42,32 @@ describe('migration history guard', () => {
       ok: true,
       prismaAdded: 1,
       d1Added: 1,
+      parityOk: true,
+      violations: [],
+    });
+  });
+
+  it('allows a nested D1 migration renamed to its flat equivalent', () => {
+    const result = runGuard('R100\tmigrations/0004_x/migration.sql\tmigrations/0004_x.sql');
+
+    expect(result.status).toBe(0);
+    expect(result.payload).toEqual({
+      ok: true,
+      prismaAdded: 0,
+      d1Added: 0,
+      parityOk: true,
+      violations: [],
+    });
+  });
+
+  it('allows a nested D1 migration split into a deletion plus a flat addition', () => {
+    const result = runGuard(['D\tmigrations/0004_x/migration.sql', 'A\tmigrations/0004_x.sql'].join('\n'));
+
+    expect(result.status).toBe(0);
+    expect(result.payload).toEqual({
+      ok: true,
+      prismaAdded: 0,
+      d1Added: 0,
       parityOk: true,
       violations: [],
     });

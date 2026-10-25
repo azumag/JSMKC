@@ -40,31 +40,22 @@ import {
 } from '@/lib/optimistic-locking';
 import { Prisma } from '@prisma/client';
 
-// optimistic-locking.ts imports PrismaClientKnownRequestError from '@prisma/client/runtime/library'
-// (Prisma v6 moved it out of the Prisma namespace). To make instanceof checks work, the mock
-// class must be the SAME object that both the source (via runtime/library) and the test
-// (via Prisma.PrismaClientKnownRequestError) reference.
-jest.mock('@prisma/client/runtime/library', () => ({
+// optimistic-locking.ts checks `instanceof Prisma.PrismaClientKnownRequestError` on the
+// Prisma 7 generated client, so tests construct errors from the same mocked namespace.
+jest.mock('@prisma/client', () => ({
   __esModule: true,
-  PrismaClientKnownRequestError: class extends Error {
-    code: string;
-    constructor(message: string, { code }: { code: string; clientVersion: string }) {
-      super(message);
-      this.name = 'PrismaClientKnownRequestError';
-      this.code = code;
-    }
+  PrismaClient: jest.fn().mockImplementation(() => ({})),
+  Prisma: {
+    PrismaClientKnownRequestError: class extends Error {
+      code: string;
+      constructor(message: string, { code }: { code: string; clientVersion: string }) {
+        super(message);
+        this.name = 'PrismaClientKnownRequestError';
+        this.code = code;
+      }
+    },
   },
 }));
-
-jest.mock('@prisma/client', () => {
-  const lib = jest.requireMock('@prisma/client/runtime/library');
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => ({})),
-    Prisma: {
-      PrismaClientKnownRequestError: lib.PrismaClientKnownRequestError,
-    },
-  };
-});
 
 describe('OptimisticLockError', () => {
   it('should create an error with message and version', () => {

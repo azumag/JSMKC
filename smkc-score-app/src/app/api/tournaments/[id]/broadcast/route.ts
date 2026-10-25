@@ -28,8 +28,7 @@ import {
   normalizeOverlayBroadcastLayout,
   type OverlayBroadcastLayout,
 } from '@/lib/overlay/layout';
-// InputJsonValue/InputJsonObject were removed from Prisma namespace in v6; import from runtime directly
-import type { InputJsonObject, InputJsonValue } from '@prisma/client/runtime/library';
+import type { Prisma } from '@prisma/client';
 
 const MAX_NAME_LENGTH = 50;
 type BroadcastUpdateResponse = Partial<{
@@ -173,7 +172,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     const tournamentId = tournament.id;
 
-    const updateData: Record<string, string | number | boolean | null | InputJsonValue> = {};
+    const updateData: Record<string, string | number | boolean | null | Prisma.InputJsonValue> = {};
     let normalizedLayout: OverlayBroadcastLayout | undefined;
     if (player1Name !== undefined) {
       updateData.overlayPlayer1Name = player1Name === null ? null : (player1Name as string).trim() || null;
@@ -203,7 +202,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     if (layout !== undefined) {
       normalizedLayout = normalizeOverlayBroadcastLayout(layout);
-      updateData.overlayLayout = normalizedLayout as unknown as InputJsonObject;
+      updateData.overlayLayout = normalizedLayout as unknown as Prisma.InputJsonObject;
     }
 
     if (Object.keys(updateData).length === 0) {

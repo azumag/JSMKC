@@ -7,10 +7,11 @@
 
 name = "smkc"
 # 2026-03-17 enables node:tty polyfill in nodejs_compat, which the bundled
-# @prisma/client/runtime/library requires for its color detection
+# Prisma 6 @prisma/client/runtime/library required for its color detection
 # (process.stdout.isTTY / process.stderr.isTTY). 2026-03-01 left node:tty
 # out of the polyfill set and the runtime failed to load with
-# "No such module 'node:tty'".
+# "No such module 'node:tty'". Prisma 7 (#3114) no longer ships that runtime;
+# keep the date anyway, since moving it backwards could drop other compat behavior.
 compatibility_date = "2026-03-17"
 compatibility_flags = ["nodejs_compat"]
 main = ".open-next/worker.js"

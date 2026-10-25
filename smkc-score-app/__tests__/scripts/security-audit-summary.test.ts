@@ -33,7 +33,7 @@ function mixedSeverityReport() {
     vulnerabilities: {
       'deepmerge-ts': {
         name: 'deepmerge-ts',
-        severity: 'high',
+        severity: 'moderate',
         isDirect: false,
         via: [
           {
@@ -41,7 +41,7 @@ function mixedSeverityReport() {
             name: 'deepmerge-ts',
             dependency: 'deepmerge-ts',
             title: 'DeepmergeTS has stack exhaustion when merging recursive object graphs',
-            severity: 'high',
+            severity: 'moderate',
             cwe: ['CWE-674'],
             cvss: { score: 0, vectorString: null },
             url: 'https://github.com/advisories/GHSA-ggr8-5vv4-36mx',
@@ -55,7 +55,7 @@ function mixedSeverityReport() {
       },
       '@prisma/config': {
         name: '@prisma/config',
-        severity: 'high',
+        severity: 'moderate',
         isDirect: false,
         via: ['deepmerge-ts'],
         effects: ['prisma'],
@@ -65,7 +65,7 @@ function mixedSeverityReport() {
       },
       prisma: {
         name: 'prisma',
-        severity: 'high',
+        severity: 'moderate',
         isDirect: true,
         via: ['@prisma/config'],
         effects: [],
@@ -83,8 +83,8 @@ function mixedSeverityReport() {
       vulnerabilities: {
         info: 0,
         low: 0,
-        moderate: 1,
-        high: 3,
+        moderate: 4,
+        high: 0,
         critical: 0,
         total: 4,
       },
@@ -98,7 +98,6 @@ describe('npm audit vulnerability summary consistency', () => {
 
     expect(result.ok).toBe(true);
     expect(result.unexpected).toEqual([]);
-    expect(result.allowed).toEqual(['deepmerge-ts', '@prisma/config', 'prisma']);
   });
 
   it('fails closed when a non-blocking severity count disagrees with the graph', () => {
@@ -108,7 +107,6 @@ describe('npm audit vulnerability summary consistency', () => {
     const result = evaluateAuditReport(report, allowedLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -119,7 +117,6 @@ describe('npm audit vulnerability summary consistency', () => {
     const result = evaluateAuditReport(report, allowedLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -130,7 +127,6 @@ describe('npm audit vulnerability summary consistency', () => {
     const result = evaluateAuditReport(report, allowedLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 
@@ -141,7 +137,6 @@ describe('npm audit vulnerability summary consistency', () => {
     const result = evaluateAuditReport(report, allowedLockfile);
 
     expect(result.ok).toBe(false);
-    expect(result.allowed).toEqual([]);
     expect(result.unexpected).toEqual(['invalid-audit-report']);
   });
 });
