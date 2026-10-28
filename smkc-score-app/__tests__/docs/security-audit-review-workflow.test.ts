@@ -162,7 +162,7 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('期限超過後を負数');
   });
 
-  it('always publishes read-only review evidence, source revision, exception identity, dependency versions, and both Prisma probes', () => {
+  it('always publishes read-only review evidence, source revision, dependency versions, and the Prisma probes', () => {
     const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
 
     expect(summaryStep?.if).toBe('always()');
@@ -170,18 +170,6 @@ describe('manual security audit review workflow', () => {
       REVIEW_REF: '${{ github.ref }}',
       REVIEW_SHA: '${{ github.sha }}',
       LOCKFILE_PREFLIGHT_OUTCOME: '${{ steps.lockfile_preflight.outcome }}',
-      EXCEPTION_STATUS_OUTCOME: '${{ steps.exception_status.outcome }}',
-      EXCEPTION_STATUS_STATE: '${{ steps.exception_status.outputs.state }}',
-      EXCEPTION_TRACKING_ISSUE: '${{ steps.exception_status.outputs.tracking_issue }}',
-      EXCEPTION_ADVISORY: '${{ steps.exception_status.outputs.advisory }}',
-      EXCEPTION_ADVISORY_RANGE: '${{ steps.exception_status.outputs.advisory_range }}',
-      EXCEPTION_CHECKED_AT: '${{ steps.exception_status.outputs.checked_at }}',
-      EXCEPTION_REVIEW_DEADLINE: '${{ steps.exception_status.outputs.deadline }}',
-      EXCEPTION_DAYS_UNTIL_DEADLINE: '${{ steps.exception_status.outputs.days_until_deadline }}',
-      PRISMA_VERSION: '${{ steps.exception_status.outputs.prisma_version }}',
-      PRISMA_CONFIG_VERSION: '${{ steps.exception_status.outputs.prisma_config_version }}',
-      PRISMA_CONFIG_DEEPMERGE_REQUIREMENT: '${{ steps.exception_status.outputs.prisma_config_deepmerge_requirement }}',
-      DEEPMERGE_TS_VERSION: '${{ steps.exception_status.outputs.deepmerge_ts_version }}',
       CANONICAL_AUDIT_OUTCOME: '${{ steps.canonical_audit.outcome }}',
       COMPATIBLE_UPSTREAM_OUTCOME: '${{ steps.compatible_upstream.outcome }}',
       COMPATIBLE_UPSTREAM_STATE: '${{ steps.compatible_upstream.outputs.state }}',
@@ -232,20 +220,6 @@ describe('manual security audit review workflow', () => {
     expect(summaryStep?.run).toContain('REVIEW_REF');
     expect(summaryStep?.run).toContain('Review commit');
     expect(summaryStep?.run).toContain('REVIEW_SHA');
-    expect(summaryStep?.run).toContain('Tracking issue');
-    expect(summaryStep?.run).toContain('Tracked advisory');
-    expect(summaryStep?.run).toContain('EXCEPTION_TRACKING_ISSUE');
-    expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY');
-    expect(summaryStep?.run).toContain('EXCEPTION_ADVISORY_RANGE');
-    expect(summaryStep?.run).toContain('Temporary exception state');
-    expect(summaryStep?.run).toContain('Status checked at');
-    expect(summaryStep?.run).toContain('Review deadline');
-    expect(summaryStep?.run).toContain('Days until review deadline');
-    expect(summaryStep?.run).toContain('Tracked evidence');
-    expect(summaryStep?.run).toContain('PRISMA_VERSION');
-    expect(summaryStep?.run).toContain('PRISMA_CONFIG_VERSION');
-    expect(summaryStep?.run).toContain('PRISMA_CONFIG_DEEPMERGE_REQUIREMENT');
-    expect(summaryStep?.run).toContain('DEEPMERGE_TS_VERSION');
     expect(summaryStep?.run).toContain('Compatible Prisma release probe');
     expect(summaryStep?.run).toContain('COMPATIBLE_UPSTREAM_STATE');
     expect(summaryStep?.run).toContain('LATEST_COMPATIBLE_PRISMA_VERSION');
