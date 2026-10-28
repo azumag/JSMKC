@@ -18,6 +18,6 @@ upstream の修正確認や再レビュー期限前の再評価を、アプリ�
 
 ## 更新手順
 
-npm を更新するときは、単に version を上げず、候補版で `npm ci` と `node scripts/security-audit-lockfile.js && node scripts/security-audit-status.js && node scripts/security-audit.js` を実行し、runtime version guard と audit report shape / exit status の検証が引き続き成立することを確認する。必要なら security-audit helper と policy を同じ PR で更新する。
+npm を更新するときは、単に version を上げず、候補版で `npm ci` と `node scripts/security-audit-lockfile.js && node scripts/security-audit.js` を実行し、runtime version guard と audit report shape / exit status の検証が引き続き成立することを確認する。必要なら security-audit helper と policy を同じ PR で更新する。
 
 確認後、`package.json` の `packageManager` と CI / nightly E2E / D1 migration workflow の Pin npm step を同じ version に更新し、lint、format、unit tests、security audit、Cloudflare build を通す。D1 workflow を変更する場合は上記の production merge gate も満たす。npm の変更だけを理由に #3114 の high/critical gate や temporary exception 条件を緩めない。
