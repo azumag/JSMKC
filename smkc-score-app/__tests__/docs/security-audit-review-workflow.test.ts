@@ -142,13 +142,11 @@ describe('manual security audit review workflow', () => {
     expect(steps.indexOf(summaryStep as WorkflowStep)).toBeLessThan(steps.indexOf(gateStep as WorkflowStep));
   });
 
-  it('documents the self-describing exception identity, source revision, deadline distance, dependency edge outputs, and compatible upstream probe', () => {
+  it('documents the source revision, dependency edge outputs, and compatible upstream probe without the removed exception outputs', () => {
+    expect(runbook).not.toContain('security-audit-status');
+    expect(runbook).not.toContain('days_until_deadline');
     expect(runbook).toContain('Review ref');
     expect(runbook).toContain('Review commit');
-    expect(runbook).toContain('`tracking_issue`');
-    expect(runbook).toContain('`advisory`');
-    expect(runbook).toContain('`advisory_range`');
-    expect(runbook).toContain('`days_until_deadline`');
     expect(runbook).toContain('`prisma_config_deepmerge_requirement`');
     expect(runbook).toContain('`prisma_config_selector`');
     expect(runbook).toContain('`latest_compatible_prisma_config_version`');
@@ -157,9 +155,6 @@ describe('manual security audit review workflow', () => {
     expect(runbook).toContain('compatible upstream gate');
     expect(runbook).toContain('`npm ci` は実行しません');
     expect(runbook).toContain('`--ignore-scripts --no-audit --no-fund`');
-    expect(runbook).toContain('期限前を正数');
-    expect(runbook).toContain('期限当日を `0`');
-    expect(runbook).toContain('期限超過後を負数');
   });
 
   it('always publishes read-only review evidence, source revision, dependency versions, and the Prisma probes', () => {
