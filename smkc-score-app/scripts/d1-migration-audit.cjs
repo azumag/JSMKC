@@ -16,10 +16,17 @@ function meaningfulLines(output) {
     .filter(Boolean);
 }
 
+// wrangler 4.152.0+ prefixes the sentinel with a status glyph, e.g. "✅ No migrations to apply!".
+// Strip any leading non-alphanumeric decoration (emoji/symbols/whitespace) before comparing so the
+// sentinel match stays robust to wrangler's output formatting changes.
+function stripLeadingDecoration(line) {
+  return line.replace(/^[^\p{L}\p{N}]+/u, '');
+}
+
 function classifyNoPendingMigrations(output) {
   const lines = meaningfulLines(output);
 
-  if (lines.includes(WRANGLER_NO_PENDING_SENTINEL)) {
+  if (lines.some((line) => stripLeadingDecoration(line) === WRANGLER_NO_PENDING_SENTINEL)) {
     return Object.freeze({ ok: true, format: 'wrangler-text' });
   }
 
