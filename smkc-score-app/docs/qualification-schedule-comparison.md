@@ -1,6 +1,6 @@
 # Circle / CDM qualification schedule comparison
 
-Issue #3054 で残っている「CDM方式のどこまでをTTへ適用するか」という仕様判断を、実際の大会データを変更せず確認するための比較情報です。
+Issue #3054 で検討した「CDM方式のどこまでをTTへ適用するか」という仕様判断（2026-10-30 決定済み: 13名以下はcircle維持）を、実際の大会データを変更せず確認するための比較情報です。決定後は不採用案の記録として残します。
 
 管理者向け診断 API `GET /api/tournaments/:id/qualification-schedule` は `smallGroupCdmComparisons` を返します。対象は、現行 policy では legacy circle のままだが低レベルの RR 2025 CDM fixture が存在する 7〜12 名です。13 名は対応 fixture がないため比較対象に含めません。
 

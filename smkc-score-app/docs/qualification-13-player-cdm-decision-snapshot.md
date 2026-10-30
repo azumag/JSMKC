@@ -72,7 +72,7 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 - `day-order-fidelity`: 推奨配置で 72 / 78 対戦の Day が変わるため、raw fixture の Day 順を不変条件とするか決める必要がある
 - `side-orientation-fidelity`: 推奨配置で 34 / 78 対戦の 1P/2P が反転するため、raw fixture の side orientation を不変条件とするか決める必要がある
 
-`pair-set-fidelity` は、比較した2配置で実対戦pair集合が異なる場合だけ追加されます。現在の13名候補では pair-set differences が0なので返りません。これにより、管理診断APIの利用側は個々の数値を再解釈せず、未決定のルール軸を安定した識別子として提示できます。
+`pair-set-fidelity` は、比較した2配置で実対戦pair集合が異なる場合だけ追加されます。現在の13名候補では pair-set differences が0なので返りません。これにより、管理診断APIの利用側は個々の数値を再解釈せず、ルール軸を安定した識別子として提示できます（各軸の結論は 2026-10-30 の仕様決定を参照）。
 
 管理者向け `GET /api/tournaments/:id/qualification-schedule` は `unsupportedCdmFixtureCandidateDecisions` を返します。現在の7〜21名policy matrixで該当するのは13名だけで、次の情報を同じレスポンスから確認できます。
 
@@ -96,3 +96,13 @@ Issue #3054 の 13 名ケースについて、既存の raw fixture impact と B
 BREAK配置に関する主要な判断材料は管理者向け qualification schedule diagnostics panel にも表示します。APIレスポンスを直接読まなくても、現行規約と推奨配置の BREAK slot、最大連続BREAK、最小BREAK間隔、BREAK-only Day、全探索件数を大会管理画面から確認できます。pair集合・Day shift・1P/2P反転数、同率公平性候補と `leastDisruptiveFairPlacement`、`blockingDecisions` の詳細は `unsupportedCdmFixtureCandidateDecisions` で確認できます。どちらも読み取り専用で、候補配置を採用したり対戦を再生成したりする操作は行いません。
 
 したがって、実装着手前に最低でも「CDMのseed-to-slot対応を固定するか」「休養配置の公平性を優先してBREAK slotを途中へ挿入してよいか」「Day順と1P/2P配置までCDM規約として固定するか」を大会ルールとして決める必要があります。本診断はその判断材料を一箇所へ集約するだけで、13名をCDM生成可能にはしません。
+
+## 仕様決定（2026-10-30、オーナー決定済み）
+
+Issue #3054 のヒアリングにより、上記の判断点は次の方針で確定しました。
+
+- **13名以下のTTグループは CDM fixture を有効化しない。** circle を維持するため、本スナップショットが示した `break-slot-placement` / `day-order-fidelity` / `side-orientation-fidelity` の3軸は採用候補が存在しないことで決着しました。
+- **既存・終了済みを含むすべての大会の対戦表・結果データは変更しない。** 方式変更が将来あっても新規セットアップのみが対象です。
+- 13名向けの BREAK 配置案（`[1,5,9]` および最小churn `[8,12,16]`）はいずれも不採用です。
+
+`blockingDecisions` を返す診断コードと管理画面の表示は、不採用候補の検討材料として読み取り専用のまま残します。13名CDMは引き続き unsupported であり、それが確定仕様です。

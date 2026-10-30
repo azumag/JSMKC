@@ -1,6 +1,6 @@
 # 13-player CDM raw fixture candidate impact
 
-Issue #3054 の 13 名ケースについて、現行 generator mapping を変更せず、raw RR 2025 fixture を使った場合の運用負荷だけを読み取り専用で数値化します。
+Issue #3054 の 13 名ケース（2026-10-30 に13名CDM不採用として決定済み）について、現行 generator mapping を変更せず、raw RR 2025 fixture を使った場合の運用負荷だけを読み取り専用で数値化します。決定後は不採用案の記録として残します。
 
 `analyzeUnsupportedCdmFixtureCandidate(playerCount)` は、現行 CDM generator が未対応の人数について、raw fixture 表から次に大きい fixture を探し、実選手を先頭 slot、残りを BREAK slot とみなして fixture 全体を分類します。既に generator 対応済みの人数、raw fixture が尽きる人数、不正な入力では `null` を返します。
 

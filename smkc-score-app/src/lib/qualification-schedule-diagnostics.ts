@@ -66,7 +66,7 @@ export interface QualificationScheduleDiagnosticsSummary {
  * Build a read-only view of the effective qualification scheduling policy for
  * each populated group. This intentionally reports the current policy without
  * changing tournament state, so operators can inspect the 13 -> 14 boundary
- * while Issue #3054 remains a pending tournament-rules decision.
+ * that Issue #3054 confirmed as decided policy on 2026-10-30.
  */
 export function buildQualificationScheduleDiagnostics(
   configuredMethod: QualificationScheduleMethod,
@@ -113,7 +113,7 @@ function getNearestLargerCdmFixtureCandidate(playerCount: number) {
 /**
  * Build a read-only policy matrix for the fixture-relevant 7..21 player range.
  * Unlike tournament diagnostics, this is independent of currently populated
- * groups and makes the pending #3054 boundary / BREAK trade-offs inspectable
+ * groups and makes the decided #3054 boundary / BREAK trade-offs inspectable
  * before operators change any tournament data.
  *
  * For sizes that have no current generator mapping, the matrix also reports
@@ -153,7 +153,7 @@ function sumCdmBreakSlotCount(groups: QualificationGroupDiagnostic[]) {
 
 /**
  * Summarize the read-only diagnostics into counts that help operators scope
- * the unresolved Issue #3054 decisions without changing tournament state.
+ * the impact of the decided Issue #3054 policy without changing tournament state.
  */
 export function summarizeQualificationScheduleDiagnostics(
   diagnostics: QualificationScheduleDiagnostics,

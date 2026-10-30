@@ -783,8 +783,8 @@ export interface CdmRoundRobinFixturePlan {
  * Some RR 2025 Start fixtures intentionally host fewer real players than
  * their nominal capacity by filling the remaining positions with BREAK slots.
  * Keeping this mapping next to the fixtures gives scheduling and diagnostics a
- * single source of truth while Issue #3054 is still deciding which sizes TT
- * should opt into CDM scheduling.
+ * single source of truth. Issue #3054 decided on 2026-10-30 that this mapping
+ * (14-20 players only) is the confirmed opt-in boundary for CDM scheduling.
  */
 export function getCdmRoundRobinFixturePlan(playerCount: number): CdmRoundRobinFixturePlan | null {
   let capacity: number | null = null;

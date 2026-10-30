@@ -1,6 +1,6 @@
 # Seed-level CDM 1P / 2P impact
 
-Issue #3054 の判断材料として、RR 2025 CDM fixture の固定 1P / 2P 向きをそのまま採用したとき、理論上避けられない最小偏りを超える seed position を記録する。
+Issue #3054 の判断材料として、RR 2025 CDM fixture の固定 1P / 2P 向きをそのまま採用したとき、理論上避けられない最小偏りを超える seed position を記録する（2026-10-30 に13名以下の CDM 化は不採用と決定済み。以下は不採用案の記録）。
 
 この情報は `buildLegacyCircleCdmScheduleComparisons()` の `cdmExcessSideImbalanceSeedPositions` から取得できる。比較は同じ seed 順の仮想選手 `P1..Pn` を使う読み取り専用診断であり、大会設定・対戦表・結果・保存済みデータは変更しない。
 

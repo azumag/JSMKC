@@ -18,7 +18,8 @@ import { resolveTournament } from '@/lib/tournament-identifier';
  *
  * This endpoint deliberately does not mutate tournament configuration. It is
  * intended to make Issue #3054's current 13 -> 14 policy boundary observable
- * to operators while the tournament-rules decision remains pending.
+ * to operators. The boundary is decided policy: Issue #3054 was resolved on
+ * 2026-10-30 to keep 13-or-fewer player groups on circle.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const logger = createLogger('qualification-schedule-diagnostics-api');
