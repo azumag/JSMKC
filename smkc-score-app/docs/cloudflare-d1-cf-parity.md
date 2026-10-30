@@ -5,8 +5,8 @@ Issue [#4201](https://github.com/azumag/JSMKC/issues/4201) moves Cloudflare oper
 surfaces, so a later slice can switch a command only where parity is written down here and a
 reviewer can re-run the same checks.
 
-Nothing in this document changes production behaviour: no package script, workflow, binding, or
-Cloudflare setting was switched. All four surfaces below still run on Wrangler.
+Nothing in this document changes production behaviour: no package script, workflow command,
+binding, or Cloudflare setting was switched. All four surfaces below still run on Wrangler.
 
 ## Verification method
 
@@ -28,7 +28,7 @@ database.
 
 | Surface                                                           | cf equivalent                                                                      | Verdict           | Blocking reasons                                                                                     |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `d1-migrations-list` — D1 migration list (production / preview)   | `cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql`                   | keep Wrangler     | `remote-unverified`, `audit-sentinel-shape`, `local-mode-hang`                                       |
+| `d1-migrations-list` — D1 migration list (production / preview)   | `cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql`                   | keep Wrangler     | `remote-unverified`, `local-mode-hang`                                                               |
 | `d1-migrations-apply` — D1 migration apply (production / preview) | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler     | `interactive-confirm-fail-open`, `remote-unverified`, `local-mode-hang`                              |
 | `d1-export` — D1 export / operational SQL dump                    | (none)                                                                             | unsupported in cf | `no-cf-equivalent`                                                                                   |
 | `preview-schema-preflight` — preview D1 schema preflight          | `cf d1 query <DATABASE_ID> --sql <SQL>`                                            | keep Wrangler     | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
@@ -43,10 +43,12 @@ database.
   `wrangler d1 migrations list DB --local` over the same directory. Output is a JSON array of
   `{"Name":"<file>"}` objects, and the empty state prints `[]` with exit 0 — Wrangler instead
   prints `No migrations to apply!`;
+- the production migration workflow now sends captured list output through
+  `scripts/d1-migration-audit.cjs`. That fail-closed parser accepts either the exact Wrangler
+  no-pending sentinel or a final cf empty list `[]`; non-empty JSON, unknown output, and an empty
+  stream are rejected. The operational list command itself remains Wrangler;
 - blocked by: `remote-unverified` (the JSON and exit-code behaviour above were only observed in
-  local mode), `audit-sentinel-shape` (`.github/workflows/d1-migrate.yml` greps the Wrangler text
-  sentinel, so the audit step has to be rewritten before the list command can change), and
-  `local-mode-hang`.
+  local mode) and `local-mode-hang`.
 
 ### `d1-migrations-apply`
 
@@ -102,12 +104,11 @@ Every fallback below is one of these ids. The list is the same data
 
 - `remote-unverified` — no credentialed remote run has compared cf against Wrangler for this surface; only offline/local evidence exists
 - `local-mode-hang` — cf local mode printed its result and then failed to exit on one run of `cf d1 migrations list --local` (killed by a timeout), so a switch needs an explicit timeout guard
-- `audit-sentinel-shape` — `.github/workflows/d1-migrate.yml` greps the Wrangler text output for "No migrations to apply!"; cf prints `[]` for the same state, so the audit step must be rewritten and re-verified remotely first
 - `interactive-confirm-fail-open` — cf apply answers its own "About to apply N migration(s) ... continue?" prompt with yes in a non-interactive context; `wrangler d1 migrations apply` has no prompt, so switching without a guard drops that confirmation step
 - `no-cf-equivalent` — cf v1.0.0-beta.12 has no `d1 export`/`d1 import` command, so the Wrangler operational command is the only path
 - `output-shape-differs` — the preview preflight parses `wrangler d1 execute --json` output; `cf d1 query` documents no `--json` flag and returns the D1 HTTP query API result instead
 - `no-local-verification-path` — `cf d1 query --local` fails closed ("This command has no local equivalent"), so this surface cannot be verified without Cloudflare credentials
-- `auth-error-text-differs` — the preflight keys its fail-open auth/log detection on Wrangler-specific text (CLOUDFLARE_API_TOKEN / non-interactive / code 7403); cf reports a boxed APIError, so detection would stop matching
+- `auth-error-text-differs` — the preview preflight keys its fail-open auth/log detection on Wrangler-specific text (CLOUDFLARE_API_TOKEN / non-interactive / code 7403); cf reports a boxed APIError, so detection would stop matching
 
 ## Findings
 
@@ -123,9 +124,12 @@ listed only the nested files and none of the flat ones. A plan therefore states 
 explicitly (`migrations/*.sql`) instead of relying on whatever the current default is.
 `scripts/cloudflare-d1-migration-plan.cjs` pins it in every list/apply plan.
 
-F3. The migration audit in `.github/workflows/d1-migrate.yml` keys on Wrangler's text sentinel
-(`No migrations to apply!`). cf prints `[]`. The audit must be rewritten to parse cf's JSON output
-and re-verified against the real database before the list command changes.
+F3. The migration audit is no longer coupled to Wrangler's text-only no-pending sentinel.
+`.github/workflows/d1-migrate.yml` captures the operational list output and passes it to
+`scripts/d1-migration-audit.cjs`; the parser accepts either the exact Wrangler sentinel or cf's
+empty JSON list `[]` and fails closed for every other shape. This removes the previous
+`audit-sentinel-shape` compatibility blocker without changing the command that runs against D1.
+A later cf switch still needs a credentialed remote verification of cf's output and exit status.
 
 F4. cf's apply confirms interactively and defaults to yes when it is not attached to a TTY. The
 current Wrangler command does not prompt, so a switch must either keep an explicit confirmation in
