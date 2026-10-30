@@ -32,7 +32,10 @@ cf d1 migrations list <database-id>
 `),
     ).toEqual({ ok: true, format: 'cf-json-empty' });
 
-    expect(classifyNoPendingMigrations(`[]\nAPI error after result`)).toEqual({ ok: false, format: null });
+    expect(classifyNoPendingMigrations(`[]\nAPI error after result`)).toEqual({
+      ok: false,
+      format: null,
+    });
   });
 
   it('accepts ANSI-decorated output from either tool', () => {
@@ -47,7 +50,10 @@ cf d1 migrations list <database-id>
   });
 
   it('rejects a non-empty cf migration list', () => {
-    expect(classifyNoPendingMigrations('[{"Name":"0044_pending.sql"}]')).toEqual({ ok: false, format: null });
+    expect(classifyNoPendingMigrations('[{"Name":"0044_pending.sql"}]')).toEqual({
+      ok: false,
+      format: null,
+    });
     expect(() => assertNoPendingMigrations('[{"Name":"0044_pending.sql"}]')).toThrow(
       'D1 migrations may remain unapplied',
     );
