@@ -15,3 +15,6 @@ ARCH.md
 profile.tar.gz
 profile.base64
 playwright-smkc-preview-profile/
+
+# cf CLI local state/cache artifacts
+.cloudflare/

@@ -258,7 +258,7 @@ export function QualificationScheduleDiagnosticsPanel({
             Circle → CDM impact (7–12 players)
           </h3>
           <p className="text-xs text-muted-foreground">
-            Same-seed read-only comparison for the small-group fixtures available to the pending #3054 decision.
+            Same-seed read-only comparison for the small-group fixtures evaluated in the resolved #3054 decision.
           </p>
         </div>
         <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">

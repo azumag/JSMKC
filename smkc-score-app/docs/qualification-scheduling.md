@@ -23,7 +23,7 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 - `cdm-small-group-legacy-circle`: CDM-first大会だが13名以下なので現行policyによりcircle
 - `cdm-requested`: 14名以上なのでCDM生成を要求する。21名以上などfixture未対応人数は後段で明示エラー
 
-一方、低レベルの `generateRoundRobinSchedule(..., { method: 'cdm' })` 自体は RR 2025 Start の fixture に合わせて 7〜12名にも対応しています。つまり「fixtureが存在する人数」と「大会運用上CDMを選択する人数」は同じではありません。この差は意図的なpolicy境界として扱い、Issue #3054 の仕様決定なしに変更しません。
+一方、低レベルの `generateRoundRobinSchedule(..., { method: 'cdm' })` 自体は RR 2025 Start の fixture に合わせて 7〜12名にも対応しています。つまり「fixtureが存在する人数」と「大会運用上CDMを選択する人数」は同じではありません。この差は意図的なpolicy境界として扱い、Issue #3054 の仕様決定（2026-10-30）で確定した境界です。
 
 ## 管理者向け診断API / UI
 
@@ -42,7 +42,7 @@ Issue #3054 の仕様検討で、既存実装と「TTでもCDM方式を使う」
 
 レスポンスには `modes` と同じ診断データから計算した `summary` も含まれます。管理UIと同じ `Legacy circle` / CDM fixture readiness / BREAK / generation blocked の件数をAPI利用側でも再計算せず参照できるため、#3054 の仕様判断対象を運用ツールから機械的に集計できます。`legacyCirclePlayerCount` は現行policyでlegacy circleとなるグループに所属する選手数の合計で、グループ件数だけでは見えにくい実際の影響人数を示します。`legacyCircleCdmReadyPlayerCount` はそのうち現行のCDM fixtureだけで収容できる選手数、`legacyCircleCdmUnavailablePlayerCount` は対応fixtureがなく追加fixtureまたは別方針が必要な選手数です。`legacyCircleCdmBreakSlotCount` はCDM-readyなlegacy circleを既存fixtureへ移した場合に必要になるBREAK slot数の合計で、BREAK運用を採用した場合の追加枠負担を直接示します。`legacyCircleSizeBreakdown` は legacy circle を実人数ごとにまとめ、`playerCount` / `groupCount` / `cdmFixtureCapacity` / `cdmBreakSlotCount` を返します。同じ人数のグループがBM / MR / GPをまたいで存在する場合も1つのbucketへ集約されるため、どの人数帯をCDMへ移行すると何グループへ影響し、BREAKや追加fixtureが必要になるかを直接把握できます。`legacyCircleModeBreakdown` は同じlegacy circleをBM / MR / GPごとにまとめ、各モードの対象グループ数・対象選手数に加えて、現行fixtureで切り替え可能なグループ数と選手数、exact-fit、BREAK必要、必要BREAK slot合計、fixture未対応のグループ数と選手数を返します。これにより、人数帯だけでなく競技モード単位でも仕様変更の影響範囲を確認できます。
 
-このAPIは大会設定・予選レコード・対戦表を変更しません。#3054 の仕様確定前でも、実大会が13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
+このAPIは大会設定・予選レコード・対戦表を変更しません。実大会が確定済みの13→14境界のどちら側にいるかを運営・デバッグ時に確認できます。
 
 同じ情報は管理者用の `/tournaments/:id/cdm-archive-reconcile` 画面にも読み取り専用で表示されます。BM / MR / GP ごとに各グループの人数、保存された方式（Configured）、実際に適用される方式（Effective）、判定理由に加え、CDMへ切り替えた場合のfixture容量とBREAK slot数を確認できます。現在の実効方式がCDMなのに対応fixtureがない場合は、対戦表生成がサポートされていない状態として警告も表示します。とくに `Configured: CDM · Effective: CIRCLE` のような表示により、13名以下のCDM-first大会が現在の互換policyでcircleへ解決されていることを設定変更と取り違えず確認できます。表示によって大会設定や対戦表が変更されることはありません。
 
@@ -76,17 +76,17 @@ CDM fixture preview の対応は現在次の通りです。
 - fixture容量より実選手が少ない場合はBREAK slotで埋める。
 - 対応外の人数を暗黙にcircleへ切り替えず、必要な場合は明示エラーにする。
 
-## Issue #3054 で残っている仕様判断
+## Issue #3054 の仕様判断（2026-10-30 決定済み）
 
-「TTグループステージをCDM方式にする」を実装する前に、少なくとも次を明示する必要があります。
+「TTグループステージをCDM方式にする」仕様判断は、オーナーによって次の通り決定されました。
 
-1. 13名以下のTTグループも、利用可能な7/8/10/12人fixtureへ切り替えるのか。
-2. 「CDM方式」とは固定の対戦カード順だけを指すのか、それともシード位置・Day順・1P/2P配置まで完全一致させるのか。
-3. 既存の `circle` 大会を変更するのか、新規セットアップだけを対象にするのか。
-4. fixture容量と実人数が異なる場合（7→8、9→10、11→12、14/15→16、17→18、19→20）のBREAK配置をTTでもそのまま採用するのか。
+1. **13名以下のTTグループは CDM fixture へ切り替えない。** 利用可能な7/8/10/12人fixtureがあっても、13名以下は現行どおり circle を使い続けます。CDM fixture が適用されるのは現行 policy どおり 14〜20名のみです。
+2. 「CDM方式」の忠実度（シード位置・Day順・1P/2P配置の完全一致）は、13名以下への拡大を行わない決定により検討対象外になりました。既存の 14〜20名 CDM fixture は現行挙動を維持します。
+3. **既存の `circle` 大会は変更しません。** 新規セットアップのみが将来の方式変更の対象であり、**終了済みを含む既存大会の対戦表・結果データは絶対に変更しません。**
+4. 13名向けのBREAK配置（16-slot fixture + 3 BREAK）は不採用です。既存 14〜20名 fixture のBREAK配置は現行挙動を維持します。
 
-これらは大会結果や運営手順に影響するため、推測で変更しません。
+これらは大会結果や運営手順に影響するため、決定なしに推測で変更しません。決定の結果、現行の policy 境界（13→14）が確定仕様となり、13名CDM有効化・既存大会への遡及は行いません。`blockingDecisions` を返す診断面は、不採用となった候補の判断材料として引き続き読み取り専用で残ります。
 
 ## 回帰テスト
 
-`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果、明示的なcircle設定の維持、#3054 の判断対象グループと対象選手数を集計するsummary、legacy circleのうち現在のCDM fixtureだけで切り替え可能なグループと選手をBREAK不要・BREAK必要・fixture未対応に分けた内訳、既存fixtureへ切り替えた場合のBREAK slot合計、BM / MR / GPをまたぐ同一人数を人数別bucketへ集約すること、および競技モード別bucketへ対象選手数・CDM-ready選手数・fixture未対応選手数・exact-fit / BREAK必要 / fixture未対応の件数とBREAK slot合計を集約することを検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIが保存された方式と実効方式の差、circle/CDMの実効方式、判定理由、判断用summaryとlegacy circleのCDM/BREAK readiness内訳、対象選手数、CDM-ready / fixture未対応の選手数、BREAK slot合計、人数別・モード別breakdown、未対応CDM requestの警告、空モードを表示することを確認します。Issue #3054 の要件確定後は、まずpolicyテストの期待値を仕様に合わせて更新し、その後にpolicy・E2Eを変更します。
+`__tests__/lib/qualification-schedule-policy.test.ts` で現在の境界と判定理由を独立して固定しています。`__tests__/lib/qualification-schedule-diagnostics.test.ts` では複数モード・複数グループをまとめた診断結果、明示的なcircle設定の維持、#3054 の判断対象グループと対象選手数を集計するsummary、legacy circleのうち現在のCDM fixtureだけで切り替え可能なグループと選手をBREAK不要・BREAK必要・fixture未対応に分けた内訳、既存fixtureへ切り替えた場合のBREAK slot合計、BM / MR / GPをまたぐ同一人数を人数別bucketへ集約すること、および競技モード別bucketへ対象選手数・CDM-ready選手数・fixture未対応選手数・exact-fit / BREAK必要 / fixture未対応の件数とBREAK slot合計を集約することを検証します。`__tests__/components/tournament/qualification-schedule-diagnostics-panel.test.tsx` では管理UIが保存された方式と実効方式の差、circle/CDMの実効方式、判定理由、判断用summaryとlegacy circleのCDM/BREAK readiness内訳、対象選手数、CDM-ready / fixture未対応の選手数、BREAK slot合計、人数別・モード別breakdown、未対応CDM requestの警告、空モードを表示することを確認します。Issue #3054 の要件は「13名以下はcircle維持・既存大会は変更しない」に確定したため、policyテストの期待値・実装・E2E の変更は不要です。既存の回帰テストが確定済みの 13→14 境界をそのまま固定します。

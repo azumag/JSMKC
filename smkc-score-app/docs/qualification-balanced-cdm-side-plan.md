@@ -1,6 +1,6 @@
 # Balanced-side CDM override plan
 
-Issue #3054 では、7〜12名の legacy circle グループについて、RR 2025 CDM fixture の対戦カードと Day/BREAK 配置を維持しつつ、1P/2P の向きだけ現行 circle と同じ均衡配置へ置き換える案を検討しています。
+Issue #3054 では、7〜12名の legacy circle グループについて、RR 2025 CDM fixture の対戦カードと Day/BREAK 配置を維持しつつ、1P/2P の向きだけ現行 circle と同じ均衡配置へ置き換える案を検討しました（2026-10-30 に13名以下の CDM 化は不採用と決定済み。以下は不採用案の記録です）。
 
 `buildBalancedCdmSidePreviewSchedule(playerIds)` はこの hybrid を `RoundRobinSchedule` としてメモリ上に生成できます。`buildBalancedCdmSideOverridePlan(playerIds)` は、その preview を固定 CDM fixture から作るために必要な 1P/2P 反転だけを、fixture 順の差分リストとして返します。
 

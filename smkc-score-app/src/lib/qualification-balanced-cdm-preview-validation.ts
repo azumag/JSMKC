@@ -43,7 +43,7 @@ function sameStringArray(left: readonly string[], right: readonly string[]) {
  * intentionally combines: CDM owns Day/BREAK placement while circle owns the
  * 1P/2P orientation for every real pair.
  *
- * This is a guardrail for the pending #3054 decision. It does not persist or
+ * This was a guardrail for the #3054 decision (resolved 2026-10-30). It does not persist or
  * select a qualification schedule. null means no compatible preview can be
  * built for the supplied player count/pair set.
  */
