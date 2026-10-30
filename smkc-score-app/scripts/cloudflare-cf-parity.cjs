@@ -23,8 +23,6 @@ const BLOCKING_REASONS = Object.freeze({
     'no credentialed remote run has compared cf against Wrangler for this surface; only offline/local evidence exists',
   'local-mode-hang':
     'cf local mode printed its result and then failed to exit on one run of `cf d1 migrations list --local` (killed by a timeout), so a switch needs an explicit timeout guard',
-  'audit-sentinel-shape':
-    '`.github/workflows/d1-migrate.yml` greps the Wrangler text output for "No migrations to apply!"; cf prints `[]` for the same state, so the audit step must be rewritten and re-verified remotely first',
   'interactive-confirm-fail-open':
     'cf apply answers its own "About to apply N migration(s) ... continue?" prompt with yes in a non-interactive context; `wrangler d1 migrations apply` has no prompt, so switching without a guard drops that confirmation step',
   'no-cf-equivalent':
@@ -34,7 +32,7 @@ const BLOCKING_REASONS = Object.freeze({
   'no-local-verification-path':
     '`cf d1 query --local` fails closed ("This command has no local equivalent"), so this surface cannot be verified without Cloudflare credentials',
   'auth-error-text-differs':
-    'the preflight keys its fail-open auth/log detection on Wrangler-specific text (CLOUDFLARE_API_TOKEN / non-interactive / code 7403); cf reports a boxed APIError, so detection would stop matching',
+    'the preview preflight keys its fail-open auth/log detection on Wrangler-specific text (CLOUDFLARE_API_TOKEN / non-interactive / code 7403); cf reports a boxed APIError, so detection would stop matching',
 });
 
 const PARITY_SURFACES = Object.freeze([
@@ -47,14 +45,16 @@ const PARITY_SURFACES = Object.freeze([
     requiredFlags: Object.freeze(['--dir', '--pattern', '--table']),
     absentFlags: Object.freeze([]),
     verdict: 'keep-wrangler',
-    blockingReasons: Object.freeze(['remote-unverified', 'audit-sentinel-shape', 'local-mode-hang']),
+    blockingReasons: Object.freeze(['remote-unverified', 'local-mode-hang']),
     evidence: Object.freeze([
       'cf d1 migrations list <DATABASE_ID> --local --dir migrations --pattern "migrations/*.sql"',
       'cf d1 migrations list <DATABASE_ID> --local --dir migrations (default pattern)',
+      'node scripts/d1-migration-audit.cjs (captured Wrangler/cf no-pending output)',
     ]),
     observed: Object.freeze([
       'the pinned pattern and the tool default both listed the same 46 files, matching `wrangler d1 migrations list DB --local` on the same directory',
       'output is a JSON array of {"Name":"<file>"}; the empty state prints `[]` (exit 0) where Wrangler prints "No migrations to apply!"',
+      'the production migration audit now delegates output parsing to scripts/d1-migration-audit.cjs, which accepts the exact Wrangler sentinel or a final cf empty list `[]` and fails closed otherwise',
       'nested files such as migrations/0005_add_public_modes/migration.sql are not discovered by either tool default',
     ]),
   }),
