@@ -9,6 +9,11 @@ function stripAnsi(value) {
   return String(value || '').replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '');
 }
 
+// Wrangler prefixes status lines with decorative glyphs (e.g. "✅ No migrations to apply!").
+function stripLeadingDecoration(line) {
+  return line.replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F\u200D\s]+/u, '');
+}
+
 function meaningfulLines(output) {
   return stripAnsi(output)
     .split(/\r?\n/)
@@ -19,7 +24,7 @@ function meaningfulLines(output) {
 function classifyNoPendingMigrations(output) {
   const lines = meaningfulLines(output);
 
-  if (lines.includes(WRANGLER_NO_PENDING_SENTINEL)) {
+  if (lines.some((line) => stripLeadingDecoration(line) === WRANGLER_NO_PENDING_SENTINEL)) {
     return Object.freeze({ ok: true, format: 'wrangler-text' });
   }
 

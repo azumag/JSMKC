@@ -24,6 +24,26 @@ No migrations to apply!
     ).toEqual({ ok: true, format: 'wrangler-text' });
   });
 
+  it('accepts the Wrangler sentinel when it carries a leading status emoji', () => {
+    expect(
+      classifyNoPendingMigrations(`
+ wrangler 4.152.0
+✅ No migrations to apply!
+`),
+    ).toEqual({ ok: true, format: 'wrangler-text' });
+    expect(classifyNoPendingMigrations('✅ No migrations to apply!')).toEqual({
+      ok: true,
+      format: 'wrangler-text',
+    });
+  });
+
+  it('rejects the sentinel when it is not a whole line', () => {
+    expect(classifyNoPendingMigrations('Error: No migrations to apply! please retry')).toEqual({
+      ok: false,
+      format: null,
+    });
+  });
+
   it('accepts cf empty JSON only when it is the final meaningful line', () => {
     expect(
       classifyNoPendingMigrations(`
