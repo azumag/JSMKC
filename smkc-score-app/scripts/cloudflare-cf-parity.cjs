@@ -40,7 +40,7 @@ const PARITY_SURFACES = Object.freeze([
     key: 'd1-migrations-list',
     label: 'D1 migration list (production / preview)',
     wranglerCommand: 'wrangler d1 migrations list DB --remote [--env preview]',
-    cfCommand: 'cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql',
+    cfCommand: 'cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql',
     helpArgs: Object.freeze(['d1', 'migrations', 'list', '--help']),
     requiredFlags: Object.freeze(['--dir', '--pattern', '--table']),
     absentFlags: Object.freeze([]),

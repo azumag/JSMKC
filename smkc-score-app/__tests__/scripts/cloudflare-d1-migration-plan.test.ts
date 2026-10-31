@@ -47,7 +47,16 @@ describe('cloudflare D1 migration command planner', () => {
   it('plans a production list command against the explicit production database ID', () => {
     expect(planD1Migration(source, 'production', 'list')).toEqual({
       command: 'cf',
-      args: ['d1', 'migrations', 'list', '11111111-1111-1111-1111-111111111111', '--pattern', 'migrations/*.sql'],
+      args: [
+        'd1',
+        'migrations',
+        'list',
+        '11111111-1111-1111-1111-111111111111',
+        '--dir',
+        'migrations',
+        '--pattern',
+        'migrations/*.sql',
+      ],
       environment: 'production',
       operation: 'list',
       databaseId: '11111111-1111-1111-1111-111111111111',
@@ -82,6 +91,15 @@ describe('cloudflare D1 migration command planner', () => {
       const plan = planD1Migration(source, 'production', operation);
       expect(plan.pattern).toBe('migrations/*.sql');
       expect(plan.args.slice(-2)).toEqual(['--pattern', 'migrations/*.sql']);
+    }
+  });
+
+  it('always pairs --pattern with --dir so cf does not reject the list or apply shape', () => {
+    for (const operation of ['list', 'apply'] as const) {
+      const { args, migrationsDir } = planD1Migration(source, 'preview', operation);
+      const patternIndex = args.indexOf('--pattern');
+      expect(patternIndex).toBeGreaterThan(-1);
+      expect(args.slice(patternIndex - 2, patternIndex)).toEqual(['--dir', migrationsDir]);
     }
   });
 
