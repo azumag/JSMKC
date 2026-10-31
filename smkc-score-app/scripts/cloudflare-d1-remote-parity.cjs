@@ -99,19 +99,17 @@ function validateTimeout(value, name) {
   if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
 }
 
-function runWranglerPreviewList(
-  {
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    killGraceMs = DEFAULT_KILL_GRACE_MS,
-    cwd = process.cwd(),
-    env = process.env,
-    spawnImpl = spawn,
-    terminateImpl = terminateProcessTree,
-    setTimeoutImpl = setTimeout,
-    clearTimeoutImpl = clearTimeout,
-    platform = process.platform,
-  } = {},
-) {
+function runWranglerPreviewList({
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  killGraceMs = DEFAULT_KILL_GRACE_MS,
+  cwd = process.cwd(),
+  env = process.env,
+  spawnImpl = spawn,
+  terminateImpl = terminateProcessTree,
+  setTimeoutImpl = setTimeout,
+  clearTimeoutImpl = clearTimeout,
+  platform = process.platform,
+} = {}) {
   validateTimeout(timeoutMs, 'timeoutMs');
   validateTimeout(killGraceMs, 'killGraceMs');
 
@@ -191,7 +189,13 @@ function summarizeFailure(tool, result) {
   return `${tool} preview migration list failed${parts.length ? `: ${parts.join('; ')}` : ''}`;
 }
 
-async function runPreviewParity({ source, env = process.env, timeoutMs = DEFAULT_TIMEOUT_MS, cfRunner, wranglerRunner } = {}) {
+async function runPreviewParity({
+  source,
+  env = process.env,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  cfRunner,
+  wranglerRunner,
+} = {}) {
   if (typeof source !== 'string') throw new Error('wrangler config source is required');
   assertCredentials(env);
   validateTimeout(timeoutMs, 'timeoutMs');
