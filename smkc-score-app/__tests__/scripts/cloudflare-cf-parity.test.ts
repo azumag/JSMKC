@@ -126,7 +126,8 @@ describe('cloudflare cf parity record', () => {
     }
   });
 
-  it('parses the pinned cf version banner and rejects unknown text', () => {
+  it('parses both modern bare and older branded cf version output', () => {
+    expect(parseCfVersion('1.0.0-beta.24\n')).toBe(VERIFIED_TOOLS.cf);
     expect(parseCfVersion('🍊☁️  cf · v1.0.0-beta.24\n─────────────────────────')).toBe(VERIFIED_TOOLS.cf);
     expect(parseCfVersion('command not found')).toBeNull();
   });
