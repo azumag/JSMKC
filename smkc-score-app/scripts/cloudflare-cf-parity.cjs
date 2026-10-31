@@ -40,7 +40,7 @@ const PARITY_SURFACES = Object.freeze([
     key: 'd1-migrations-list',
     label: 'D1 migration list (production / preview)',
     wranglerCommand: 'wrangler d1 migrations list DB --remote [--env preview]',
-    cfCommand: 'cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql',
+    cfCommand: 'cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql',
     helpArgs: Object.freeze(['d1', 'migrations', 'list', '--help']),
     requiredFlags: Object.freeze(['--dir', '--pattern', '--table']),
     absentFlags: Object.freeze([]),
@@ -54,6 +54,7 @@ const PARITY_SURFACES = Object.freeze([
     ]),
     observed: Object.freeze([
       'the pinned pattern and the tool default listed the same migration set as Wrangler in local verification',
+      'cf v1.0.0-beta.24 rejects --pattern unless --dir is also explicit; the repository-owned plan therefore pins both values for list and apply',
       'output is a JSON array of {"Name":"<file>"}; the empty state prints `[]` (exit 0) where Wrangler prints "No migrations to apply!"',
       'the production migration audit delegates output parsing to scripts/d1-migration-audit.cjs, which accepts the exact Wrangler sentinel or a final cf empty list `[]` and fails closed otherwise',
       'PR #4243 added a mandatory-timeout repository-owned cf runner, so the previously observed local-mode hang is now an execution requirement rather than a switch blocker',
