@@ -237,9 +237,7 @@ describe('Cloudflare cf command runner', () => {
   });
 
   it('fails closed for a tampered command or argument vector', () => {
-    expect(() => validateCfPlan({ ...makePlan(), command: 'sh' as 'cf' })).toThrow(
-      'plan.command must be exactly "cf"',
-    );
+    expect(() => validateCfPlan({ ...makePlan(), command: 'sh' as 'cf' })).toThrow('plan.command must be exactly "cf"');
     expect(() => validateCfPlan({ ...makePlan(), args: ['d1', 'delete', 'everything'] })).toThrow(
       'plan.args does not match the repository-owned D1 migration command shape',
     );
