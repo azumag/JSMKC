@@ -62,9 +62,16 @@ const { runCfPlan, terminateProcessTree, validateCfPlan } = jest.requireActual(
 
 function makePlan(operation: 'list' | 'apply' = 'list'): CfPlan {
   const databaseId = '22222222-2222-2222-2222-222222222222';
-  const args = ['d1', 'migrations', operation, databaseId];
-  if (operation === 'apply') args.push('--dir', 'migrations');
-  args.push('--pattern', 'migrations/*.sql');
+  const args = [
+    'd1',
+    'migrations',
+    operation,
+    databaseId,
+    '--dir',
+    'migrations',
+    '--pattern',
+    'migrations/*.sql',
+  ];
 
   return {
     command: 'cf',
@@ -107,7 +114,16 @@ describe('Cloudflare cf command runner', () => {
     await expect(resultPromise).resolves.toEqual({
       ok: true,
       command: 'cf',
-      args: ['d1', 'migrations', 'list', '22222222-2222-2222-2222-222222222222', '--pattern', 'migrations/*.sql'],
+      args: [
+        'd1',
+        'migrations',
+        'list',
+        '22222222-2222-2222-2222-222222222222',
+        '--dir',
+        'migrations',
+        '--pattern',
+        'migrations/*.sql',
+      ],
       environment: 'preview',
       operation: 'list',
       exitCode: 0,
@@ -121,7 +137,16 @@ describe('Cloudflare cf command runner', () => {
 
     expect(spawnImpl).toHaveBeenCalledWith(
       'cf',
-      ['d1', 'migrations', 'list', '22222222-2222-2222-2222-222222222222', '--pattern', 'migrations/*.sql'],
+      [
+        'd1',
+        'migrations',
+        'list',
+        '22222222-2222-2222-2222-222222222222',
+        '--dir',
+        'migrations',
+        '--pattern',
+        'migrations/*.sql',
+      ],
       expect.objectContaining({
         cwd: '/repo/smkc-score-app',
         env,
