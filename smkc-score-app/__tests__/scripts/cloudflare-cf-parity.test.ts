@@ -35,8 +35,9 @@ type ParityModule = {
 const { BLOCKING_REASONS, PARITY_SURFACES, VERIFIED_TOOLS, parseCfVersion, readOnlyArgs, verifyHelpOutput } =
   jest.requireActual('../../scripts/cloudflare-cf-parity.cjs') as ParityModule;
 
-// Verbatim excerpts captured from `cf v1.0.0-beta.12` on 2026-10-08. They are
-// fixtures for the pure drift check, not a claim about the current CLI.
+// These D1 excerpts remain fixtures for the pure flag-drift check. The actual
+// pinned cf version is verified by the preview parity workflow before any
+// credentialed read-only comparison runs.
 const APPLY_HELP = `
 cf d1 migrations apply <database>
 
@@ -125,8 +126,8 @@ describe('cloudflare cf parity record', () => {
     }
   });
 
-  it('parses the real cf version banner and rejects unknown text', () => {
-    expect(parseCfVersion('🍊☁️  cf · v1.0.0-beta.12\n─────────────────────────')).toBe(VERIFIED_TOOLS.cf);
+  it('parses the pinned cf version banner and rejects unknown text', () => {
+    expect(parseCfVersion('🍊☁️  cf · v1.0.0-beta.24\n─────────────────────────')).toBe(VERIFIED_TOOLS.cf);
     expect(parseCfVersion('command not found')).toBeNull();
   });
 
