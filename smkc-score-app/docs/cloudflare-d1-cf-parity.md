@@ -15,18 +15,18 @@ Nothing in this document changes production behaviour. All four surfaces below s
 
 ## Surface verdicts
 
-| Surface                    | cf equivalent                                                                      | Verdict           | Blocking reasons                                                                                     |
-| -------------------------- | ---------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql`                   | keep Wrangler     | `remote-unverified`                                                                                  |
-| `d1-migrations-apply`      | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler     | `interactive-confirm-fail-open`, `remote-unverified`                                                 |
-| `d1-export`                | unsupported in cf                                                                  | unsupported in cf | `no-cf-equivalent`                                                                                   |
-| `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>`                                            | keep Wrangler     | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
+| Surface                    | cf equivalent                                                                                       | Verdict           | Blocking reasons                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`                   | keep Wrangler     | `remote-unverified`                                                                                  |
+| `d1-migrations-apply`      | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql`                  | keep Wrangler     | `interactive-confirm-fail-open`, `remote-unverified`                                                 |
+| `d1-export`                | unsupported in cf                                                                                   | unsupported in cf | `no-cf-equivalent`                                                                                   |
+| `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>`                                                             | keep Wrangler     | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
 
 ### `d1-migrations-list`
 
 Current operational commands are `wrangler d1 migrations list DB --remote` and `wrangler d1 migrations list DB --remote --env preview`.
 
-The cf plan is `cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql`. Local verification showed the same discovery contract and cf represents the result as a JSON array of `{"Name":"<file>"}` entries, with `[]` for no pending migrations. PR #4239 made the audit accept either Wrangler's no-pending sentinel or a final cf `[]`, failing closed for unknown output.
+The cf plan is `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`. `cf v1.0.0-beta.24` requires `--dir` whenever `--pattern` is supplied. The first credentialed preview run correctly failed closed before a cf remote read because the earlier plan omitted `--dir`; the repository-owned planner and runner now pin both values. Local verification showed the same discovery contract and cf represents the result as a JSON array of `{"Name":"<file>"}` entries, with `[]` for no pending migrations. PR #4239 made the audit accept either Wrangler's no-pending sentinel or a final cf `[]`, failing closed for unknown output.
 
 The former `local-mode-hang` blocker is now mitigated by PR #4243: every future cf execution for this migration path must use the bounded repository-owned runner. It remains a historical finding and an execution requirement, not a reason to keep Wrangler by itself.
 
@@ -59,9 +59,9 @@ These strings are canonical and shared with `scripts/cloudflare-cf-parity.cjs`.
 
 ## Findings and resolved prerequisites
 
-### F1 — explicit target and glob
+### F1 — explicit target, directory, and glob
 
-`cf d1 migrations list/apply` takes a database ID directly. `scripts/cloudflare-d1-target.cjs` resolves production and preview bindings independently and rejects identical IDs. `scripts/cloudflare-d1-migration-plan.cjs` pins `migrations/*.sql` rather than depending on an implicit glob.
+`cf d1 migrations list/apply` takes a database ID directly. `scripts/cloudflare-d1-target.cjs` resolves production and preview bindings independently and rejects identical IDs. `scripts/cloudflare-d1-migration-plan.cjs` pins both `--dir migrations` and `--pattern migrations/*.sql`. This is required by `cf v1.0.0-beta.24` whenever an explicit pattern is used and avoids depending on implicit discovery defaults.
 
 ### F2 — audit output normalization
 
