@@ -10,9 +10,11 @@
 // `<command> --help` for each surface. See docs/cloudflare-d1-cf-parity.md.
 
 const VERIFIED_TOOLS = Object.freeze({
-  cf: 'v1.0.0-beta.12',
+  // Pinned by .github/workflows/d1-cf-preview-parity.yml so the beta surface
+  // cannot drift between runs without a reviewed repository change.
+  cf: 'v1.0.0-beta.24',
   // Pinned by package-lock.json; the comparison point for every surface.
-  wrangler: '4.144.0',
+  wrangler: '4.151.3',
 });
 
 // Why a surface is not switch-ready yet. Every surface that keeps Wrangler as
@@ -21,18 +23,16 @@ const VERIFIED_TOOLS = Object.freeze({
 const BLOCKING_REASONS = Object.freeze({
   'remote-unverified':
     'no credentialed remote run has compared cf against Wrangler for this surface; only offline/local evidence exists',
-  'local-mode-hang':
-    'cf local mode printed its result and then failed to exit on one run of `cf d1 migrations list --local` (killed by a timeout), so a switch needs an explicit timeout guard',
   'interactive-confirm-fail-open':
-    'cf apply answers its own "About to apply N migration(s) ... continue?" prompt with yes in a non-interactive context; `wrangler d1 migrations apply` has no prompt, so switching without a guard drops that confirmation step',
+    'cf apply confirmation semantics differ from the current Wrangler operational path, so apply needs a repository-owned authorization gate before switching',
   'no-cf-equivalent':
-    'cf v1.0.0-beta.12 has no `d1 export`/`d1 import` command, so the Wrangler operational command is the only path',
+    'cf v1.0.0-beta.24 has no `d1 export`/`d1 import` command, so the Wrangler operational command is the only path',
   'output-shape-differs':
     'the preview preflight parses `wrangler d1 execute --json` output; `cf d1 query` documents no `--json` flag and returns the D1 HTTP query API result instead',
   'no-local-verification-path':
     '`cf d1 query --local` fails closed ("This command has no local equivalent"), so this surface cannot be verified without Cloudflare credentials',
   'auth-error-text-differs':
-    'the preview preflight keys its fail-open auth/log detection on Wrangler-specific text (CLOUDFLARE_API_TOKEN / non-interactive / code 7403); cf reports a boxed APIError, so detection would stop matching',
+    'the preview preflight keys its fail-open auth/log detection on Wrangler-specific text (CLOUDFLARE_API_TOKEN / non-interactive / code 7403); cf reports a different API error shape, so detection would stop matching',
 });
 
 const PARITY_SURFACES = Object.freeze([
@@ -45,17 +45,19 @@ const PARITY_SURFACES = Object.freeze([
     requiredFlags: Object.freeze(['--dir', '--pattern', '--table']),
     absentFlags: Object.freeze([]),
     verdict: 'keep-wrangler',
-    blockingReasons: Object.freeze(['remote-unverified', 'local-mode-hang']),
+    blockingReasons: Object.freeze(['remote-unverified']),
     evidence: Object.freeze([
       'cf d1 migrations list <DATABASE_ID> --local --dir migrations --pattern "migrations/*.sql"',
       'cf d1 migrations list <DATABASE_ID> --local --dir migrations (default pattern)',
       'node scripts/d1-migration-audit.cjs (captured Wrangler/cf no-pending output)',
+      'node scripts/cloudflare-d1-remote-parity.cjs (preview-only credentialed comparison)',
     ]),
     observed: Object.freeze([
-      'the pinned pattern and the tool default both listed the same 46 files, matching `wrangler d1 migrations list DB --local` on the same directory',
+      'the pinned pattern and the tool default listed the same migration set as Wrangler in local verification',
       'output is a JSON array of {"Name":"<file>"}; the empty state prints `[]` (exit 0) where Wrangler prints "No migrations to apply!"',
-      'the production migration audit now delegates output parsing to scripts/d1-migration-audit.cjs, which accepts the exact Wrangler sentinel or a final cf empty list `[]` and fails closed otherwise',
-      'nested files such as migrations/0005_add_public_modes/migration.sql are not discovered by either tool default',
+      'the production migration audit delegates output parsing to scripts/d1-migration-audit.cjs, which accepts the exact Wrangler sentinel or a final cf empty list `[]` and fails closed otherwise',
+      'PR #4243 added a mandatory-timeout repository-owned cf runner, so the previously observed local-mode hang is now an execution requirement rather than a switch blocker',
+      'PR #4224 flattened migrations 0004/0005 and verified a clean local D1 can apply the full migration set',
     ]),
   }),
   Object.freeze({
@@ -67,12 +69,13 @@ const PARITY_SURFACES = Object.freeze([
     requiredFlags: Object.freeze(['--dir', '--pattern', '--table']),
     absentFlags: Object.freeze([]),
     verdict: 'keep-wrangler',
-    blockingReasons: Object.freeze(['interactive-confirm-fail-open', 'remote-unverified', 'local-mode-hang']),
+    blockingReasons: Object.freeze(['interactive-confirm-fail-open', 'remote-unverified']),
     evidence: Object.freeze(['cf d1 migrations apply <DATABASE_ID> --local --dir migrations --persist-to <dir>']),
     observed: Object.freeze([
-      'prints "? About to apply N migration(s) ... continue?" followed by "Using fallback value in non-interactive context: yes"',
+      'the older beta used an interactive confirmation with non-interactive fallback behaviour that differs from Wrangler; current apply semantics must be re-verified before any mutation switch',
       'applies sequentially and stops at the first failing file, leaving earlier files applied (same partial-apply shape as Wrangler)',
       'remote targeting is the default and `--local` is the opt-in; there is no `--remote` and no `--env`',
+      'future apply execution must use the bounded repository-owned runner from PR #4243',
     ]),
   }),
   Object.freeze({
@@ -87,9 +90,9 @@ const PARITY_SURFACES = Object.freeze([
     blockingReasons: Object.freeze(['no-cf-equivalent']),
     evidence: Object.freeze(['cf d1 --help', 'cf --help', 'cf d1 export --help']),
     observed: Object.freeze([
-      'cf d1 exposes create/delete/edit/get/list/migrations/query/raw/time-travel/update only',
-      '`cf d1 export --help` prints the `cf d1` command list instead of an export help page',
-      '`cf --help` lists no export, import, dump, or backup command',
+      'cf has no D1 SQL export/import surface equivalent to Wrangler d1 export',
+      '`cf d1 export --help` does not expose an export command',
+      '`cf --help` lists no D1 SQL dump/backup replacement',
     ]),
   }),
   Object.freeze({
@@ -113,7 +116,7 @@ const PARITY_SURFACES = Object.freeze([
       'cf schema d1 query',
     ]),
     observed: Object.freeze([
-      'the non-executing form shows the request it would send: POST /accounts/<account-id>/d1/database/<database-id>/query with body {"sql": ...}',
+      'the non-executing form shows the D1 query API request it would send',
       '`--local` fails closed: "This command has no local equivalent", exit 1',
       'neither `--remote` nor `--json` is documented for this command',
     ]),
