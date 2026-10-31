@@ -2,6 +2,8 @@
 
 Issue [#4201](https://github.com/azumag/JSMKC/issues/4201) moves Cloudflare operations to the `cf` CLI surface by surface. Operational production and preview migration commands **still run on Wrangler** until each surface has credentialed evidence and its fail-closed contract is preserved.
 
+Nothing in this document changes production behaviour. All four surfaces below still run on Wrangler.
+
 ## Current baseline
 
 - `cf v1.0.0-beta.24` is the pinned beta used by the preview parity workflow.
