@@ -44,10 +44,19 @@ migrations_dir = "migrations"
 describe('cloudflare D1 migration command planner', () => {
   const source = configWithIds('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
 
-  it('plans a production list command against the explicit production database ID', () => {
+  it('plans a production list command against the explicit production database ID and directory', () => {
     expect(planD1Migration(source, 'production', 'list')).toEqual({
       command: 'cf',
-      args: ['d1', 'migrations', 'list', '11111111-1111-1111-1111-111111111111', '--pattern', 'migrations/*.sql'],
+      args: [
+        'd1',
+        'migrations',
+        'list',
+        '11111111-1111-1111-1111-111111111111',
+        '--dir',
+        'migrations',
+        '--pattern',
+        'migrations/*.sql',
+      ],
       environment: 'production',
       operation: 'list',
       databaseId: '11111111-1111-1111-1111-111111111111',
@@ -77,11 +86,11 @@ describe('cloudflare D1 migration command planner', () => {
     });
   });
 
-  it('pins the migration discovery glob instead of relying on the cf default', () => {
+  it('pins the migration directory and discovery glob instead of relying on cf defaults', () => {
     for (const operation of ['list', 'apply'] as const) {
       const plan = planD1Migration(source, 'production', operation);
       expect(plan.pattern).toBe('migrations/*.sql');
-      expect(plan.args.slice(-2)).toEqual(['--pattern', 'migrations/*.sql']);
+      expect(plan.args.slice(-4)).toEqual(['--dir', 'migrations', '--pattern', 'migrations/*.sql']);
     }
   });
 
