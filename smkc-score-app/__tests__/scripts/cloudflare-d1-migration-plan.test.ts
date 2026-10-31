@@ -17,9 +17,14 @@ type MigrationPlanModule = {
   ) => MigrationPlan;
 };
 
+type CfParityModule = {
+  VERIFIED_TOOLS: { cf: string; wrangler: string };
+};
+
 const { parseCliOptions, planD1Migration } = jest.requireActual(
   '../../scripts/cloudflare-d1-migration-plan.cjs',
 ) as MigrationPlanModule;
+const { VERIFIED_TOOLS } = jest.requireActual('../../scripts/cloudflare-cf-parity.cjs') as CfParityModule;
 
 function configWithIds(productionId: string, previewId: string): string {
   return `
@@ -88,7 +93,7 @@ describe('cloudflare D1 migration command planner', () => {
   it('fails closed for operations the cf CLI cannot cover yet', () => {
     for (const operation of ['export', 'import']) {
       expect(() => planD1Migration(source, 'production', operation as 'list')).toThrow(
-        `operation "${operation}" has no cf equivalent in v1.0.0-beta.12; keep the Wrangler fallback described in docs/cloudflare-d1-cf-parity.md`,
+        `operation "${operation}" has no cf equivalent in ${VERIFIED_TOOLS.cf}; keep the Wrangler fallback described in docs/cloudflare-d1-cf-parity.md`,
       );
     }
   });
