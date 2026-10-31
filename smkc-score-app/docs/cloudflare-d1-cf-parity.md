@@ -13,12 +13,12 @@ Issue [#4201](https://github.com/azumag/JSMKC/issues/4201) moves Cloudflare oper
 
 ## Surface verdicts
 
-| Surface | cf equivalent | Verdict | Blocking reasons |
-| --- | --- | --- | --- |
-| `d1-migrations-list` | `cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql` | keep Wrangler | `remote-unverified` |
-| `d1-migrations-apply` | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler | `interactive-confirm-fail-open`, `remote-unverified` |
-| `d1-export` | unsupported in cf | unsupported in cf | `no-cf-equivalent` |
-| `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>` | keep Wrangler | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
+| Surface                    | cf equivalent                                                                      | Verdict           | Blocking reasons                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --pattern migrations/*.sql`                   | keep Wrangler     | `remote-unverified`                                                                                  |
+| `d1-migrations-apply`      | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler     | `interactive-confirm-fail-open`, `remote-unverified`                                                 |
+| `d1-export`                | unsupported in cf                                                                  | unsupported in cf | `no-cf-equivalent`                                                                                   |
+| `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>`                                            | keep Wrangler     | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
 
 ### `d1-migrations-list`
 
