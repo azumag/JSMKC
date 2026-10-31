@@ -124,7 +124,12 @@ const PARITY_SURFACES = Object.freeze([
 ]);
 
 function parseCfVersion(stdout) {
-  const match = /v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(String(stdout || ''));
+  // cf <= beta.12 printed a branded banner containing "v1...". Since beta.13
+  // `cf --version` prints the bare package version ("1...") to stdout. Accept
+  // both shapes and normalize them to the repository's v-prefixed record.
+  const match = /(?:^|[^0-9A-Za-z.-])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?=$|[^0-9A-Za-z.-])/.exec(
+    String(stdout || ''),
+  );
   return match ? `v${match[1]}` : null;
 }
 
