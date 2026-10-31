@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/d1-cf-preview-parity.yml"
+      - "smkc-score-app/package.json"
       - "smkc-score-app/scripts/cloudflare-cf-parity.cjs"
       - "smkc-score-app/scripts/cloudflare-cf-runner.cjs"
       - "smkc-score-app/scripts/cloudflare-d1-migration-plan.cjs"
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/d1-cf-preview-parity.yml"
+      - "smkc-score-app/package.json"
       - "smkc-score-app/scripts/cloudflare-cf-parity.cjs"
       - "smkc-score-app/scripts/cloudflare-cf-runner.cjs"
       - "smkc-score-app/scripts/cloudflare-d1-migration-plan.cjs"
@@ -95,7 +97,9 @@ jobs:
 
       - name: Compare preview pending migrations (read-only)
         working-directory: smkc-score-app
-        run: node scripts/cloudflare-d1-remote-parity.cjs
+        # npm injects the repository-local node_modules/.bin directory, so the
+        # incumbent Wrangler comparison always uses the lockfile-installed tool.
+        run: npm run cloudflare:d1-preview-parity
         env:
           CI: "true"
           NO_COLOR: "1"
