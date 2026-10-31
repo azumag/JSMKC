@@ -26,7 +26,12 @@ type RemoteParityModule = {
   compareMigrationLists: (
     wranglerNames: string[],
     cfNames: string[],
-  ) => { ok: boolean; pendingMigrations: readonly string[]; wranglerOnly: readonly string[]; cfOnly: readonly string[] };
+  ) => {
+    ok: boolean;
+    pendingMigrations: readonly string[];
+    wranglerOnly: readonly string[];
+    cfOnly: readonly string[];
+  };
   parseCfMigrationList: (stdout: string) => string[];
   parseWranglerMigrationList: (stdout: string) => string[];
   runPreviewParity: (options: {
@@ -227,9 +232,9 @@ describe('preview D1 migration-list remote parity', () => {
     const wranglerRunner = jest.fn();
     const cfRunner = jest.fn();
 
-    await expect(
-      runPreviewParity({ source: WRANGLER_SOURCE, env: {}, wranglerRunner, cfRunner }),
-    ).rejects.toThrow('CLOUDFLARE_API_TOKEN is required');
+    await expect(runPreviewParity({ source: WRANGLER_SOURCE, env: {}, wranglerRunner, cfRunner })).rejects.toThrow(
+      'CLOUDFLARE_API_TOKEN is required',
+    );
     expect(wranglerRunner).not.toHaveBeenCalled();
     expect(cfRunner).not.toHaveBeenCalled();
   });
