@@ -9,16 +9,7 @@ const SENSITIVE_ENV_KEY = /(TOKEN|SECRET|PASSWORD|PASS|KEY|AUTH|CREDENTIAL)/i;
 const DEFAULT_KILL_GRACE_MS = 1_000;
 
 function expectedArgs(plan) {
-  return [
-    'd1',
-    'migrations',
-    plan.operation,
-    plan.databaseId,
-    '--dir',
-    plan.migrationsDir,
-    '--pattern',
-    plan.pattern,
-  ];
+  return ['d1', 'migrations', plan.operation, plan.databaseId, '--dir', plan.migrationsDir, '--pattern', plan.pattern];
 }
 
 function assertNonEmptyString(value, name) {
