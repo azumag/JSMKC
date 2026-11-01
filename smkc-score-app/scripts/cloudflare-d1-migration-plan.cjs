@@ -33,10 +33,9 @@ function planD1Migration(source, environment, operation) {
   const pattern = migrationPattern(target.migrationsDir);
   const args = ['d1', 'migrations', operation, target.databaseId];
 
-  if (operation === 'apply') {
-    args.push('--dir', target.migrationsDir);
-  }
-  args.push('--pattern', pattern);
+  // cf rejects --pattern without --dir for both list and apply, so the
+  // directory is always passed explicitly.
+  args.push('--dir', target.migrationsDir, '--pattern', pattern);
 
   return Object.freeze({
     command: 'cf',
