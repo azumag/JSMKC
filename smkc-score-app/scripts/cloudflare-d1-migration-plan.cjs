@@ -31,16 +31,7 @@ function planD1Migration(source, environment, operation) {
 
   const target = resolveD1Target(source, environment);
   const pattern = migrationPattern(target.migrationsDir);
-  const args = [
-    'd1',
-    'migrations',
-    operation,
-    target.databaseId,
-    '--dir',
-    target.migrationsDir,
-    '--pattern',
-    pattern,
-  ];
+  const args = ['d1', 'migrations', operation, target.databaseId, '--dir', target.migrationsDir, '--pattern', pattern];
 
   return Object.freeze({
     command: 'cf',
