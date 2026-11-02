@@ -117,7 +117,7 @@ function formatPrismaV7TypeScriptPrerequisites(status, { json = false } = {}) {
     '',
     `Overall readiness: \`${status.ready ? 'ready' : 'not-ready'}\``,
     '',
-    'This probe is read-only. It does not install or update TypeScript, edit tsconfig.json, change Prisma packages, generate client code, or modify the #3114 audit exception.',
+    'This probe is read-only. It does not install or update TypeScript, edit tsconfig.json, change Prisma packages, generate client code, or modify the security audit gate.',
     '',
   ].join('\n');
 }
