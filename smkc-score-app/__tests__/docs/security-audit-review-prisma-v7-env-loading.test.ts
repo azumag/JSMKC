@@ -22,7 +22,7 @@ describe('Prisma 7 environment loading review evidence', () => {
 
   it('runs the environment-loading probe as advisory evidence before the summary', () => {
     const probe = steps.find((step) => step.id === 'prisma_v7_env_loading');
-    const summary = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summary = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(probe).toBeDefined();
     expect(probe?.if).toBe('always()');
@@ -32,7 +32,7 @@ describe('Prisma 7 environment loading review evidence', () => {
   });
 
   it('publishes the probe outcome without changing the compatible remediation gate', () => {
-    const summary = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summary = steps.find((step) => step.name === 'Summarize security audit review evidence');
     const gate = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(summary?.run).toContain('Prisma 7 environment loading probe');

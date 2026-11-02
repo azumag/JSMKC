@@ -109,7 +109,7 @@ jobs:
         continue-on-error: true
         run: node scripts/prisma-v7-esm-surface.cjs
 
-      - name: "Summarize #3114 review evidence"
+      - name: "Summarize security audit review evidence"
         if: always()
         env:
           REVIEW_REF: ${{ github.ref }}
@@ -149,7 +149,7 @@ jobs:
           PRISMA_V7_ESM_SURFACE_OUTCOME: ${{ steps.prisma_v7_esm_surface.outcome }}
         run: |
           {
-            echo "## #3114 security audit review"
+            echo "## Security audit review"
             echo
             echo "Review ref: \`${REVIEW_REF:-unavailable}\`"
             echo
@@ -211,7 +211,7 @@ jobs:
             echo
             echo "Prisma 7 TypeScript prerequisite evidence is advisory only and can use package-lock evidence when dependencies are not installed by this read-only review workflow."
             echo
-            echo "The review workflow is read-only and does not modify, extend, or remove the #3114 exception."
+            echo "The review workflow is read-only and does not modify dependencies, the audit gate, or repository policy."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize upstream issue and fix PR evidence
@@ -256,7 +256,7 @@ jobs:
             echo "| Fix PR updated at | \`${UPSTREAM_FIX_PR_UPDATED_AT:-unavailable}\` |"
             echo "| Fix PR URL | \`${UPSTREAM_FIX_PR_URL:-unavailable}\` |"
             echo
-            echo "This evidence is advisory only. A merged v7 fix PR does not change the compatible remediation gate, upgrade Prisma, or remove the #3114 temporary exception."
+            echo "This evidence is advisory only. A merged v7 fix PR does not change the compatible remediation gate or upgrade Prisma."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -301,16 +301,16 @@ jobs:
 
           if [ "$COMPATIBLE_UPSTREAM_STATE" = "compatible-forward-remediation-available" ]; then
             if [ "$compatible_candidate" != "none" ] && [ "$compatible_package_set_state" = "ready" ]; then
-              echo "A complete compatible stable Prisma remediation package set is available; validate it in an explicit dependency update PR before keeping #3114 active." >&2
+              echo "A complete compatible stable Prisma remediation package set is available; validate it in an explicit dependency update PR." >&2
               exit 1
             fi
 
             if [ "$compatible_candidate" = "none" ] && [ "$compatible_package_set_state" = "incomplete" ]; then
-              echo "A compatible Prisma CLI/config remediation exists, but @prisma/client selector ${compatible_client_selector:-unavailable} resolves latest ${compatible_client:-unavailable} without the CLI candidate; @prisma/adapter-d1 selector ${compatible_adapter_selector:-unavailable} resolves latest ${compatible_adapter:-unavailable}. Keep #3114 active and review again later." >&2
+              echo "A compatible Prisma CLI/config remediation exists, but @prisma/client selector ${compatible_client_selector:-unavailable} resolves latest ${compatible_client:-unavailable} without the CLI candidate; @prisma/adapter-d1 selector ${compatible_adapter_selector:-unavailable} resolves latest ${compatible_adapter:-unavailable}. The remediation package set is incomplete; review again later." >&2
               exit 0
             fi
 
-            echo "Compatible remediation evidence is unavailable or inconsistent; @prisma/client selector=${compatible_client_selector:-unavailable}, version=${compatible_client:-unavailable}; @prisma/adapter-d1 selector=${compatible_adapter_selector:-unavailable}, version=${compatible_adapter:-unavailable}. Review the package-set evidence above before changing #3114." >&2
+            echo "Compatible remediation evidence is unavailable or inconsistent; @prisma/client selector=${compatible_client_selector:-unavailable}, version=${compatible_client:-unavailable}; @prisma/adapter-d1 selector=${compatible_adapter_selector:-unavailable}, version=${compatible_adapter:-unavailable}. Review the package-set evidence above; treat inconsistent evidence as a probe failure, not a remediation signal." >&2
             exit 1
           fi
 
