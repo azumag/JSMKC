@@ -1,5 +1,7 @@
 # Security audit status GitHub Actions output safety
 
+> **履歴（撤去済み）:** `security-audit-status.js` と `security:audit:status` は #4232 で削除済み。本文は撤去前の設計記録であり、現行仕様ではない。現行 CI は `security-audit-lockfile.js` → `security-audit.js` のみを実行する。
+
 Issue #3114 の `security:audit:status` は、監査状態を `GITHUB_OUTPUT` に key/value 形式で公開します。
 
 `security-audit-status.js` は通常、repository 内の固定値・検証済み lockfile metadata・ISO timestamp だけを出力しますが、出力 writer 自体はテストや将来の workflow 変更から直接利用できます。そのため、改行を含む値や異常に長い値が writer に渡された場合でも GitHub Actions の追加 output 行として解釈されないよう、書き込み直前に全 output value を検証します。

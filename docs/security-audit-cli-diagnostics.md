@@ -7,7 +7,6 @@ The security-audit CLI entrypoints treat diagnostic text as untrusted whenever i
 Top-level failures in these entrypoints must pass through `smkc-score-app/scripts/security-audit-upstream-diagnostic.js` before being written to stderr:
 
 - `security-audit.js`
-- `security-audit-status.js`
 - `security-audit-upstream.js`
 - `security-audit-next-major.js`
 
@@ -40,7 +39,6 @@ The core audit runner also sanitizes `npm audit` stderr before forwarding it. Va
 
 This hardening does not change:
 
-- the temporary #3114 advisory exception or its deadline;
 - the pinned dependency/lockfile identity checks;
 - registry selection or remediation-candidate logic;
 - Prisma 7 readiness/evidence semantics;
