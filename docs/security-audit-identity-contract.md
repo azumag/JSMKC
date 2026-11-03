@@ -1,5 +1,7 @@
 # Security audit exception identity contract
 
+> **履歴（撤去済み）:** #3114 の期限付き例外、`security-audit-status.js`、および `security-audit-identity-alignment.test.ts` は #4232 で削除済み。この contract は現行の検証対象ではない。
+
 Issue #3114 の期限付き audit 例外では、blocking 判定を行う `smkc-score-app/scripts/security-audit.js` と、手動レビュー・GitHub Actions summary 用の証拠を生成する `security-audit-status.js` が同じ GHSA advisory ID と affected range を指している必要があります。
 
 この2つが別々に更新されると、CI が実際に許容している advisory と Job summary / step output が示す advisory が食い違い、保存された監査証拠を誤読する可能性があります。そのため `smkc-score-app/__tests__/scripts/security-audit-identity-alignment.test.ts` は、blocking helper の `ALLOWED_ADVISORY` / `ALLOWED_ADVISORY_RANGE` と status helper の `TRACKED_ADVISORY` / `TRACKED_ADVISORY_RANGE` が現在レビュー済みの同じ値を指すことを repository source に対して検証します。
