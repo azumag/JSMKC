@@ -26,7 +26,7 @@ describe('security audit review Prisma 7 readiness evidence', () => {
     const driverAdapterStep = steps.find((step) => step.id === 'prisma_v7_driver_adapter');
     const supportSurfaceStep = steps.find((step) => step.id === 'prisma_v7_support_surface');
     const esmSurfaceStep = steps.find((step) => step.id === 'prisma_v7_esm_surface');
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(nextMajorStep).toBeDefined();
     expect(nextMajorStep?.run).toContain('node scripts/security-audit-next-major.js');
@@ -60,7 +60,7 @@ describe('security audit review Prisma 7 readiness evidence', () => {
   });
 
   it('keeps Prisma 7 advisory evidence outside the compatible-range gate', () => {
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(summaryStep).toBeDefined();

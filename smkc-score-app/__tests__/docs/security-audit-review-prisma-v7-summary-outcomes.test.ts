@@ -22,7 +22,7 @@ describe('security audit review Prisma 7 advisory outcomes', () => {
 
   it('runs the TypeScript prerequisite probe as read-only advisory evidence', () => {
     const typescriptPrereqStep = steps.find((step) => step.id === 'prisma_v7_typescript_prereqs');
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(typescriptPrereqStep).toBeDefined();
     expect(typescriptPrereqStep?.if).toBe('always()');
@@ -34,7 +34,7 @@ describe('security audit review Prisma 7 advisory outcomes', () => {
 
   it('runs the removed-surface probe as read-only advisory evidence', () => {
     const removedSurfaceStep = steps.find((step) => step.id === 'prisma_v7_removed_surfaces');
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(removedSurfaceStep).toBeDefined();
     expect(removedSurfaceStep?.if).toBe('always()');
@@ -45,7 +45,7 @@ describe('security audit review Prisma 7 advisory outcomes', () => {
   });
 
   it('surfaces each existing Prisma 7 advisory probe outcome in the review summary', () => {
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(summaryStep).toBeDefined();
     expect(summaryStep?.env).toMatchObject({

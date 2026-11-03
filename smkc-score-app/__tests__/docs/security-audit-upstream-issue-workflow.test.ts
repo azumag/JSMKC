@@ -58,7 +58,7 @@ describe('Prisma upstream issue workflow evidence', () => {
 
   it('publishes issue/fix-PR outputs in the Job summary without changing the compatible gate', () => {
     const upstreamIssueStep = steps.find((step) => step.id === 'upstream_issue');
-    const mainSummaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const mainSummaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
     const upstreamSummaryStep = steps.find((step) => step.name === 'Summarize upstream issue and fix PR evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 

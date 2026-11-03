@@ -292,7 +292,7 @@ function formatPrismaV7Readiness(status, { json = false } = {}) {
     '| --- | --- |',
     checkRows,
     '',
-    'This is read-only migration evidence. It does not update dependencies, lockfile state, schema, generated client code, TypeScript configuration, or the #3114 audit exception.',
+    'This is read-only migration evidence. It does not update dependencies, lockfile state, schema, generated client code, TypeScript configuration, or the security audit gate.',
     '',
   ].join('\n');
 }

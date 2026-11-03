@@ -17,7 +17,7 @@ describe('security audit review package-set summary', () => {
   const workflowPath = path.resolve(__dirname, '..', '..', '..', '.github', 'workflows', 'security-audit-review.yml');
   const workflow = parse(fs.readFileSync(workflowPath, 'utf8')) as WorkflowConfig;
   const steps = workflow.jobs?.audit?.steps ?? [];
-  const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+  const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
   const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
   it('publishes current-compatible runtime selector and version evidence in the job summary', () => {

@@ -21,7 +21,7 @@ describe('security audit upstream evidence timestamp', () => {
     const steps = workflow.jobs?.audit?.steps ?? [];
     const upstreamStep = steps.find((step) => step.id === 'compatible_upstream');
     const standaloneTimestampStep = steps.find((step) => step.id === 'compatible_upstream_timestamp');
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(upstreamStep?.if).toBe('always()');
     expect(upstreamStep?.run).toContain('node scripts/security-audit-upstream.js');

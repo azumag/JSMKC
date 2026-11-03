@@ -18,7 +18,7 @@ describe('compatible Prisma remediation package-set workflow contract', () => {
   const steps = workflow.jobs?.audit?.steps ?? [];
 
   it('surfaces the current-compatible package-set evidence in the job summary', () => {
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(summaryStep?.run).toContain('COMPATIBLE_PUBLISHED_REMEDIATION_CANDIDATE');
     expect(summaryStep?.run).toContain('COMPATIBLE_PUBLISHED_PACKAGE_SET_STATE');

@@ -106,7 +106,7 @@ describe('manual security audit review workflow', () => {
     const compatibleStep = steps.find((step) => step.id === 'compatible_upstream');
     const nextMajorStep = steps.find((step) => step.id === 'next_major_upstream');
     const standaloneTimestampStep = steps.find((step) => step.id === 'next_major_upstream_timestamp');
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(nextMajorStep?.if).toBe('always()');
@@ -127,7 +127,7 @@ describe('manual security audit review workflow', () => {
 
   it('fails closed when the compatible upstream probe needs explicit follow-up', () => {
     const steps = auditJob.steps ?? [];
-    const summaryStep = steps.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = steps.find((step) => step.name === 'Summarize security audit review evidence');
     const gateStep = steps.find((step) => step.id === 'compatible_upstream_gate');
 
     expect(gateStep?.if).toBe('always()');
@@ -158,7 +158,7 @@ describe('manual security audit review workflow', () => {
   });
 
   it('always publishes read-only review evidence, source revision, dependency versions, and the Prisma probes', () => {
-    const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize #3114 review evidence');
+    const summaryStep = auditJob.steps?.find((step) => step.name === 'Summarize security audit review evidence');
 
     expect(summaryStep?.if).toBe('always()');
     expect(summaryStep?.env).toEqual({
@@ -233,6 +233,6 @@ describe('manual security audit review workflow', () => {
     expect(summaryStep?.run).toContain('NEXT_MAJOR_PUBLISHED_REMEDIATION_CANDIDATE');
     expect(summaryStep?.run).toContain('major upgrade requires an explicit dependency migration PR');
     expect(summaryStep?.run).toContain('$GITHUB_STEP_SUMMARY');
-    expect(summaryStep?.run).toContain('does not modify, extend, or remove the #3114 exception');
+    expect(summaryStep?.run).toContain('does not modify dependencies, the audit gate, or repository policy');
   });
 });
