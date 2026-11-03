@@ -15,12 +15,12 @@ Nothing in this document changes production behaviour. All four surfaces below s
 
 ## Surface verdicts
 
-| Surface                    | cf equivalent                                                                      | Verdict           | Blocking reasons                                                                                     |
-| -------------------------- | ---------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`  | keep Wrangler     | `remote-unverified`                                                                                  |
-| `d1-migrations-apply`      | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler     | `interactive-confirm-fail-open`, `remote-unverified`                                                 |
-| `d1-export`                | unsupported in cf                                                                  | unsupported in cf | `no-cf-equivalent`                                                                                   |
-| `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>`                                            | keep Wrangler     | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
+| Surface                    | cf equivalent                                                                      | Verdict                     | Blocking reasons                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`  | cf-ready (preview-verified) | `remote-unverified` (non-empty pending case only; see below)                                         |
+| `d1-migrations-apply`      | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler               | `interactive-confirm-fail-open`, `remote-unverified`                                                 |
+| `d1-export`                | unsupported in cf                                                                  | unsupported in cf           | `no-cf-equivalent`                                                                                   |
+| `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>`                                            | keep Wrangler               | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path`, `remote-unverified` |
 
 ### `d1-migrations-list`
 
@@ -30,7 +30,9 @@ The cf plan is `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern m
 
 The former `local-mode-hang` blocker is now mitigated by PR #4243: every future cf execution for this migration path must use the bounded repository-owned runner. It remains a historical finding and an execution requirement, not a reason to keep Wrangler by itself.
 
-Phase B adds a credentialed **preview-only read-only** comparison. Wrangler runs first against `--env preview`; only if it succeeds does cf run against the preview database ID resolved from `wrangler.toml`. Both result sets are normalized to migration names and must match exactly. A timeout, auth failure, malformed output, duplicate/invalid migration name, or set mismatch fails closed.
+Phase B runs as the push-triggered "D1 cf Preview Parity" workflow on main. Wrangler runs first against `--env preview`; only if it succeeds does cf run against the preview database ID resolved from `wrangler.toml`. Both result sets are normalized to migration names and must match exactly. A timeout, auth failure, malformed output, duplicate/invalid migration name, or set mismatch fails closed.
+
+Verified on 2026-11-01: run 41258625424 (main push at `b2a2efc0`, the PR #4247 merge) executed the credentialed preview read-only comparison end to end and the Wrangler/cf pending migration sets matched. In that run pending was **empty** (`[]` on the cf side, the `No migrations to apply!` sentinel on the Wrangler side), so remote parity is verified only for the empty-pending case. A credentialed remote run with **non-empty** pending migrations has not been exercised; the non-empty contract is covered by the shared parsers and unit tests, not by remote evidence, and is recorded here as unverified.
 
 ### `d1-migrations-apply`
 
@@ -77,15 +79,15 @@ A previous `cf d1 migrations list --local` run printed its result and failed to 
 
 ### F5 — beta surface is pinned
 
-`cf` is still beta and changes between releases. The preview parity workflow installs the exact recorded version and runs the read-only help-surface check before any credentialed D1 read. A version or flag drift therefore stops the workflow before remote comparison.
+`cf` is still beta and changes between releases. The preview parity workflow installs the exact recorded version and runs the read-only help-surface check before any credentialed D1 read. A version or flag drift therefore stops the workflow before remote comparison. The pinned beta 1.0.0-beta.24 also showed that `--pattern` is rejected unless `--dir` is set (JSMKC#4246, observed in run 41156697793); PR #4247 fixed the plan to always pass both, and the same run-41258625424 evidence confirms the fixed argument shape against the remote preview database.
 
 ## What a list switch requires
 
 The `d1-migrations-list` surface may move to cf-first only after:
 
 1. the pinned cf help surface passes;
-2. the credentialed preview read-only comparison succeeds with identical pending migration names and success exit semantics;
-3. that evidence is recorded here and `remote-unverified` is removed for list only;
+2. the credentialed preview read-only comparison succeeds with identical pending migration names and success exit semantics — **met for the empty-pending case by run 41258625424**; a non-empty pending remote comparison remains unverified;
+3. that evidence is recorded here and `remote-unverified` is narrowed to the non-empty pending case for list only;
 4. CI and operator docs continue to require the bounded runner and preview/production target resolver;
 5. the production path is reviewed separately before it is changed.
 
