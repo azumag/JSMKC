@@ -81,7 +81,8 @@
     "deploy:preview": "npm run build:cf && npm run deploy:cf:preview",
     "e2e:ta-br": "node e2e/tc-ta-battle-royale.js",
     "e2e:preview:ta-br": "node e2e/run-preview.js tc-ta-battle-royale.js",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "cloudflare:d1-preflight-parity": "node scripts/cloudflare-d1-preflight-parity.cjs"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
