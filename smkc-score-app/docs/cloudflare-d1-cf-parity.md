@@ -46,7 +46,9 @@ The current operational SQL dump remains `wrangler d1 export DB --remote --outpu
 
 ### `preview-schema-preflight`
 
-The current preflight remains `wrangler d1 execute DB --remote --env preview --json --command <SQL>`. The candidate is `cf d1 query <DATABASE_ID> --sql <SQL>`, but its result and error shapes need an adapter and a credentialed preview query before switching.
+The current preflight remains `wrangler d1 execute DB --remote --env preview --json --command <SQL>` in `smkc-score-app/e2e/lib/preview-schema-preflight.js`. The candidate is `cf d1 query <DATABASE_ID> --sql <SQL>`.
+
+Phase D adds a credentialed **preview-only read-only** comparison for this surface (`scripts/cloudflare-d1-preflight-parity.cjs`, run by the "Compare preview schema-preflight queries" step of the parity workflow). Each generated schema-check statement from `buildPreviewSchemaCheckSql` is run through Wrangler first, then through `cf d1 query` via the bounded repository-owned runner. The runner's plan validator only accepts the exact generated statements (`plan.allowedSql`), the query plan is preview-only, and the retry contract matches the incumbent: one retry on completely empty output, immediate throw on timeout, no retry on non-empty failure. Comparison requires an exact `required_column` label-set match with at least one row returned in total; parse failures and mismatches fail closed, and a cf auth/setup failure fails closed in the CI evidence run (matching the Phase B contract); a warn-and-continue path exists only as a library option for a future e2e-embedded caller, so auth failures are never reported as schema drift. Credentialed evidence is pending the first main-push run; the non-empty result rows it produces are separate evidence from the non-empty pending case still open on `d1-migrations-list`.
 
 ## Blocking reasons
 

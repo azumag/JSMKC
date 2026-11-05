@@ -2,13 +2,18 @@
 
 const { spawn } = require('node:child_process');
 
-const ALLOWED_OPERATIONS = new Set(['list', 'apply']);
+const { previewSchemaCheckQueries } = require('./cloudflare-d1-query-plan.cjs');
+
+const ALLOWED_OPERATIONS = new Set(['list', 'apply', 'query']);
 const ALLOWED_ENVIRONMENTS = new Set(['production', 'preview']);
 const D1_DATABASE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SENSITIVE_ENV_KEY = /(TOKEN|SECRET|PASSWORD|PASS|KEY|AUTH|CREDENTIAL)/i;
 const DEFAULT_KILL_GRACE_MS = 1_000;
 
 function expectedArgs(plan) {
+  if (plan.operation === 'query') {
+    return ['d1', 'query', plan.databaseId, '--sql', plan.sql];
+  }
   return ['d1', 'migrations', plan.operation, plan.databaseId, '--dir', plan.migrationsDir, '--pattern', plan.pattern];
 }
 
@@ -26,7 +31,7 @@ function validateCfPlan(plan) {
     throw new Error('plan.command must be exactly "cf"');
   }
   if (!ALLOWED_OPERATIONS.has(plan.operation)) {
-    throw new Error('plan.operation must be exactly "list" or "apply"');
+    throw new Error('plan.operation must be exactly "list", "apply", or "query"');
   }
   if (!ALLOWED_ENVIRONMENTS.has(plan.environment)) {
     throw new Error('plan.environment must be exactly "production" or "preview"');
@@ -35,10 +40,38 @@ function validateCfPlan(plan) {
   if (!D1_DATABASE_ID.test(plan.databaseId)) {
     throw new Error('plan.databaseId must be a D1 UUID');
   }
-  assertNonEmptyString(plan.migrationsDir, 'plan.migrationsDir');
-  assertNonEmptyString(plan.pattern, 'plan.pattern');
-  if (plan.pattern !== `${plan.migrationsDir}/*.sql`) {
-    throw new Error('plan.pattern must exactly match <migrationsDir>/*.sql');
+
+  if (plan.operation === 'query') {
+    // The d1 query surface is read-only and preview-only (JSMKC#4240 Phase D).
+    // plan.sql must be an exact member of the caller-provided allowlist, which
+    // the plan builder fills with the generated preview schema-check
+    // statements, so arbitrary SQL can never reach the bounded runner.
+    if (plan.environment !== 'preview') {
+      throw new Error('plan.operation "query" is preview-only');
+    }
+    assertNonEmptyString(plan.sql, 'plan.sql');
+    if (
+      !Array.isArray(plan.allowedSql) ||
+      plan.allowedSql.some((entry) => typeof entry !== 'string' || entry.length === 0)
+    ) {
+      throw new Error('plan.allowedSql must be an array of non-empty strings');
+    }
+    if (!plan.allowedSql.includes(plan.sql)) {
+      throw new Error('plan.sql must be an exact member of plan.allowedSql');
+    }
+    // The caller-provided allowlist is not trusted on its own: the runner
+    // recomputes the canonical generated statement set and requires
+    // membership in both, so a forged plan cannot smuggle arbitrary SQL
+    // through the bounded runner boundary.
+    if (!previewSchemaCheckQueries().includes(plan.sql)) {
+      throw new Error('plan.sql must be an exact member of the canonical preview schema-check allowlist');
+    }
+  } else {
+    assertNonEmptyString(plan.migrationsDir, 'plan.migrationsDir');
+    assertNonEmptyString(plan.pattern, 'plan.pattern');
+    if (plan.pattern !== `${plan.migrationsDir}/*.sql`) {
+      throw new Error('plan.pattern must exactly match <migrationsDir>/*.sql');
+    }
   }
   if (!Array.isArray(plan.args) || plan.args.some((arg) => typeof arg !== 'string')) {
     throw new Error('plan.args must be an array of strings');

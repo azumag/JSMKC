@@ -7,8 +7,11 @@ on:
       - "smkc-score-app/package.json"
       - "smkc-score-app/scripts/cloudflare-cf-parity.cjs"
       - "smkc-score-app/scripts/cloudflare-cf-runner.cjs"
+      - "smkc-score-app/e2e/lib/preview-schema-preflight.js"
       - "smkc-score-app/scripts/cloudflare-d1-migration-plan.cjs"
       - "smkc-score-app/scripts/cloudflare-d1-remote-parity.cjs"
+      - "smkc-score-app/scripts/cloudflare-d1-preflight-parity.cjs"
+      - "smkc-score-app/scripts/cloudflare-d1-query-plan.cjs"
       - "smkc-score-app/scripts/cloudflare-d1-target.cjs"
       - "smkc-score-app/wrangler.toml"
       - "smkc-score-app/migrations/**"
@@ -19,8 +22,11 @@ on:
       - "smkc-score-app/package.json"
       - "smkc-score-app/scripts/cloudflare-cf-parity.cjs"
       - "smkc-score-app/scripts/cloudflare-cf-runner.cjs"
+      - "smkc-score-app/e2e/lib/preview-schema-preflight.js"
       - "smkc-score-app/scripts/cloudflare-d1-migration-plan.cjs"
       - "smkc-score-app/scripts/cloudflare-d1-remote-parity.cjs"
+      - "smkc-score-app/scripts/cloudflare-d1-preflight-parity.cjs"
+      - "smkc-score-app/scripts/cloudflare-d1-query-plan.cjs"
       - "smkc-score-app/scripts/cloudflare-d1-target.cjs"
       - "smkc-score-app/wrangler.toml"
       - "smkc-score-app/migrations/**"
@@ -100,6 +106,19 @@ jobs:
         # npm injects the repository-local node_modules/.bin directory, so the
         # incumbent Wrangler comparison always uses the lockfile-installed tool.
         run: npm run cloudflare:d1-preview-parity
+        env:
+          CI: "true"
+          NO_COLOR: "1"
+          CF_QUIET: "1"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Compare preview schema-preflight queries (read-only)
+        working-directory: smkc-score-app
+        # Same read-only contract as the migration-list comparison: Wrangler
+        # runs first, then cf d1 query for each generated schema-check
+        # statement through the bounded repository-owned runner.
+        run: npm run cloudflare:d1-preflight-parity
         env:
           CI: "true"
           NO_COLOR: "1"
