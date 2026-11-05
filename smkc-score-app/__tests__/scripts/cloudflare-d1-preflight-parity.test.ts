@@ -182,7 +182,17 @@ describe('preview D1 schema-preflight parity', () => {
     expect(cfRunner).toHaveBeenCalledTimes(1);
   });
 
-  it('warns and continues on cf auth/setup failure instead of reporting drift', async () => {
+  it('fails closed on cf auth/setup failure by default (Phase B contract)', async () => {
+    const wranglerRunner = jest.fn(async () => result({ stdout: wranglerJson([LABEL]) }));
+    const cfRunner = jest.fn(async () =>
+      result({ ok: false, exitCode: 1, stderr: '┌ APIError │ [error] 401 Unauthorized' }),
+    );
+    await expect(
+      parity.runPreviewPreflightParity({ source: WRANGLER_SOURCE, env: AUTH_ENV, wranglerRunner, cfRunner }),
+    ).rejects.toThrow(/auth\/setup/);
+  });
+
+  it('warns and continues on cf auth/setup failure only when opted in', async () => {
     const warnings: string[] = [];
     const wranglerRunner = jest.fn(async () => result({ stdout: wranglerJson([LABEL]) }));
     const cfRunner = jest.fn(async () =>
@@ -194,6 +204,7 @@ describe('preview D1 schema-preflight parity', () => {
       wranglerRunner,
       cfRunner,
       warn: (m) => warnings.push(m),
+      allowCfAuthSetupSkip: true,
     });
     expect(outcome.ok).toBe(true);
     expect(outcome.queriesSkipped).toBe(QUERY_COUNT);
