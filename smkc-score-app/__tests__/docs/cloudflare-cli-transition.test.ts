@@ -15,9 +15,19 @@ describe('Cloudflare CLI transition safety contracts', () => {
   const migrationPlanner = fs.readFileSync(path.join(appRoot, 'scripts', 'cloudflare-d1-migration-plan.cjs'), 'utf8');
 
   it('keeps D1 migration list/apply explicit for production and preview', () => {
-    expect(packageJson.scripts?.['db:migrations:list']).toBe('wrangler d1 migrations list DB --remote');
+    // Phase C (JSMKC#4240): list runs through the repository-owned cf wrapper;
+    // the former Wrangler commands remain as explicit :wrangler fallbacks.
+    expect(packageJson.scripts?.['db:migrations:list']).toBe(
+      'node scripts/cloudflare-d1-migrations.cjs list production',
+    );
+    expect(packageJson.scripts?.['db:migrations:wrapper'] ?? packageJson.scripts?.['db:migrations:list:wrangler']).toBe(
+      'wrangler d1 migrations list DB --remote',
+    );
     expect(packageJson.scripts?.['db:migrations:apply']).toBe('wrangler d1 migrations apply DB --remote');
     expect(packageJson.scripts?.['db:migrations:list:preview']).toBe(
+      'node scripts/cloudflare-d1-migrations.cjs list preview',
+    );
+    expect(packageJson.scripts?.['db:migrations:list:preview:wrangler']).toBe(
       'wrangler d1 migrations list DB --remote --env preview',
     );
     expect(packageJson.scripts?.['db:migrations:apply:preview']).toBe(
@@ -64,6 +74,8 @@ describe('Cloudflare CLI transition safety contracts', () => {
     expect(normalizedTransitionPolicy).toContain(
       'keep a documented Wrangler fallback for unsupported or unverified behavior',
     );
+    expect(normalizedTransitionPolicy).toContain('db:migrations:list:wrangler');
+    expect(normalizedTransitionPolicy).toContain('db:migrations:list:preview:wrangler');
   });
 
   it('documents the non-executing cf D1 migration planner before replacing Wrangler', () => {
@@ -94,7 +106,10 @@ describe('Cloudflare CLI transition safety contracts', () => {
     expect(normalizedTransitionPolicy).toContain('docs/cloudflare-d1-cf-parity.md');
     expect(packageJson.scripts?.['cloudflare:cf-parity']).toBe('node scripts/cloudflare-cf-parity.cjs');
     expect(parityDoc).toContain('Nothing in this document changes production behaviour');
-    expect(parityDoc).toContain('All four surfaces below still run on Wrangler');
+    expect(parityDoc).toContain('The other surfaces below still run on Wrangler');
+    // Phase C (JSMKC#4240): the list surface switched to cf-first; apply, export,
+    // and preview-schema-preflight remain on Wrangler.
+    expect(parityDoc).toContain('cf-first (preview + production)');
   });
 
   it('records the cf Worker-configuration parity surface before replacing Wrangler config', () => {

@@ -57,7 +57,9 @@ describe('D1 migration npm toolchain', () => {
     expect(pinStep?.run).toContain(`test "$(npm --version)" = "${expectedVersion}"`);
     expect(installStep?.run?.trim()).toBe('npm ci');
     expect(installStep?.env?.HUSKY).toBe('0');
-    expect(auditStep?.run).toContain('npm run db:migrations:list 2>&1');
+    // stdout-only capture: the cf wrapper writes JSON to stdout and diagnostics to stderr.
+    expect(auditStep?.run).toContain('npm run db:migrations:list');
+    expect(auditStep?.run).not.toContain('2>&1');
     expect(auditStep?.run).toContain('node scripts/d1-migration-audit.cjs');
     expect(auditStep?.run).not.toContain('grep -Fq "No migrations to apply!"');
     expect(auditStep?.run).not.toContain('--json');
