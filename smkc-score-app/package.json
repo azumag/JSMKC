@@ -69,9 +69,9 @@
     "cloudflare:cf-parity": "node scripts/cloudflare-cf-parity.cjs",
     "cloudflare:d1-preview-parity": "node scripts/cloudflare-d1-remote-parity.cjs",
     "cloudflare:config-parity": "node scripts/cloudflare-config-parity.cjs",
-    "db:migrations:list": "wrangler d1 migrations list DB --remote",
+    "db:migrations:list": "node scripts/cloudflare-d1-migrations.cjs list production",
     "db:migrations:apply": "wrangler d1 migrations apply DB --remote",
-    "db:migrations:list:preview": "wrangler d1 migrations list DB --remote --env preview",
+    "db:migrations:list:preview": "node scripts/cloudflare-d1-migrations.cjs list preview",
     "db:migrations:apply:preview": "wrangler d1 migrations apply DB --remote --env preview",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "preview:fast": "opennextjs-cloudflare dev",
@@ -82,7 +82,9 @@
     "e2e:ta-br": "node e2e/tc-ta-battle-royale.js",
     "e2e:preview:ta-br": "node e2e/run-preview.js tc-ta-battle-royale.js",
     "prepare": "husky || true",
-    "cloudflare:d1-preflight-parity": "node scripts/cloudflare-d1-preflight-parity.cjs"
+    "cloudflare:d1-preflight-parity": "node scripts/cloudflare-d1-preflight-parity.cjs",
+    "db:migrations:list:wrangler": "wrangler d1 migrations list DB --remote",
+    "db:migrations:list:preview:wrangler": "wrangler d1 migrations list DB --remote --env preview"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

@@ -19,6 +19,9 @@ on:
       - ".github/workflows/d1-migrate.yml"
   workflow_dispatch:
 
+env:
+  CF_PARITY_VERSION: 1.0.0-beta.24
+
 concurrency:
   group: d1-migrate-${{ github.ref }}
   cancel-in-progress: false
@@ -54,6 +57,12 @@ jobs:
           # Production migration validation never needs local Git hooks; keep install parity with CI.
           HUSKY: "0"
 
+      - name: Install pinned cf CLI
+        run: npm install --global --ignore-scripts --no-audit --no-fund "cf@${CF_PARITY_VERSION}"
+
+      - name: Verify cf D1 command surface
+        run: node scripts/cloudflare-cf-parity.cjs
+
       - name: List pending migrations
         run: npm run db:migrations:list
         env:
@@ -67,13 +76,15 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Confirm no migrations remain pending (audit log)
-        # Keep the operational list command on Wrangler until #4201 remote parity is verified,
-        # but parse the no-pending state through a repository-owned fail-closed boundary.
-        # The parser accepts Wrangler's exact text sentinel and cf's empty JSON list (`[]`),
-        # so this audit no longer blocks a future surface-by-surface switch to cf.
+        # The operational list command is cf-first since #4201 Phase C; the
+        # audit still parses through the repository-owned fail-closed
+        # boundary, which accepts both cf's empty JSON list (`[]`) and
+        # Wrangler's text sentinel so a Wrangler fallback stays readable.
+        # stdout only: the wrapper writes cf JSON to stdout and diagnostics
+        # to stderr, so capturing 2>&1 would pollute the parsed contract.
         run: |
           set -euo pipefail
-          output="$(npm run db:migrations:list 2>&1)"
+          output="$(npm run db:migrations:list)"
           printf '%s\n' "${output}"
           printf '%s\n' "${output}" | node scripts/d1-migration-audit.cjs
         env:

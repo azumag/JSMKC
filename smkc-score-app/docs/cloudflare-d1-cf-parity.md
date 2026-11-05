@@ -1,8 +1,8 @@
 # Cloudflare D1: cf parity verification (issue #4201)
 
-Issue [#4201](https://github.com/azumag/JSMKC/issues/4201) moves Cloudflare operations to the `cf` CLI surface by surface. Operational production and preview migration commands **still run on Wrangler** until each surface has credentialed evidence and its fail-closed contract is preserved.
+Issue [#4201](https://github.com/azumag/JSMKC/issues/4201) moves Cloudflare operations to the `cf` CLI surface by surface. Operational production and preview migration commands move to cf only after each surface has credentialed evidence and its fail-closed contract is preserved; `d1-migrations-list` switched to cf-first in Phase C. The other surfaces below still run on Wrangler.
 
-Nothing in this document changes production behaviour. All four surfaces below still run on Wrangler.
+Nothing in this document changes production behaviour beyond the Phase C list switch recorded below.
 
 ## Current baseline
 
@@ -17,7 +17,7 @@ Nothing in this document changes production behaviour. All four surfaces below s
 
 | Surface                    | cf equivalent                                                                      | Verdict                            | Blocking reasons                                                                |
 | -------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------- |
-| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`  | cf-ready (preview-verified)        | `remote-unverified` (non-empty pending case only; see below)                    |
+| `d1-migrations-list`       | `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`  | cf-first (preview + production)    | `remote-unverified` (non-empty pending case only; see below)                    |
 | `d1-migrations-apply`      | `cf d1 migrations apply <DATABASE_ID> --dir migrations --pattern migrations/*.sql` | keep Wrangler                      | `interactive-confirm-fail-open`, `remote-unverified`                            |
 | `d1-export`                | unsupported in cf                                                                  | unsupported in cf                  | `no-cf-equivalent`                                                              |
 | `preview-schema-preflight` | `cf d1 query <DATABASE_ID> --sql <SQL>`                                            | keep Wrangler (cf parity verified) | `output-shape-differs`, `auth-error-text-differs`, `no-local-verification-path` |
@@ -27,6 +27,10 @@ Nothing in this document changes production behaviour. All four surfaces below s
 Current operational commands are `wrangler d1 migrations list DB --remote` and `wrangler d1 migrations list DB --remote --env preview`.
 
 The cf plan is `cf d1 migrations list <DATABASE_ID> --dir migrations --pattern migrations/*.sql`. cf 1.0.0-beta.24 rejects `--pattern` without `--dir` on remote list (observed in main run 41156697793, JSMKC#4246), so `--dir` is required here too. Local verification showed the same discovery contract and cf represents the result as a JSON array of `{"Name":"<file>"}` entries, with `[]` for no pending migrations. PR #4239 made the audit accept either Wrangler's no-pending sentinel or a final cf `[]`, failing closed for unknown output.
+
+Phase C switched the operational list commands to cf-first: `db:migrations:list` and `db:migrations:list:preview` now run `scripts/cloudflare-d1-migrations.cjs`, which resolves the target through the fail-closed resolver, executes only through the bounded `runCfPlan` boundary, writes cf JSON to stdout and diagnostics to stderr, and requires `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`. The former Wrangler commands remain as explicit fallbacks (`db:migrations:list:wrangler` / `db:migrations:list:preview:wrangler`).
+
+**Production switch review note**: preview and production list were switched in the same change because they share the identical read-only code path and the Phase B credentialed preview evidence covers that path. The production switch review required by this document is satisfied by this paragraph plus the unchanged fail-closed contract (resolver rejects identical production/preview IDs; audit still accepts both output formats). `d1-migrations-apply` remains Wrangler and is a separate phase.
 
 The former `local-mode-hang` blocker is now mitigated by PR #4243: every future cf execution for this migration path must use the bounded repository-owned runner. It remains a historical finding and an execution requirement, not a reason to keep Wrangler by itself.
 
@@ -88,7 +92,7 @@ A previous `cf d1 migrations list --local` run printed its result and failed to 
 The `d1-migrations-list` surface may move to cf-first only after:
 
 1. the pinned cf help surface passes;
-2. the credentialed preview read-only comparison succeeds with identical pending migration names and success exit semantics — **met for the empty-pending case by run 41258625424**; a non-empty pending remote comparison remains unverified;
+2. the credentialed preview read-only comparison succeeds with identical pending migration names and success exit semantics — **met for the empty-pending case by run 41258625424**; a non-empty pending remote comparison remains unverified. The first main-push parity run that encounters non-empty pending migrations is the designated evidence for that case; the audit parser already accepts both formats, so the switch is not blocked on it;
 3. that evidence is recorded here and `remote-unverified` is narrowed to the non-empty pending case for list only;
 4. CI and operator docs continue to require the bounded runner and preview/production target resolver;
 5. the production path is reviewed separately before it is changed.

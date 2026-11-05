@@ -13,6 +13,21 @@ const { assertNoPendingMigrations, classifyNoPendingMigrations } = jest.requireA
 ) as AuditModule;
 
 describe('D1 migration audit parser', () => {
+  it('accepts cf empty JSON after npm/preamble lines (stdout-only capture)', () => {
+    expect(
+      classifyNoPendingMigrations(
+        '> db:migrations:list\n> node scripts/cloudflare-d1-migrations.cjs list production\n[]\n',
+      ),
+    ).toEqual({
+      ok: true,
+      format: 'cf-json-empty',
+    });
+  });
+
+  it('rejects cf empty JSON when it is not the last line (e.g. diagnostics merged by 2>&1)', () => {
+    expect(classifyNoPendingMigrations('[]\nsome stderr noise\n').ok).toBe(false);
+  });
+
   it('accepts the Wrangler no-pending sentinel inside npm output', () => {
     expect(
       classifyNoPendingMigrations(`
