@@ -237,6 +237,11 @@ async function runPreviewPreflightParity({
   cfRunner,
   wranglerRunner,
   warn = (message) => process.stderr.write(`cloudflare-d1-preflight-parity: ${message}\n`),
+  // CI evidence runs must fail closed on cf auth/setup failures, matching the
+  // Phase B contract. The warn-and-continue path exists only as a library
+  // option for a future e2e-embedded caller that prefers to proceed without
+  // schema evidence, mirroring the incumbent preflight's auth tolerance.
+  allowCfAuthSetupSkip = false,
 } = {}) {
   if (typeof source !== 'string') throw new Error('wrangler config source is required');
   assertCredentials(env);
@@ -254,6 +259,9 @@ async function runPreviewPreflightParity({
 
     const cfResult = await runCfWithContract({ sql, source, timeoutMs, env, cfRunner, warn });
     if (cfResult === null) {
+      if (!allowCfAuthSetupSkip) {
+        throw new Error('cf preview schema-check query failed with an auth/setup error (see warning above)');
+      }
       skippedQueries.push(sql);
       continue;
     }

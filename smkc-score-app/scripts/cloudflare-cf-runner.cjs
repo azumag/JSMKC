@@ -2,6 +2,8 @@
 
 const { spawn } = require('node:child_process');
 
+const { previewSchemaCheckQueries } = require('./cloudflare-d1-query-plan.cjs');
+
 const ALLOWED_OPERATIONS = new Set(['list', 'apply', 'query']);
 const ALLOWED_ENVIRONMENTS = new Set(['production', 'preview']);
 const D1_DATABASE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,6 +58,13 @@ function validateCfPlan(plan) {
     }
     if (!plan.allowedSql.includes(plan.sql)) {
       throw new Error('plan.sql must be an exact member of plan.allowedSql');
+    }
+    // The caller-provided allowlist is not trusted on its own: the runner
+    // recomputes the canonical generated statement set and requires
+    // membership in both, so a forged plan cannot smuggle arbitrary SQL
+    // through the bounded runner boundary.
+    if (!previewSchemaCheckQueries().includes(plan.sql)) {
+      throw new Error('plan.sql must be an exact member of the canonical preview schema-check allowlist');
     }
   } else {
     assertNonEmptyString(plan.migrationsDir, 'plan.migrationsDir');

@@ -24,6 +24,7 @@ type ParityModule = {
     cfRunner?: (plan: unknown, options: { timeoutMs: number; env: NodeJS.ProcessEnv }) => Promise<CommandResult>;
     wranglerRunner?: (options: { sql: string; timeoutMs: number; env: NodeJS.ProcessEnv }) => Promise<CommandResult>;
     warn?: (message: string) => void;
+    allowCfAuthSetupSkip?: boolean;
   }) => Promise<{
     ok: boolean;
     environment: string;
