@@ -122,6 +122,13 @@ describe('preview D1 schema-preflight parity', () => {
     expect(() => queryPlan.planD1Query(WRANGLER_SOURCE, 'production', queries[0], queries)).toThrow(/preview-only/);
   });
 
+  it('validator rejects a forged allowlist that smuggles non-canonical SQL', () => {
+    const queries = queryPlan.previewSchemaCheckQueries();
+    const plan = queryPlan.planD1Query(WRANGLER_SOURCE, 'preview', queries[0], queries) as Record<string, unknown>;
+    const forged = { ...plan, sql: 'SELECT 1', allowedSql: [...queries, 'SELECT 1'] };
+    expect(() => runner.validateCfPlan(forged)).toThrow(/canonical/);
+  });
+
   it('compares every schema-check query and collects matched labels', async () => {
     const wranglerRunner = jest.fn(async () => result({ stdout: wranglerJson([LABEL]) }));
     const cfRunner = jest.fn(async () => result({ stdout: cfJson([LABEL]) }));
